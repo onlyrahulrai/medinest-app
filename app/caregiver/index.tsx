@@ -23,6 +23,20 @@ import ScheduleTimeline, {
 } from "../../components/caregiver/ScheduleTimeline";
 import FloatingAddButton from "../../components/caregiver/FloatingAddButton";
 import { mockStats } from "../../components/caregiver/mockStats";
+import { 
+  getUserProfile, 
+  getMedicationsForUser, 
+  getDoseHistory, 
+  recordDose, 
+  addManagedPatient, 
+  checkMissedDoses,
+  getMissedDosesForCaregiver,
+  ManagedPatient, 
+  Medication, 
+  DoseHistory 
+} from "../../utils/storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useEffect } from "react";
 
 // ─── mock data ────────────────────────────────────────────────
 const FAMILY_MEMBERS: FamilyMember[] = [
@@ -145,43 +159,100 @@ const SCHEDULES: Record<
 // ─── component ────────────────────────────────────────────────
 export default function CaregiverDashboard() {
   const router = useRouter();
-  const [selectedMember, setSelectedMember] = useState("1");
+  const [selectedMember, setSelectedMember] = useState<string>("");
   const [activeTab, setActiveTab] = useState("Family");
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>(FAMILY_MEMBERS);
+  const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
+  const [missedAlerts, setMissedAlerts] = useState<Array<{ medName: string; patientName: string; time: string }>>([]);
   
   // Add Member Modal State
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberAvatar, setNewMemberAvatar] = useState("");
 
-  const handleSaveMember = () => {
+  const loadData = useCallback(async () => {
+    await checkMissedDoses(); // Update missed status first
+    const profile = await getUserProfile();
+    const patients = profile?.managedPatients || [];
+    setManagedPatients(patients);
+    
+    if (patients.length > 0 && !selectedMember) {
+      setSelectedMember(patients[0].id);
+    }
+
+    const [meds, history, alerts] = await Promise.all([
+        selectedMember ? getMedicationsForUser(selectedMember) : Promise.resolve([]),
+        getDoseHistory(),
+        getMissedDosesForCaregiver()
+    ]);
+    
+    setMedications(meds);
+    setDoseHistory(history);
+    setMissedAlerts(alerts);
+  }, [selectedMember]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const handleSaveMember = async () => {
     if (!newMemberName.trim()) {
       Alert.alert("Error", "Please enter a name for the family member");
       return;
     }
-    const newMember: FamilyMember = {
+    const newMember: ManagedPatient = {
       id: Math.random().toString(36).substr(2, 9),
       name: newMemberName.trim(),
       image: newMemberAvatar || `https://xsgames.co/randomusers/avatar.php?g=pixel&r=${Math.random()}`,
     };
-    setFamilyMembers([...familyMembers, newMember]);
+    
+    await addManagedPatient(newMember);
+    await loadData();
     setShowAddMemberModal(false);
     setNewMemberName("");
     setNewMemberAvatar("");
     Alert.alert("Success", `${newMemberName} added successfully`);
   };
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  });
-
-  const schedule = SCHEDULES[selectedMember] || {
-    morning: [],
-    afternoon: [],
-    evening: [],
+  const categorizeMedications = () => {
+    const morning: ScheduleMedication[] = [];
+    const afternoon: ScheduleMedication[] = [];
+    const evening: ScheduleMedication[] = [];
+    
+    const today = new Date().toDateString();
+    
+    medications.forEach(med => {
+        const taken = doseHistory.some(dh => 
+            dh.medicationId === med.id && 
+            new Date(dh.timestamp).toDateString() === today && 
+            dh.taken
+        );
+        
+        const scheduleMed: ScheduleMedication = {
+            id: med.id,
+            name: med.name,
+            dosage: med.dosage,
+            patientName: managedPatients.find(p => p.id === selectedMember)?.name || "Patient",
+            category: "Health",
+            status: taken ? "taken" : "pending"
+        };
+        
+        // Basic time-based categorization
+        med.times.forEach(time => {
+            const hour = parseInt(time.split(':')[0]);
+            if (hour < 12) morning.push(scheduleMed);
+            else if (hour < 17) afternoon.push(scheduleMed);
+            else evening.push(scheduleMed);
+        });
+    });
+    
+    return { morning, afternoon, evening };
   };
+
+  const schedule = categorizeMedications();
 
   const timeSlots = [
     {
@@ -204,12 +275,14 @@ export default function CaregiverDashboard() {
     },
   ];
 
-  const handleConfirm = (medId: string) => {
+  const handleConfirm = async (medId: string) => {
+    await recordDose(medId, true, new Date().toISOString(), selectedMember);
+    await loadData();
     Alert.alert("Confirmed", "Medication marked as taken.");
   };
 
   const handleEdit = (medId: string) => {
-    router.push(`/medications/edit?id=${medId}`);
+    router.push(`/medications/edit?id=${medId}&patientId=${selectedMember}`);
   };
 
   return (
@@ -258,35 +331,32 @@ export default function CaregiverDashboard() {
         {/* ── Critical Alerts ── */}
         <View style={styles.section}>
 
-          <AlertCard
-            type="missed"
-            patientName="Mary (Mom)"
-            patientImage="https://xsgames.co/randomusers/avatar.php?g=female&r=1"
-            alertText="Missed: Blood Pressure Meds"
-            timeAgo="24m ago"
-            actions={[
-              {
-                label: "Call Mary",
-                primary: true,
-                onPress: () => Alert.alert("Calling", "Calling Mary..."),
-              },
-              { label: "Logged" },
-            ]}
-          />
-          <AlertCard
-            type="refill"
-            patientName="James (Son)"
-            patientImage="https://xsgames.co/randomusers/avatar.php?g=male&r=2"
-            alertText="Inventory Low: Insulin (2 doses left)"
-            timeAgo="1h ago"
-            actions={[
-              {
-                label: "Order Refill Now",
-                primary: true,
-                onPress: () => Alert.alert("Refill", "Ordering refill..."),
-              },
-            ]}
-          />
+          {missedAlerts.length > 0 ? (
+            missedAlerts.map((alert, index) => (
+                <AlertCard
+                    key={index}
+                    type="missed"
+                    patientName={alert.patientName}
+                    alertText={`Missed: ${alert.medName}`}
+                    timeAgo={alert.time}
+                    actions={[
+                        {
+                            label: `Contact ${alert.patientName}`,
+                            primary: true,
+                            onPress: () => Alert.alert("Contact", `Reaching out to ${alert.patientName}...`),
+                        },
+                    ]}
+                />
+            ))
+          ) : (
+            <AlertCard
+                type="refill"
+                patientName="No Alerts"
+                alertText="All medications for your patients are on track."
+                timeAgo="Now"
+                actions={[]}
+            />
+          )}
         </View>
 
         {/* ── Family Members ── */}
@@ -299,19 +369,29 @@ export default function CaregiverDashboard() {
               <Text style={styles.addMemberLink}>+ Add Member</Text>
             </TouchableOpacity>
           </View>
-          <FamilyAvatarList
-            members={familyMembers}
-            selectedId={selectedMember}
-            onSelect={setSelectedMember}
-            onAddMember={() => setShowAddMemberModal(true)}
-          />
+          {managedPatients.length > 0 ? (
+            <FamilyAvatarList
+                members={managedPatients}
+                selectedId={selectedMember}
+                onSelect={setSelectedMember}
+                onAddMember={() => setShowAddMemberModal(true)}
+            />
+          ) : (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#666' }}>No family members added yet.</Text>
+            </View>
+          )}
         </View>
 
         {/* ── Today's Schedule ── */}
         <View style={styles.section}>
           <View style={[styles.sectionHeader, { paddingHorizontal: 20 }]}>
             <Text style={styles.sectionTitle}>Today's Schedule</Text>
-            <Text style={styles.dateText}>{today}</Text>
+            <Text style={styles.dateText}>{new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+            })}</Text>
           </View>
           <ScheduleTimeline
             timeSlots={timeSlots}
@@ -375,7 +455,7 @@ export default function CaregiverDashboard() {
       </Modal>
 
       {/* ── FAB ── */}
-      <FloatingAddButton onPress={() => router.push("/medications/add")} />
+      <FloatingAddButton onPress={() => router.push(`/medications/add?patientId=${selectedMember}`)} />
 
       {/* ── Bottom Navigation ── */}
       <View style={styles.bottomNav}>

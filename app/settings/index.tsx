@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         padding: 20,
-        paddingBottom: 80,
+        paddingBottom: 150,
     },
     sectionTitle: {
         fontSize: 14,

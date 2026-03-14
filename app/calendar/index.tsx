@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,39 +6,57 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  Dimensions,
+  Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  getMedications,
+  getMedicationsForUser,
   getDoseHistory,
   recordDose,
+  getUserProfile,
   Medication,
   DoseHistory,
+  ManagedPatient,
 } from "../../utils/storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { useLocalSearchParams } from "expo-router";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const { width } = Dimensions.get("window");
+const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const [patientId, setPatientId] = useState<string>((params.patientId as string) || 'self');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [medications, setMedications] = useState<Medication[]>([]);
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
+  const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadData = useCallback(async () => {
     try {
-      const [meds, history] = await Promise.all([
-        getMedications(),
+      const [meds, history, profile] = await Promise.all([
+        getMedicationsForUser(patientId),
         getDoseHistory(),
+        getUserProfile(),
       ]);
       setMedications(meds);
-      setDoseHistory(history);
+      setDoseHistory(history.filter(h => h.patientId === patientId || (patientId === 'self' && h.patientId === undefined)));
+      setManagedPatients(profile?.managedPatients || []);
+      
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
     } catch (error) {
       console.error("Error loading calendar data:", error);
     }
-  }, [selectedDate]);
+  }, [selectedDate, patientId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,12 +78,12 @@ export default function CalendarScreen() {
     const calendar: JSX.Element[] = [];
     let week: JSX.Element[] = [];
 
-    // Add empty cells for days before the first day of the month
+    // Add empty cells
     for (let i = 0; i < firstDay; i++) {
-      week.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
+        week.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
     }
 
-    // Add days of the month
+    // Add days
     for (let day = 1; day <= days; day++) {
       const date = new Date(
         selectedDate.getFullYear(),
@@ -73,9 +91,9 @@ export default function CalendarScreen() {
         day
       );
       const isToday = new Date().toDateString() === date.toDateString();
+      const isSelected = selectedDate.toDateString() === date.toDateString();
       const hasDoses = doseHistory.some(
-        (dose) =>
-          new Date(dose.timestamp).toDateString() === date.toDateString()
+        (dose) => new Date(dose.timestamp).toDateString() === date.toDateString()
       );
 
       week.push(
@@ -83,15 +101,16 @@ export default function CalendarScreen() {
           key={day}
           style={[
             styles.calendarDay,
-            isToday && styles.today,
-            hasDoses && styles.hasEvents,
+            isSelected && styles.selectedDayBox,
           ]}
           onPress={() => setSelectedDate(date)}
         >
-          <Text style={[styles.dayText, isToday && styles.todayText]}>
-            {day}
-          </Text>
-          {hasDoses && <View style={styles.eventDot} />}
+          <View style={[styles.dayInner, isSelected && styles.selectedDayInner, isToday && !isSelected && styles.todayInner]}>
+            <Text style={[styles.dayText, isSelected && styles.selectedDayText, isToday && !isSelected && styles.todayText]}>
+                {day}
+            </Text>
+          </View>
+          {hasDoses && <View style={[styles.eventDot, isSelected && styles.selectedEventDot]} />}
         </TouchableOpacity>
       );
 
@@ -114,44 +133,58 @@ export default function CalendarScreen() {
       (dose) => new Date(dose.timestamp).toDateString() === dateStr
     );
 
-    return medications.map((medication) => {
+    if (medications.length === 0) {
+        return (
+            <View style={styles.emptyContainer}>
+                <Ionicons name="medical-outline" size={48} color="#CBD5E1" />
+                <Text style={styles.emptyText}>No medications scheduled</Text>
+            </View>
+        );
+    }
+
+    return medications.map((medication, index) => {
       const taken = dayDoses.some(
         (dose) => dose.medicationId === medication.id && dose.taken
       );
 
       return (
-        <View key={medication.id} style={styles.medicationCard}>
-          <View
-            style={[
-              styles.medicationColor,
-              { backgroundColor: medication.color },
-            ]}
-          />
+        <Animated.View 
+            key={medication.id} 
+            style={[styles.medicationCard, { opacity: fadeAnim }]}
+        >
+          <View style={[styles.statusIndicator, { backgroundColor: medication.color }]} />
           <View style={styles.medicationInfo}>
             <Text style={styles.medicationName}>{medication.name}</Text>
-            <Text style={styles.medicationDosage}>{medication.dosage}</Text>
-            <Text style={styles.medicationTime}>{medication.times[0]}</Text>
+            <View style={styles.medicationSubRow}>
+                <Ionicons name="time-outline" size={14} color="#64748B" />
+                <Text style={styles.medicationTime}>{medication.times[0]}</Text>
+                <View style={styles.dotSeparator} />
+                <Text style={styles.medicationDosage}>{medication.dosage}</Text>
+            </View>
           </View>
+          
           {taken ? (
             <View style={styles.takenBadge}>
-              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={styles.takenText}>Taken</Text>
+              <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+              <Text style={styles.takenText}>Done</Text>
             </View>
           ) : (
             <TouchableOpacity
-              style={[
-                styles.takeDoseButton,
-                { backgroundColor: medication.color },
-              ]}
+              style={styles.takeDoseButton}
               onPress={async () => {
-                await recordDose(medication.id, true, new Date().toISOString());
+                await recordDose(medication.id, true, new Date().toISOString(), patientId);
                 loadData();
               }}
             >
-              <Text style={styles.takeDoseText}>Take</Text>
+              <LinearGradient 
+                colors={[medication.color || "#1a8e2d", medication.color || "#146922"]} 
+                style={styles.takeButtonGradient}
+              >
+                <Text style={styles.takeDoseText}>Take</Text>
+              </LinearGradient>
             </TouchableOpacity>
           )}
-        </View>
+        </Animated.View>
       );
     });
   };
@@ -159,82 +192,82 @@ export default function CalendarScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#1a8e2d", "#146922"]}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      />
-
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="chevron-back" size={28} color="#1a8e2d" />
+        colors={["#065F46", "#064E3B"]}
+        style={styles.headerBackground}
+      >
+        <View style={styles.topNav}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+            <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Calendar</Text>
+          <Text style={styles.navTitle}>Calendar</Text>
+          <TouchableOpacity style={styles.iconBtn}>
+            <Ionicons name="calendar-outline" size={24} color="white" />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.calendarContainer}>
-          <View style={styles.monthHeader}>
-            <TouchableOpacity
-              onPress={() =>
-                setSelectedDate(
-                  new Date(
-                    selectedDate.getFullYear(),
-                    selectedDate.getMonth() - 1,
-                    1
-                  )
-                )
-              }
-            >
-              <Ionicons name="chevron-back" size={24} color="#333" />
-            </TouchableOpacity>
-            <Text style={styles.monthText}>
-              {selectedDate.toLocaleString("default", {
-                month: "long",
-                year: "numeric",
-              })}
-            </Text>
-            <TouchableOpacity
-              onPress={() =>
-                setSelectedDate(
-                  new Date(
-                    selectedDate.getFullYear(),
-                    selectedDate.getMonth() + 1,
-                    1
-                  )
-                )
-              }
-            >
-              <Ionicons name="chevron-forward" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
+        <View style={styles.monthSelector}>
+          <TouchableOpacity
+            onPress={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))}
+            style={styles.monthArrow}
+          >
+            <Ionicons name="chevron-back" size={20} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
+          <Text style={styles.monthName}>
+            {selectedDate.toLocaleString("default", { month: "long", year: "numeric" })}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))}
+            style={styles.monthArrow}
+          >
+            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
-          <View style={styles.weekdayHeader}>
-            {WEEKDAYS.map((day) => (
-              <Text key={day} style={styles.weekdayText}>
-                {day}
-              </Text>
+      <View style={styles.mainContent}>
+        {managedPatients.length > 0 && (
+          <View style={styles.patientSelector}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.patientChip, patientId === 'self' && styles.patientChipActive]}
+                onPress={() => setPatientId('self')}
+              >
+                <Text style={[styles.patientChipText, patientId === 'self' && styles.patientChipTextActive]}>Me</Text>
+              </TouchableOpacity>
+              {managedPatients.map(patient => (
+                <TouchableOpacity
+                  key={patient.id}
+                  style={[styles.patientChip, patientId === patient.id && styles.patientChipActive]}
+                  onPress={() => setPatientId(patient.id)}
+                >
+                  <Text style={[styles.patientChipText, patientId === patient.id && styles.patientChipTextActive]}>{patient.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+        <View style={styles.calendarCard}>
+          <View style={styles.weekdayRow}>
+            {WEEKDAYS.map((day, i) => (
+              <Text key={i} style={styles.weekdayText}>{day}</Text>
             ))}
           </View>
-
-          {renderCalendar()}
+          <View>{renderCalendar()}</View>
         </View>
 
-        <View style={styles.scheduleContainer}>
-          <Text style={styles.scheduleTitle}>
-            {selectedDate.toLocaleDateString("default", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </Text>
-          <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.scheduleHeader}>
+            <Text style={styles.scheduleTitle}>Daily Schedule</Text>
+            <Text style={styles.scheduleDate}>
+                {selectedDate.toLocaleDateString("default", { weekday: 'short', month: 'short', day: 'numeric' })}
+            </Text>
+        </View>
+
+        <ScrollView 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scheduleList}
+        >
             {renderMedicationsForDate()}
-          </ScrollView>
-        </View>
+        </ScrollView>
       </View>
     </View>
   );
@@ -243,189 +276,260 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#F8FAFC",
   },
-  headerGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === "ios" ? 140 : 120,
-  },
-  content: {
-    flex: 1,
-    paddingTop: Platform.OS === "ios" ? 50 : 30,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
+  headerBackground: {
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingBottom: 80,
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    zIndex: 1,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "white",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "white",
-    marginLeft: 15,
-  },
-  calendarContainer: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    margin: 20,
-    padding: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  monthHeader: {
+  topNav: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 24,
   },
-  monthText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
+  iconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  weekdayHeader: {
+  navTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "white",
+    letterSpacing: 0.5,
+  },
+  monthSelector: {
     flexDirection: "row",
-    marginBottom: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 16,
+  },
+  monthArrow: {
+    padding: 8,
+  },
+  monthName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "white",
+  },
+  mainContent: {
+    flex: 1,
+    marginTop: -60,
+    paddingHorizontal: 20,
+  },
+  calendarCard: {
+    backgroundColor: "white",
+    borderRadius: 32,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 8,
+    marginBottom: 24,
+  },
+  weekdayRow: {
+    flexDirection: "row",
+    marginBottom: 16,
   },
   weekdayText: {
     flex: 1,
     textAlign: "center",
-    color: "#666",
-    fontWeight: "500",
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "700",
   },
   calendarWeek: {
     flexDirection: "row",
-    marginBottom: 5,
+    marginBottom: 8,
   },
   calendarDay: {
     flex: 1,
     aspectRatio: 1,
-    justifyContent: "center",
     alignItems: "center",
-    borderRadius: 8,
+    justifyContent: "center",
+    borderRadius: 12,
+  },
+  selectedDayBox: {
+    // No extra border needed for the box itself in this design, 
+    // but keeping it for potential future hover/selection effects
+  },
+  dayInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  todayInner: {
+    backgroundColor: "#ECFDF5",
+  },
+  selectedDayInner: {
+    backgroundColor: "#10B981",
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   dayText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  today: {
-    backgroundColor: "#1a8e2d15",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#334155",
   },
   todayText: {
-    color: "#1a8e2d",
-    fontWeight: "600",
+    color: "#10B981",
   },
-  hasEvents: {
-    position: "relative",
+  selectedDayText: {
+    color: "white",
   },
   eventDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#1a8e2d",
-    position: "absolute",
-    bottom: "15%",
+    backgroundColor: "#10B981",
+    marginTop: 4,
   },
-  scheduleContainer: {
-    flex: 1,
+  selectedEventDot: {
     backgroundColor: "white",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  },
+  scheduleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
   scheduleTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 15,
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1E293B",
+  },
+  scheduleDate: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  scheduleList: {
+    paddingBottom: 40,
   },
   medicationCard: {
     flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 15,
+    borderRadius: 24,
+    padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
+    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
     elevation: 2,
   },
-  medicationColor: {
-    width: 12,
+  statusIndicator: {
+    width: 4,
     height: 40,
-    borderRadius: 6,
-    marginRight: 15,
+    borderRadius: 2,
+    marginRight: 16,
   },
   medicationInfo: {
     flex: 1,
   },
   medicationName: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
+    fontWeight: "700",
+    color: "#1E293B",
     marginBottom: 4,
   },
-  medicationDosage: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 2,
+  medicationSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   medicationTime: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#64748B",
+    marginLeft: 4,
+  },
+  dotSeparator: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: "#CBD5E1",
+    marginHorizontal: 8,
+  },
+  medicationDosage: {
+    fontSize: 13,
+    color: "#64748B",
   },
   takeDoseButton: {
+    overflow: "hidden",
+    borderRadius: 14,
+  },
+  takeButtonGradient: {
     paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
   },
   takeDoseText: {
     color: "white",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 14,
   },
   takenBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#F0FDF4",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
   },
   takenText: {
-    color: "#4CAF50",
-    fontWeight: "600",
-    fontSize: 14,
+    color: "#10B981",
+    fontWeight: "700",
+    fontSize: 13,
     marginLeft: 4,
   },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    marginTop: 12,
+    color: "#94A3B8",
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  patientSelector: {
+    marginBottom: 15,
+  },
+  patientChip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "white",
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  patientChipActive: {
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+  },
+  patientChipText: {
+    color: "#666",
+    fontWeight: "600",
+  },
+  patientChipTextActive: {
+    color: "white",
+  },
 });
+

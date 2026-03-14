@@ -71,6 +71,7 @@ export async function scheduleMedicationReminder(
           data: { medicationId: medication.id },
         },
         trigger: {
+          type: 'calendar' as any,
           hour: hours,
           minute: minutes,
           repeats: true,
@@ -142,7 +143,63 @@ export async function updateMedicationReminders(
     // Schedule new reminders
     await scheduleMedicationReminder(medication);
     await scheduleRefillReminder(medication);
+    await scheduleMissedDoseAlert(medication);
   } catch (error) {
     console.error("Error updating medication reminders:", error);
   }
+}
+
+export async function scheduleMissedDoseAlert(
+  medication: Medication
+): Promise<void> {
+  if (!medication.reminderEnabled) return;
+
+  try {
+    for (const time of medication.times) {
+      const [hours, minutes] = time.split(":").map(Number);
+      
+      // Missed alert is 2 hours after the dose
+      let alertHours = hours + 2;
+      let alertMinutes = minutes;
+      
+      if (alertHours >= 24) {
+          alertHours -= 24;
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Missed Medication Alert",
+          body: `${medication.ownerId === 'self' ? 'You' : 'Patient'} may have missed taking ${medication.name}.`,
+          data: { medicationId: medication.id, type: "missed", time },
+        },
+        trigger: {
+          type: 'calendar' as any,
+          hour: alertHours,
+          minute: alertMinutes,
+          repeats: true,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Error scheduling missed dose alert:", error);
+  }
+}
+
+export async function cancelMissedDoseAlert(
+    medicationId: string,
+    time?: string
+): Promise<void> {
+    try {
+        const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+        for (const notif of scheduled) {
+            const data = notif.content.data as { medicationId?: string; type?: string; time?: string };
+            if (data?.medicationId === medicationId && data?.type === 'missed') {
+                if (!time || data.time === time) {
+                    await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error canceling missed dose alert:", error);
+    }
 }

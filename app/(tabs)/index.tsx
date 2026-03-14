@@ -20,6 +20,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import {
   getMedications,
+  getMedicationsForUser,
   Medication,
   getTodaysDoses,
   recordDose,
@@ -249,7 +250,7 @@ export default function HomeScreen() {
   const loadMedications = useCallback(async () => {
     try {
       const [allMedications, todaysDoses, profile] = await Promise.all([
-        getMedications(),
+        getMedicationsForUser('self'),
         getTodaysDoses(),
         getUserProfile()
       ]);
@@ -340,7 +341,7 @@ export default function HomeScreen() {
 
   const handleTakeDose = async (medication: Medication) => {
     try {
-      await recordDose(medication.id, true, new Date().toISOString());
+      await recordDose(medication.id, true, new Date().toISOString(), 'self', 'taken');
       await loadMedications(); // Reload data after recording dose
     } catch (error) {
       console.error("Error recording dose:", error);
@@ -620,6 +621,9 @@ export default function HomeScreen() {
                           <View style={styles.doseInfo}>
                             <Text style={[styles.premiumMedicineName, isTaken && styles.premiumTextTaken]}>
                               {medication.name}
+                              {medication.addedBy === 'caregiver' && (
+                                <Text style={styles.caregiverBadgeText}> ✨</Text>
+                              )}
                             </Text>
                             <Text style={styles.premiumDosageInfo}>
                               {medication.dosage} • {medication.times[0]}
@@ -1368,5 +1372,11 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
+  },
+  caregiverBadgeText: { 
+    fontSize: 10, 
+    color: '#1a8e2d', 
+    fontWeight: 'bold',
+    marginLeft: 4
   },
 });

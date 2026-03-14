@@ -11,7 +11,16 @@ export interface WorkoutPlan {
   lastUpdated: string;
 }
 
+export interface ManagedPatient {
+  id: string;
+  name: string;
+  image?: string;
+  phoneNumber?: string;
+  nextMedication?: string;
+}
+
 export interface UserProfile {
+  id?: string; // Unique ID for the user
   name: string;
   age: string;
   gender: string;
@@ -24,6 +33,7 @@ export interface UserProfile {
     phoneNumber: string;
     relation: string;
   }>;
+  managedPatients: ManagedPatient[]; // People this user cares for
   reminderTimes: string[];
   soundEnabled: boolean;
   vibrationEnabled: boolean;
@@ -33,8 +43,10 @@ export interface UserProfile {
 
 export interface Medication {
   id: string;
+  ownerId?: string; // userId of the patient (defaults to 'self')
   name: string;
   dosage: string;
+  frequency?: string; // e.g., 'Once daily'
   times: string[];
   startDate: string;
   duration: string;
@@ -46,13 +58,16 @@ export interface Medication {
   refillReminder: boolean;
   lastRefillDate?: string;
   imageUrl?: string;
+  addedBy?: 'patient' | 'caregiver';
 }
 
 export interface DoseHistory {
   id: string;
   medicationId: string;
+  patientId?: string; // userId of the patient
   timestamp: string;
   taken: boolean;
+  status: 'taken' | 'missed' | 'skipped';
 }
 
 export async function getMedications(): Promise<Medication[]> {
@@ -65,9 +80,15 @@ export async function getMedications(): Promise<Medication[]> {
   }
 }
 
+export async function getMedicationsForUser(userId: string = 'self'): Promise<Medication[]> {
+    const allMedications = await getMedications();
+    return allMedications.filter(med => (med.ownerId || 'self') === userId);
+}
+
 export async function addMedication(medication: Medication): Promise<void> {
   try {
     const medications = await getMedications();
+    if (!medication.ownerId) medication.ownerId = 'self';
     medications.push(medication);
     await AsyncStorage.setItem(MEDICATIONS_KEY, JSON.stringify(medications));
   } catch (error) {
@@ -134,19 +155,29 @@ export async function getTodaysDoses(): Promise<DoseHistory[]> {
 export async function recordDose(
   medicationId: string,
   taken: boolean,
-  timestamp: string
+  timestamp: string,
+  patientId: string = 'self',
+  status: 'taken' | 'missed' | 'skipped' = 'taken'
 ): Promise<void> {
   try {
     const history = await getDoseHistory();
     const newDose: DoseHistory = {
       id: Math.random().toString(36).substr(2, 9),
       medicationId,
+      patientId,
       timestamp,
       taken,
+      status
     };
 
     history.push(newDose);
     await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history));
+
+    // Cancel missed alert if taken
+    if (taken || status === 'skipped') {
+        const { cancelMissedDoseAlert } = require('./notifications');
+        cancelMissedDoseAlert(medicationId).catch(console.error);
+    }
 
     // Update medication supply if taken
     if (taken) {
@@ -177,6 +208,8 @@ export async function getUserProfile(): Promise<UserProfile | null> {
     const data = await AsyncStorage.getItem(USER_PROFILE_KEY);
     if (data) {
       const parsed: any = JSON.parse(data);
+      if (!parsed.managedPatients) parsed.managedPatients = [];
+      
       // Backwards compatibility migration
       if (parsed.emergencyContact !== undefined) {
         if (parsed.emergencyContact) {
@@ -207,3 +240,92 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
     throw error;
   }
 }
+
+export async function addManagedPatient(patient: ManagedPatient): Promise<void> {
+    const profile = await getUserProfile();
+    if (profile) {
+        if (!profile.managedPatients) profile.managedPatients = [];
+        profile.managedPatients.push(patient);
+        await saveUserProfile(profile);
+    }
+}
+
+export async function removeManagedPatient(patientId: string): Promise<void> {
+    const profile = await getUserProfile();
+    if (profile && profile.managedPatients) {
+        profile.managedPatients = profile.managedPatients.filter(p => p.id !== patientId);
+        await saveUserProfile(profile);
+    }
+}
+
+export async function removeCaregiver(caregiverId: string): Promise<void> {
+    const profile = await getUserProfile();
+    if (profile && profile.caregivers) {
+        profile.caregivers = profile.caregivers.filter(c => c.id !== caregiverId);
+        await saveUserProfile(profile);
+    }
+}
+
+export async function checkMissedDoses(): Promise<void> {
+    const medications = await getMedications();
+    const history = await getDoseHistory();
+    const now = new Date();
+    const today = now.toDateString();
+    
+    for (const med of medications) {
+        for (const time of med.times) {
+            const [h, m] = time.split(':').map(Number);
+            const scheduledTime = new Date();
+            scheduledTime.setHours(h, m, 0, 0);
+            
+            // Missed window: 2 hours after scheduled time
+            const missedDeadline = new Date(scheduledTime.getTime() + 2 * 60 * 60 * 1000);
+            
+            if (now > missedDeadline) {
+                // Check if already recorded for today
+                const alreadyRecorded = history.some(h => 
+                    h.medicationId === med.id && 
+                    new Date(h.timestamp).toDateString() === today &&
+                    (h.status === 'taken' || h.status === 'missed' || h.status === 'skipped')
+                );
+                
+                if (!alreadyRecorded) {
+                    await recordDose(med.id, false, scheduledTime.toISOString(), med.ownerId || 'self', 'missed');
+                }
+            }
+        }
+    }
+}
+
+export async function getMissedDosesForCaregiver(): Promise<Array<{ medName: string; patientName: string; time: string }>> {
+    const profile = await getUserProfile();
+    if (!profile || !profile.managedPatients) return [];
+    
+    const history = await getDoseHistory();
+    const medications = await getMedications();
+    const today = new Date().toDateString();
+    
+    const alerts: Array<{ medName: string; patientName: string; time: string }> = [];
+    
+    profile.managedPatients.forEach(patient => {
+        const missed = history.filter(h => 
+            h.patientId === patient.id && 
+            h.status === 'missed' && 
+            new Date(h.timestamp).toDateString() === today
+        );
+        
+        missed.forEach(m => {
+            const med = medications.find(med => med.id === m.medicationId);
+            if (med) {
+                alerts.push({
+                    medName: med.name,
+                    patientName: patient.name,
+                    time: new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                });
+            }
+        });
+    });
+    
+    return alerts;
+}
+

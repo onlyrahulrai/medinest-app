@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -107,11 +107,37 @@ export default function ProfileScreen() {
                                     <View style={styles.rowContent}>
                                         <View style={styles.emergencyHeader}>
                                             <Text style={styles.rowText}>{caregiver.name}</Text>
+                                            <TouchableOpacity 
+                                                onPress={() => {
+                                                    Alert.alert(
+                                                        "Remove Caregiver",
+                                                        `Are you sure you want to remove ${caregiver.name}? they will no longer be able to manage your medications.`,
+                                                        [
+                                                            { text: "Cancel", style: "cancel" },
+                                                            { 
+                                                                text: "Remove", 
+                                                                style: "destructive",
+                                                                onPress: async () => {
+                                                                    const updatedCaregivers = profile.caregivers.filter(c => c.id !== caregiver.id);
+                                                                    const updatedProfile = { ...profile, caregivers: updatedCaregivers };
+                                                                    await saveUserProfile(updatedProfile);
+                                                                    setProfile(updatedProfile);
+                                                                }
+                                                            }
+                                                        ]
+                                                    );
+                                                }}
+                                                style={styles.removeBtn}
+                                            >
+                                                <Ionicons name="trash-outline" size={18} color="#f44336" />
+                                            </TouchableOpacity>
+                                        </View>
+                                        <View style={styles.emergencyHeader}>
                                             <View style={styles.relationChip}>
                                                 <Text style={styles.relationText}>{caregiver.relation}</Text>
                                             </View>
+                                            <Text style={styles.rowSubText}>{caregiver.phoneNumber}</Text>
                                         </View>
-                                        <Text style={styles.rowSubText}>{caregiver.phoneNumber}</Text>
                                     </View>
                                 </View>
                             ))
@@ -207,7 +233,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         padding: 20,
-        paddingBottom: 100,
+        paddingBottom: 150,
     },
     avatarSection: {
         alignItems: 'center',
@@ -417,5 +443,8 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    removeBtn: {
+        padding: 4,
     }
 });

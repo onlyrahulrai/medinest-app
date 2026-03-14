@@ -13,13 +13,14 @@ import {
   Alert,
   Image,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
-import { addMedication } from "../../utils/storage";
+import { addMedication, getUserProfile, ManagedPatient, Medication } from "../../utils/storage";
+import { useCallback, useEffect } from "react";
 import {
   scheduleMedicationReminder,
   scheduleRefillReminder,
@@ -78,7 +79,24 @@ export default function AddMedicationScreen() {
     currentSupply: "",
     refillAt: "",
     imageUri: "",
+    ownerId: "self",
   });
+
+  const { patientId } = useLocalSearchParams<{ patientId: string }>();
+  const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
+  
+  useEffect(() => {
+    const loadPatients = async () => {
+      const profile = await getUserProfile();
+      setManagedPatients(profile?.managedPatients || []);
+      
+      // If patientId is provided in URL, set it as owner
+      if (patientId) {
+        setForm(prev => ({ ...prev, ownerId: patientId }));
+      }
+    };
+    loadPatients();
+  }, [patientId]);
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -164,7 +182,8 @@ export default function AddMedicationScreen() {
         startDate: form.startDate.toISOString(),
         color: randomColor,
         imageUrl: form.imageUri || undefined,
-      };
+        addedBy: (form.ownerId === "self" ? 'patient' : 'caregiver') as 'patient' | 'caregiver',
+      } as Medication;
 
       await addMedication(medicationData);
 
@@ -324,6 +343,32 @@ export default function AddMedicationScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.formContentContainer}
         >
+          {/* Patient Selection (only if caregiver has patients) */}
+          {(managedPatients.length > 0 || patientId) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Who is this for?</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.patientSelector}>
+                <TouchableOpacity 
+                  style={[styles.patientChip, form.ownerId === "self" && styles.patientChipActive]}
+                  onPress={() => setForm({ ...form, ownerId: "self" })}
+                >
+                  <Text style={[styles.patientChipText, form.ownerId === "self" && styles.patientChipTextActive]}>Me</Text>
+                </TouchableOpacity>
+                {managedPatients.map(patient => (
+                  <TouchableOpacity 
+                    key={patient.id}
+                    style={[styles.patientChip, form.ownerId === patient.id && styles.patientChipActive]}
+                    onPress={() => setForm({ ...form, ownerId: patient.id })}
+                  >
+                    <Text style={[styles.patientChipText, form.ownerId === patient.id && styles.patientChipTextActive]}>
+                      {patient.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Image Picker */}
           <View style={styles.imageSection}>
             <TouchableOpacity style={styles.imageContainer} onPress={pickImage}>
@@ -972,5 +1017,29 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: "#333",
+  },
+  patientSelector: {
+    flexDirection: "row",
+    marginBottom: 10,
+  },
+  patientChip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "white",
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  patientChipActive: {
+    backgroundColor: "#1a8e2d",
+    borderColor: "#1a8e2d",
+  },
+  patientChipText: {
+    color: "#666",
+    fontWeight: "600",
+  },
+  patientChipTextActive: {
+    color: "white",
   },
 });

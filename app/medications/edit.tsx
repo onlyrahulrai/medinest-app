@@ -15,6 +15,12 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
+import { 
+  getMedications, 
+  updateMedication, 
+  deleteMedication, 
+  Medication 
+} from "../../utils/storage";
 
 const { width } = Dimensions.get("window");
 
@@ -59,26 +65,73 @@ export default function EditMedicationScreen() {
   const params = useLocalSearchParams();
   const id = params.id as string;
 
-  const [form, setForm] = useState({
-    name: "Omega Fish Oil", // Mock default
-    dosage: "1000mg",
-    frequency: "Once daily",
-    duration: "Ongoing",
+  const [form, setForm] = useState<{
+    name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    startDate: Date;
+    times: string[];
+    notes: string;
+    reminderEnabled: boolean;
+    refillReminder: boolean;
+    currentSupply: string;
+    refillAt: string;
+    ownerId: string;
+    color: string;
+    imageUrl?: string;
+    addedBy?: 'patient' | 'caregiver';
+  }>({
+    name: "",
+    dosage: "",
+    frequency: "",
+    duration: "",
     startDate: new Date(),
-    times: ["10:00"],
-    notes: "Take with food.",
+    times: [],
+    notes: "",
     reminderEnabled: true,
-    refillReminder: true,
-    currentSupply: "30",
-    refillAt: "5",
+    refillReminder: false,
+    currentSupply: "",
+    refillAt: "",
+    ownerId: "self",
+    color: "#1a8e2d",
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedFrequency, setSelectedFrequency] = useState("Once daily");
-  const [selectedDuration, setSelectedDuration] = useState("Ongoing");
+  const [selectedFrequency, setSelectedFrequency] = useState("");
+  const [selectedDuration, setSelectedDuration] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const loadMedication = async () => {
+      const medications = await getMedications();
+      const med = medications.find(m => m.id === id);
+      if (med) {
+        setForm({
+          name: med.name,
+          dosage: med.dosage,
+          frequency: med.frequency || "",
+          duration: med.duration || "",
+          startDate: new Date(med.startDate),
+          times: med.times,
+          notes: (med as any).notes || "",
+          reminderEnabled: med.reminderEnabled,
+          refillReminder: med.refillReminder,
+          currentSupply: med.currentSupply.toString(),
+          refillAt: med.refillAt.toString(),
+          ownerId: med.ownerId || "self",
+          color: med.color,
+          imageUrl: med.imageUrl,
+          addedBy: med.addedBy,
+        });
+        setSelectedFrequency(med.frequency || "");
+        setSelectedDuration(med.duration || "");
+      }
+    };
+    if (id) loadMedication();
+  }, [id]);
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -107,13 +160,26 @@ export default function EditMedicationScreen() {
       return;
     }
     setIsSubmitting(true);
-    // Simulate save
-    setTimeout(() => {
+    try {
+      const updatedMed: Medication = {
+        id,
+        ...form,
+        currentSupply: Number(form.currentSupply),
+        totalSupply: Number(form.currentSupply), // Simple assumption for edit
+        refillAt: Number(form.refillAt),
+        startDate: form.startDate.toISOString(),
+      } as Medication;
+
+      await updateMedication(updatedMed);
       setIsSubmitting(false);
       Alert.alert("Success", "Medication updated successfully", [
         { text: "OK", onPress: () => router.back() }
       ]);
-    }, 800);
+    } catch (error) {
+      console.error("Update error:", error);
+      setIsSubmitting(false);
+      Alert.alert("Error", "Failed to update medication");
+    }
   };
 
   const handleDelete = () => {
@@ -125,9 +191,13 @@ export default function EditMedicationScreen() {
         { 
           text: "Delete", 
           style: "destructive",
-          onPress: () => {
-            // Simulate delete
-            router.back();
+          onPress: async () => {
+            try {
+              await deleteMedication(id);
+              router.back();
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete medication");
+            }
           }
         }
       ]

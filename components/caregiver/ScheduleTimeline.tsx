@@ -43,10 +43,9 @@ export default function ScheduleTimeline({
             <Text style={styles.timeValue}>{slot.time}</Text>
           </View>
 
-          {/* Timeline line */}
+          {/* Meds List */}
           {slot.medications.length > 0 ? (
             <View style={styles.medsContainer}>
-              <View style={styles.timelineLine} />
               <View style={styles.medsContent}>
                 {slot.medications.map((med) => (
                   <MedicationCard
@@ -113,14 +112,8 @@ const styles = StyleSheet.create({
     color: "#999",
   },
   medsContainer: {
-    flexDirection: "row",
-    paddingLeft: 15,
-  },
-  timelineLine: {
-    width: 2,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 1,
-    marginRight: 16,
+    paddingLeft: 4,
+    marginTop: 8,
   },
   medsContent: {
     flex: 1,
@@ -131,12 +124,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
     borderRadius: 16,
     padding: 16,
-    marginLeft: 33,
     gap: 10,
+    marginTop: 8,
   },
   emptyText: {
     fontSize: 13,
-    color: "#999",
+    color: "#666",
     flex: 1,
   },
 });

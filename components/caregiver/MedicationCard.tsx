@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 interface MedicationCardProps {
@@ -10,6 +10,7 @@ interface MedicationCardProps {
   status: "taken" | "pending" | "missed";
   onConfirm?: () => void;
   onEdit?: () => void;
+  index?: number;
 }
 
 export default function MedicationCard({
@@ -20,9 +21,30 @@ export default function MedicationCard({
   status,
   onConfirm,
   onEdit,
+  index = 0,
 }: MedicationCardProps) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [index, fadeAnim, slideAnim]);
+
   return (
-    <View style={styles.card}>
+    <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
       <View style={styles.iconContainer}>
         <Ionicons
           name="medical"
@@ -65,7 +87,7 @@ export default function MedicationCard({
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

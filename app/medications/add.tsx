@@ -11,12 +11,14 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
+import * as ImagePicker from "expo-image-picker";
 import { addMedication } from "../../utils/storage";
 import {
   scheduleMedicationReminder,
@@ -75,6 +77,7 @@ export default function AddMedicationScreen() {
     refillReminder: false,
     currentSupply: "",
     refillAt: "",
+    imageUri: "",
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -83,6 +86,24 @@ export default function AddMedicationScreen() {
   const [selectedFrequency, setSelectedFrequency] = useState("");
   const [selectedDuration, setSelectedDuration] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setForm({ ...form, imageUri: result.assets[0].uri });
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to select image");
+    }
+  };
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -142,6 +163,7 @@ export default function AddMedicationScreen() {
         refillAt: form.refillAt ? Number(form.refillAt) : 0,
         startDate: form.startDate.toISOString(),
         color: randomColor,
+        imageUrl: form.imageUri || undefined,
       };
 
       await addMedication(medicationData);
@@ -302,6 +324,20 @@ export default function AddMedicationScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.formContentContainer}
         >
+          {/* Image Picker */}
+          <View style={styles.imageSection}>
+            <TouchableOpacity style={styles.imageContainer} onPress={pickImage}>
+              {form.imageUri ? (
+                <Image source={{ uri: form.imageUri }} style={styles.medicationImage} />
+              ) : (
+                <View style={styles.imagePlaceholder}>
+                  <Ionicons name="camera-outline" size={40} color="#1a8e2d" />
+                  <Text style={styles.imagePlaceholderText}>Add Photo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
           {/* Basic Information */}
           <View style={styles.section}>
             <View style={styles.inputContainer}>
@@ -634,6 +670,39 @@ const styles = StyleSheet.create({
   },
   formContentContainer: {
     padding: 20,
+  },
+  imageSection: {
+    alignItems: "center",
+    marginBottom: 25,
+  },
+  imageContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: "hidden",
+  },
+  medicationImage: {
+    width: "100%",
+    height: "100%",
+  },
+  imagePlaceholder: {
+    alignItems: "center",
+  },
+  imagePlaceholderText: {
+    color: "#1a8e2d",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 5,
   },
   section: {
     marginBottom: 25,

@@ -14,6 +14,8 @@ export interface FamilyMember {
   name: string;
   image?: string;
   isOnline?: boolean;
+  statusText?: string;
+  nextMedication?: string;
 }
 
 interface FamilyAvatarListProps {
@@ -38,155 +40,160 @@ export default function FamilyAvatarList({
       .slice(0, 2);
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.list}
-    >
+    <View style={styles.grid}>
       {members.map((member) => {
         const isSelected = member.id === selectedId;
         return (
           <TouchableOpacity
             key={member.id}
-            style={styles.item}
+            style={[styles.card, isSelected && styles.cardSelected]}
             onPress={() => onSelect(member.id)}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
-            <View
-              style={[
-                styles.avatarContainer,
-                isSelected && styles.avatarContainerSelected,
-              ]}
-            >
-              {member.image ? (
-                <Image source={{ uri: member.image }} style={styles.avatar} />
-              ) : (
-                <View
-                  style={[
-                    styles.avatarFallback,
-                    isSelected && styles.avatarFallbackSelected,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.initials,
-                      isSelected && styles.initialsSelected,
-                    ]}
-                  >
-                    {getInitials(member.name)}
-                  </Text>
-                </View>
-              )}
-              {member.isOnline && <View style={styles.onlineDot} />}
+            <View style={styles.cardHeader}>
+              <View style={styles.avatarContainer}>
+                {member.image ? (
+                  <Image source={{ uri: member.image }} style={styles.avatar} />
+                ) : (
+                  <View style={styles.avatarFallback}>
+                    <Text style={styles.initials}>
+                      {getInitials(member.name)}
+                    </Text>
+                  </View>
+                )}
+                {member.isOnline && <View style={styles.onlineDot} />}
+              </View>
+              <View style={styles.cardInfo}>
+                <Text style={styles.name} numberOfLines={1}>{member.name}</Text>
+                <Text style={[styles.statusText, member.statusText === "Needs Attention" ? styles.statusWarning : styles.statusGood]}>
+                  {member.statusText || "On Track"}
+                </Text>
+              </View>
+              <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                {isSelected && <View style={styles.radioInner} />}
+              </View>
             </View>
-            <Text
-              style={[styles.name, isSelected && styles.nameSelected]}
-              numberOfLines={1}
-            >
-              {member.name}
-            </Text>
+            
+            {(member.nextMedication || isSelected) && (
+              <View style={styles.cardFooter}>
+                <Ionicons name="time-outline" size={14} color="#666" />
+                <Text style={styles.footerText}>Next: {member.nextMedication || "No more today"}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         );
       })}
-      {onAddMember && (
-        <TouchableOpacity
-          style={styles.item}
-          onPress={onAddMember}
-          activeOpacity={0.7}
-        >
-          <View style={styles.addContainer}>
-            <Ionicons name="add" size={24} color="#1a8e2d" />
-          </View>
-          <Text style={styles.addText}>Add</Text>
-        </TouchableOpacity>
-      )}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  list: {
+  grid: {
     paddingHorizontal: 20,
-    paddingVertical: 8,
-    gap: 16,
+    gap: 12,
   },
-  item: {
+  card: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "#f0f0f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardSelected: {
+    borderColor: "#1a8e2d",
+    backgroundColor: "#fcfdfe",
+  },
+  cardHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    width: 68,
   },
   avatarContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2.5,
-    borderColor: "transparent",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
     position: "relative",
-  },
-  avatarContainerSelected: {
-    borderColor: "#1a8e2d",
+    marginRight: 12,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   avatarFallback: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#e0e0e0",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#f0f0f0",
     justifyContent: "center",
     alignItems: "center",
-  },
-  avatarFallbackSelected: {
-    backgroundColor: "#E8F5E9",
   },
   initials: {
     fontSize: 16,
     fontWeight: "700",
     color: "#666",
   },
-  initialsSelected: {
-    color: "#1a8e2d",
-  },
   onlineDot: {
     position: "absolute",
-    bottom: 2,
-    right: 2,
+    bottom: 0,
+    right: 0,
     width: 14,
     height: 14,
     borderRadius: 7,
     backgroundColor: "#4CAF50",
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: "white",
   },
+  cardInfo: {
+    flex: 1,
+  },
   name: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#666",
-    textAlign: "center",
-  },
-  nameSelected: {
-    color: "#1a8e2d",
+    fontSize: 16,
     fontWeight: "700",
+    color: "#333",
+    marginBottom: 4,
   },
-  addContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  statusText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  statusGood: {
+    color: "#1a8e2d",
+  },
+  statusWarning: {
+    color: "#E91E63",
+  },
+  radio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#ccc",
-    borderStyle: "dashed",
+    borderColor: "#e0e0e0",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 6,
   },
-  addText: {
-    fontSize: 12,
+  radioSelected: {
+    borderColor: "#1a8e2d",
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#1a8e2d",
+  },
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f5f5f5",
+  },
+  footerText: {
+    fontSize: 13,
+    color: "#666",
+    marginLeft: 6,
     fontWeight: "500",
-    color: "#1a8e2d",
   },
 });

@@ -49,11 +49,11 @@ export default function Step3Screen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <Text style={styles.title}>Contact Details</Text>
-                <Text style={styles.subtitle}>Let us know who we should contact in case of an emergency.</Text>
+                <Text style={styles.title}>Caregiver Details</Text>
+                <Text style={styles.subtitle}>Please provide the details of your primary caregiver who helps manage your medications.</Text>
 
                 <View style={styles.formSection}>
-                    <Text style={styles.sectionDivider}>Emergency Contact (Optional)</Text>
+                    <Text style={styles.sectionDivider}>Primary Caregiver (Optional)</Text>
 
                     <Text style={styles.label}>Name</Text>
                     <View style={styles.inputContainer}>

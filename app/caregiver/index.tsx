@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  Modal,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,13 +22,14 @@ import ScheduleTimeline, {
   ScheduleMedication,
 } from "../../components/caregiver/ScheduleTimeline";
 import FloatingAddButton from "../../components/caregiver/FloatingAddButton";
+import { mockStats } from "../../components/caregiver/mockStats";
 
 // ─── mock data ────────────────────────────────────────────────
 const FAMILY_MEMBERS: FamilyMember[] = [
-  { id: "1", name: "David", isOnline: true },
-  { id: "2", name: "Mary", image: "https://xsgames.co/randomusers/avatar.php?g=female&r=1" },
-  { id: "3", name: "James", image: "https://xsgames.co/randomusers/avatar.php?g=male&r=2" },
-  { id: "4", name: "Sarah", image: "https://xsgames.co/randomusers/avatar.php?g=female&r=3" },
+  { id: "1", name: "David", isOnline: true, statusText: "Needs Attention", nextMedication: "Atorvastatin (1:00 PM)" },
+  { id: "2", name: "Mary", image: "https://xsgames.co/randomusers/avatar.php?g=female&r=1", statusText: "On Track", nextMedication: "Aspirin (8:00 PM)" },
+  { id: "3", name: "James", image: "https://xsgames.co/randomusers/avatar.php?g=male&r=2", statusText: "On Track", nextMedication: "Insulin (1:00 PM)" },
+  { id: "4", name: "Sarah", image: "https://xsgames.co/randomusers/avatar.php?g=female&r=3", statusText: "All taken", nextMedication: "" },
 ];
 
 const SCHEDULES: Record<
@@ -144,6 +147,29 @@ export default function CaregiverDashboard() {
   const router = useRouter();
   const [selectedMember, setSelectedMember] = useState("1");
   const [activeTab, setActiveTab] = useState("Family");
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>(FAMILY_MEMBERS);
+  
+  // Add Member Modal State
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [newMemberAvatar, setNewMemberAvatar] = useState("");
+
+  const handleSaveMember = () => {
+    if (!newMemberName.trim()) {
+      Alert.alert("Error", "Please enter a name for the family member");
+      return;
+    }
+    const newMember: FamilyMember = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newMemberName.trim(),
+      image: newMemberAvatar || `https://xsgames.co/randomusers/avatar.php?g=pixel&r=${Math.random()}`,
+    };
+    setFamilyMembers([...familyMembers, newMember]);
+    setShowAddMemberModal(false);
+    setNewMemberName("");
+    setNewMemberAvatar("");
+    Alert.alert("Success", `${newMemberName} added successfully`);
+  };
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -189,22 +215,40 @@ export default function CaregiverDashboard() {
   return (
     <View style={styles.container}>
       {/* ── Header ── */}
-      <LinearGradient
-        colors={["#1a8e2d", "#146922"]}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      />
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.appName}>MediNest Family</Text>
-          <Text style={styles.subtitle}>Caregiver Dashboard</Text>
+        <View style={styles.headerTop}>
+          <TouchableOpacity 
+            onPress={() => router.push("/home")} 
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Text style={styles.backButtonText}>Back to My Meds</Text>
+          </TouchableOpacity>
+          <NotificationBell
+            count={2}
+            onPress={() => Alert.alert("Notifications", "You have 2 new alerts")}
+          />
         </View>
-        <NotificationBell
-          count={2}
-          onPress={() => Alert.alert("Notifications", "You have 2 new alerts")}
-        />
+        <Text style={styles.appName}>Caregiver Dashboard</Text>
+        <Text style={styles.subtitle}>Overview of your family's health</Text>
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.statsScroll}
+        style={styles.statsContainer}
+      >
+        {mockStats.map((stat, index) => (
+          <View key={index} style={styles.statCard}>
+            <View style={[styles.statIconContainer, { backgroundColor: `${stat.color}15` }]}>
+              <Ionicons name={stat.icon as any} size={20} color={stat.color} />
+            </View>
+            <Text style={styles.statValue}>{stat.value}</Text>
+            <Text style={styles.statLabel}>{stat.label}</Text>
+          </View>
+        ))}
+      </ScrollView>
 
       <ScrollView
         style={styles.scrollView}
@@ -213,12 +257,6 @@ export default function CaregiverDashboard() {
       >
         {/* ── Critical Alerts ── */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Critical Alerts</Text>
-            <View style={styles.urgentBadge}>
-              <Text style={styles.urgentText}>2 URGENT</Text>
-            </View>
-          </View>
 
           <AlertCard
             type="missed"
@@ -256,18 +294,16 @@ export default function CaregiverDashboard() {
           <View style={[styles.sectionHeader, { paddingHorizontal: 20 }]}>
             <Text style={styles.sectionTitle}>Family Members</Text>
             <TouchableOpacity
-              onPress={() => Alert.alert("Add Member", "Add a new family member")}
+              onPress={() => setShowAddMemberModal(true)}
             >
               <Text style={styles.addMemberLink}>+ Add Member</Text>
             </TouchableOpacity>
           </View>
           <FamilyAvatarList
-            members={FAMILY_MEMBERS}
+            members={familyMembers}
             selectedId={selectedMember}
             onSelect={setSelectedMember}
-            onAddMember={() =>
-              Alert.alert("Add Member", "Add a new family member")
-            }
+            onAddMember={() => setShowAddMemberModal(true)}
           />
         </View>
 
@@ -286,6 +322,57 @@ export default function CaregiverDashboard() {
 
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      {/* Add Member Modal */}
+      <Modal
+        visible={showAddMemberModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddMemberModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Family Member</Text>
+              <TouchableOpacity onPress={() => setShowAddMemberModal(false)} style={styles.closeModalButton}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.inputLabel}>Member Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g., Mom, Dad, John"
+                placeholderTextColor="#999"
+                value={newMemberName}
+                onChangeText={setNewMemberName}
+              />
+
+              <Text style={styles.inputLabel}>Avatar URL (Optional)</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="https://..."
+                placeholderTextColor="#999"
+                value={newMemberAvatar}
+                onChangeText={setNewMemberAvatar}
+                autoCapitalize="none"
+              />
+
+              <TouchableOpacity style={styles.saveMemberButton} onPress={handleSaveMember}>
+                <LinearGradient
+                  colors={["#1a8e2d", "#146922"]}
+                  style={styles.saveMemberGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.saveMemberText}>Add Member</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── FAB ── */}
       <FloatingAddButton onPress={() => router.push("/medications/add")} />
@@ -335,71 +422,107 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
   },
   /* Header */
-  headerGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === "ios" ? 140 : 120,
-  },
   header: {
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    backgroundColor: "white",
+  },
+  headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Platform.OS === "ios" ? 56 : 40,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    zIndex: 1,
+    marginBottom: 16,
   },
-  headerLeft: {},
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backButtonText: {
+    color: "#333",
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: "600",
+  },
   appName: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "white",
-    letterSpacing: -0.3,
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#1a1a1a",
+    letterSpacing: -0.5,
   },
   subtitle: {
+    fontSize: 15,
+    fontWeight: "400",
+    color: "#666",
+    marginTop: 4,
+  },
+  /* Stats */
+  statsContainer: {
+    flexGrow: 0,
+    backgroundColor: "white",
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  statsScroll: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  statCard: {
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    borderRadius: 16,
+    padding: 16,
+    width: 140,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#1a1a1a",
+  },
+  statLabel: {
     fontSize: 13,
+    color: "#666",
     fontWeight: "500",
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 2,
+    marginTop: 4,
   },
   /* Scroll */
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 20,
+    paddingTop: 24,
   },
   /* Sections */
   section: {
-    marginBottom: 24,
+    marginBottom: 32,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1a1a1a",
-  },
-  urgentBadge: {
-    backgroundColor: "#FFF0F4",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#FFCDD2",
-  },
-  urgentText: {
-    fontSize: 11,
+    fontSize: 20,
     fontWeight: "800",
-    color: "#E91E63",
-    letterSpacing: 0.5,
+    color: "#1a1a1a",
+    letterSpacing: -0.3,
   },
   addMemberLink: {
     fontSize: 14,
@@ -434,6 +557,69 @@ const styles = StyleSheet.create({
   },
   navTextActive: {
     color: "#1a8e2d",
+    fontWeight: "700",
+  },
+  /* Modal Styles */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    minHeight: 300,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#333",
+  },
+  closeModalButton: {
+    padding: 5,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: "#f5f5f5",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 12,
+    padding: 15,
+    fontSize: 16,
+    color: "#333",
+    marginBottom: 20,
+  },
+  saveMemberButton: {
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  saveMemberGradient: {
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  saveMemberText: {
+    color: "white",
+    fontSize: 16,
     fontWeight: "700",
   },
 });

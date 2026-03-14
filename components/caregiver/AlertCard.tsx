@@ -31,22 +31,24 @@ export default function AlertCard({
   const iconColor = isMissed ? "#EF4444" : "#F59E0B";
 
   return (
-    <View style={[styles.card, { borderLeftColor: borderColor }]}>
+    <View style={[styles.card, { backgroundColor: iconBg, borderColor: borderColor }]}>
       <View style={styles.topRow}>
         <View style={styles.patientInfo}>
           {patientImage ? (
             <Image source={{ uri: patientImage }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatarFallback, { backgroundColor: iconBg }]}>
-              <Ionicons name="person" size={18} color={iconColor} />
+            <View style={[styles.avatarFallback, { backgroundColor: "rgba(0,0,0,0.05)" }]}>
+              <Ionicons name="person" size={16} color={iconColor} />
             </View>
           )}
           <View style={styles.textContainer}>
-            <Text style={styles.patientName}>{patientName}</Text>
+            <View style={styles.headerTitleRow}>
+              <Text style={styles.patientName}>{patientName}</Text>
+              <Text style={styles.timeAgo}>{timeAgo}</Text>
+            </View>
             <Text style={[styles.alertText, { color: iconColor }]}>{alertText}</Text>
           </View>
         </View>
-        <Text style={styles.timeAgo}>{timeAgo}</Text>
       </View>
       <View style={styles.actionsRow}>
         {actions.map((action, idx) => (
@@ -55,8 +57,8 @@ export default function AlertCard({
             style={[
               styles.actionBtn,
               action.primary
-                ? { backgroundColor: borderColor }
-                : { backgroundColor: "#F1F5F9" },
+                ? { backgroundColor: iconColor }
+                : { backgroundColor: "white", borderWidth: 1, borderColor: "#e2e8f0" },
             ]}
             onPress={action.onPress}
             activeOpacity={0.7}
@@ -78,22 +80,17 @@ export default function AlertCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    marginHorizontal: 20,
   },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   patientInfo: {
     flexDirection: "row",
@@ -101,48 +98,56 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
   },
   avatarFallback: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 10,
   },
   textContainer: {
     flex: 1,
   },
+  headerTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   patientName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: "#1E293B",
-    marginBottom: 3,
+    marginBottom: 2,
+  },
+  timeAgo: {
+    fontSize: 11,
+    color: "#64748B",
   },
   alertText: {
     fontSize: 13,
     fontWeight: "600",
-  },
-  timeAgo: {
-    fontSize: 12,
-    color: "#94A3B8",
-    marginLeft: 8,
+    marginTop: 2,
   },
   actionsRow: {
     flexDirection: "row",
     gap: 8,
+    marginLeft: 46,
   },
   actionBtn: {
     paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   actionText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

@@ -1,12 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { getUserProfile, UserProfile } from '../../utils/storage';
+import { getUserProfile, UserProfile, saveUserProfile } from '../../utils/storage';
 
 export default function ProfileScreen() {
     const router = useRouter();
     const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [showAddCaregiver, setShowAddCaregiver] = useState(false);
+    const [newCaregiverName, setNewCaregiverName] = useState("");
+    const [newCaregiverPhone, setNewCaregiverPhone] = useState("");
+    const [newCaregiverRelation, setNewCaregiverRelation] = useState("");
 
     useFocusEffect(
         useCallback(() => {
@@ -17,6 +21,31 @@ export default function ProfileScreen() {
     const loadProfile = async () => {
         const data = await getUserProfile();
         setProfile(data);
+    };
+
+    if (!profile) return <View style={styles.container} />;
+
+    const handleAddCaregiver = async () => {
+        if (!newCaregiverName || !newCaregiverPhone || !profile) return;
+        
+        const newCaregiver = {
+            id: Math.random().toString(36).substr(2, 9),
+            name: newCaregiverName,
+            phoneNumber: newCaregiverPhone,
+            relation: newCaregiverRelation || "Other"
+        };
+        
+        const updatedProfile = {
+            ...profile,
+            caregivers: [...(profile.caregivers || []), newCaregiver]
+        };
+        
+        await saveUserProfile(updatedProfile);
+        setProfile(updatedProfile);
+        setShowAddCaregiver(false);
+        setNewCaregiverName("");
+        setNewCaregiverPhone("");
+        setNewCaregiverRelation("");
     };
 
     if (!profile) return <View style={styles.container} />;
@@ -52,21 +81,37 @@ export default function ProfileScreen() {
                                 <Text style={styles.rowText}>{profile.phoneNumber}</Text>
                             </View>
                         </View>
-                        {profile.emergencyContact ? (
-                            <View style={[styles.row, styles.rowBorder]}>
-                                <Ionicons name="medical-outline" size={22} color="#f44336" style={styles.icon} />
-                                <View style={styles.rowContent}>
-                                    <View style={styles.emergencyHeader}>
-                                        <Text style={styles.rowLabel}>Emergency Contact</Text>
-                                        <View style={styles.relationChip}>
-                                            <Text style={styles.relationText}>{profile.emergencyContact.relation}</Text>
-                                        </View>
+                    </View>
+                </View>
+
+                <View style={styles.section}>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionTitle}>Caregivers</Text>
+                        <TouchableOpacity onPress={() => setShowAddCaregiver(true)}>
+                            <Text style={styles.addCaregiverBtn}>+ Add</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.card}>
+                        {profile.caregivers && profile.caregivers.length > 0 ? (
+                            profile.caregivers.map((caregiver, index) => (
+                                <View key={caregiver.id || index} style={[styles.row, index > 0 && styles.rowBorder]}>
+                                    <View style={[styles.icon, { justifyContent: 'center', alignItems: 'center' }]}>
+                                        <Ionicons name="people-outline" size={22} color="#f44336" />
                                     </View>
-                                    <Text style={styles.rowText}>{profile.emergencyContact.name}</Text>
-                                    <Text style={styles.rowSubText}>{profile.emergencyContact.phoneNumber}</Text>
+                                    <View style={styles.rowContent}>
+                                        <View style={styles.emergencyHeader}>
+                                            <Text style={styles.rowText}>{caregiver.name}</Text>
+                                            <View style={styles.relationChip}>
+                                                <Text style={styles.relationText}>{caregiver.relation}</Text>
+                                            </View>
+                                        </View>
+                                        <Text style={styles.rowSubText}>{caregiver.phoneNumber}</Text>
+                                    </View>
                                 </View>
-                            </View>
-                        ) : null}
+                            ))
+                        ) : (
+                            <Text style={styles.emptyText}>No caregivers added.</Text>
+                        )}
                     </View>
                 </View>
 
@@ -96,6 +141,32 @@ export default function ProfileScreen() {
                     <Ionicons name="chevron-forward" size={20} color="#ccc" style={{ marginLeft: 'auto' }} />
                 </TouchableOpacity>
             </ScrollView>
+
+            <Modal visible={showAddCaregiver} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Add Caregiver</Text>
+                            <TouchableOpacity onPress={() => setShowAddCaregiver(false)}>
+                                <Ionicons name="close" size={24} color="#333" />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <Text style={styles.inputLabel}>Name</Text>
+                        <TextInput style={styles.modalInput} placeholder="e.g. Jane Doe" value={newCaregiverName} onChangeText={setNewCaregiverName} placeholderTextColor="#999" />
+                        
+                        <Text style={styles.inputLabel}>Phone Number</Text>
+                        <TextInput style={styles.modalInput} placeholder="e.g. 9876543210" value={newCaregiverPhone} onChangeText={setNewCaregiverPhone} keyboardType="phone-pad" placeholderTextColor="#999" />
+                        
+                        <Text style={styles.inputLabel}>Relation</Text>
+                        <TextInput style={styles.modalInput} placeholder="e.g. Spouse" value={newCaregiverRelation} onChangeText={setNewCaregiverRelation} placeholderTextColor="#999" />
+                        
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleAddCaregiver}>
+                            <Text style={styles.saveBtnText}>Save Caregiver</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -271,5 +342,70 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#333',
         marginLeft: 12,
+    },
+    // Caregiver Styles
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+        marginLeft: 4,
+        marginRight: 4,
+    },
+    addCaregiverBtn: {
+        color: '#4CAF50',
+        fontWeight: '600',
+        fontSize: 16,
+    },
+    // Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    inputLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 8,
+        marginTop: 12,
+    },
+    modalInput: {
+        backgroundColor: '#f5f5f5',
+        borderRadius: 12,
+        padding: 16,
+        fontSize: 16,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    saveBtn: {
+        backgroundColor: '#4CAF50',
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+        marginTop: 24,
+    },
+    saveBtnText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: 'bold',
     }
 });

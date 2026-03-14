@@ -35,13 +35,7 @@ export default function Layout() {
             gestureEnabled: false,
           }}
         />
-        <Stack.Screen
-          name="role-select"
-          options={{
-            headerShown: false,
-            gestureEnabled: false,
-          }}
-        />
+
         <Stack.Screen
           name="medications/add"
           options={{

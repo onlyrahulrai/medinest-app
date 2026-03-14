@@ -10,11 +10,12 @@ export interface UserProfile {
   gender: string;
   conditions: string[];
   phoneNumber: string;
-  emergencyContact: {
+  caregivers: Array<{
+    id: string;
     name: string;
     phoneNumber: string;
     relation: string;
-  } | null;
+  }>;
   reminderTimes: string[];
   soundEnabled: boolean;
   vibrationEnabled: boolean;
@@ -35,6 +36,7 @@ export interface Medication {
   refillAt: number;
   refillReminder: boolean;
   lastRefillDate?: string;
+  imageUrl?: string;
 }
 
 export interface DoseHistory {
@@ -164,7 +166,24 @@ export async function clearAllData(): Promise<void> {
 export async function getUserProfile(): Promise<UserProfile | null> {
   try {
     const data = await AsyncStorage.getItem(USER_PROFILE_KEY);
-    return data ? JSON.parse(data) : null;
+    if (data) {
+      const parsed: any = JSON.parse(data);
+      // Backwards compatibility migration
+      if (parsed.emergencyContact !== undefined) {
+        if (parsed.emergencyContact) {
+          parsed.caregivers = [{
+            id: Math.random().toString(36).substr(2, 9),
+            ...parsed.emergencyContact
+          }];
+        } else {
+          parsed.caregivers = [];
+        }
+        delete parsed.emergencyContact;
+        await saveUserProfile(parsed); // Save the migrated profile
+      }
+      return parsed as UserProfile;
+    }
+    return null;
   } catch (error) {
     console.error("Error getting user profile:", error);
     return null;

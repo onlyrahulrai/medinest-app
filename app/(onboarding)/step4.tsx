@@ -34,11 +34,12 @@ export default function Step4Screen() {
                 gender,
                 conditions,
                 phoneNumber,
-                emergencyContact: emergencyName ? {
+                caregivers: emergencyName ? [{
+                    id: Math.random().toString(36).substr(2, 9),
                     name: emergencyName,
                     phoneNumber: emergencyPhone,
                     relation: emergencyRelation
-                } : null,
+                }] : [],
                 reminderTimes: ['08:00', '20:00'], // Default reminder times, can be customized later
                 soundEnabled,
                 vibrationEnabled,

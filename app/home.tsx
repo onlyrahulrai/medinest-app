@@ -10,11 +10,14 @@ import {
   Modal,
   Alert,
   AppState,
+  Image,
+  TextInput,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle } from "react-native-svg";
+import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import {
   getMedications,
   Medication,
@@ -36,39 +39,39 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const QUICK_ACTIONS = [
   {
-    icon: "add-circle-outline" as const,
-    label: "Add\nMedication",
+    icon: "add" as const,
+    label: "Add Med",
     route: "/medications/add" as const,
-    color: "#2E7D32",
-    gradient: ["#4CAF50", "#2E7D32"] as [string, string],
+    color: "#059669", 
+    bgColor: "#D1FAE5",
   },
   {
-    icon: "calendar-outline" as const,
-    label: "Calendar\nView",
+    icon: "calendar" as const,
+    label: "Calendar",
     route: "/calendar" as const,
-    color: "#1976D2",
-    gradient: ["#2196F3", "#1976D2"] as [string, string],
+    color: "#2563EB",
+    bgColor: "#DBEAFE",
   },
   {
-    icon: "time-outline" as const,
-    label: "History\nLog",
+    icon: "time" as const,
+    label: "History",
     route: "/history" as const,
-    color: "#C2185B",
-    gradient: ["#E91E63", "#C2185B"] as [string, string],
+    color: "#DB2777",
+    bgColor: "#FCE7F3",
   },
   {
-    icon: "medical-outline" as const,
-    label: "Refill\nTracker",
+    icon: "medical" as const,
+    label: "Refills",
     route: "/refills" as const,
-    color: "#E64A19",
-    gradient: ["#FF5722", "#E64A19"] as [string, string],
+    color: "#EA580C",
+    bgColor: "#FFEDD5",
   },
   {
-    icon: "people-outline" as const,
-    label: "Caregiver\nDashboard",
+    icon: "people" as const,
+    label: "Caregiver",
     route: "/caregiver" as const,
-    color: "#0A7AFF",
-    gradient: ["#0A7AFF", "#0660CC"] as [string, string],
+    color: "#4F46E5",
+    bgColor: "#E0E7FF",
   },
 ];
 
@@ -84,8 +87,8 @@ function CircularProgress({
   completedDoses,
 }: CircularProgressProps) {
   const animatedValue = useRef(new Animated.Value(0)).current;
-  const size = width * 0.55;
-  const strokeWidth = 15;
+  const size = 110; // Increased size to fit text comfortably
+  const strokeWidth = 10;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
@@ -104,20 +107,13 @@ function CircularProgress({
 
   return (
     <View style={styles.progressContainer}>
-      <View style={styles.progressTextContainer}>
-        <Text style={styles.progressPercentage}>
-          {Math.round(progress * 100)}%
-        </Text>
-        <Text style={styles.progressDetails}>
-          {completedDoses} of {totalDoses} doses
-        </Text>
-      </View>
       <Svg width={size} height={size} style={styles.progressRing}>
+        {/* Glow Effect / Backdrop */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="rgba(255, 255, 255, 0.2)"
+          stroke="rgba(255,255,255,0.15)"
           strokeWidth={strokeWidth}
           fill="none"
         />
@@ -125,7 +121,7 @@ function CircularProgress({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="white"
+          stroke="#A7F3D0" // Soft, bright neon green for contrast
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={circumference}
@@ -134,6 +130,11 @@ function CircularProgress({
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </Svg>
+      <View style={styles.progressTextContainer}>
+        <Text style={styles.progressPercentage}>
+          {Math.round(progress * 100)}%
+        </Text>
+      </View>
     </View>
   );
 }
@@ -146,6 +147,25 @@ export default function HomeScreen() {
   const [completedDoses, setCompletedDoses] = useState(0);
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
   const [userName, setUserName] = useState<string>("User");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const nextMedFade = useRef(new Animated.Value(0)).current;
+  const nextMedSlide = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(nextMedFade, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(nextMedSlide, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [nextMedFade, nextMedSlide]);
 
   const loadMedications = useCallback(async () => {
     try {
@@ -305,190 +325,216 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#1a8e2d", "#146922"]} style={styles.header}>
-        <View style={styles.headerContent}>
+      <View style={styles.mainWrapper}>
+        <LinearGradient
+          colors={["#0F766E", "#047857"]}
+          style={styles.headerBackground}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        
+        <View style={styles.header}>
           <View style={styles.headerTop}>
-            <View style={styles.flex1}>
-              <Text style={styles.greeting}>Hello, {userName.split(' ')[0]}</Text>
-              <Text style={{ color: 'white', opacity: 0.8, fontSize: 14 }}>Daily Progress</Text>
+            <View style={styles.greetingHeader}>
+              <Text style={styles.greetingSubtitle}>Good Morning,</Text>
+              <Text style={styles.greetingName}>{userName.split(' ')[0]}</Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/profile')} style={styles.profileButton}>
               <View style={styles.avatarMini}>
                 <Text style={styles.avatarMiniText}>{userName.charAt(0).toUpperCase()}</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => setShowNotifications(true)}
-            >
-              <Ionicons name="notifications-outline" size={24} color="white" />
-              {todaysMedications.length > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationCount}>
-                    {todaysMedications.length}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
           </View>
-          <CircularProgress
-            progress={progress}
-            totalDoses={todaysMedications.length * 2}
-            completedDoses={completedDoses}
-          />
+          
+          <View style={styles.glassOverviewCard}>
+            <View style={styles.flex1}>
+              <Text style={styles.overviewTitle}>Daily Progress</Text>
+              <Text style={styles.overviewDoseCount}>
+                {completedDoses}/{todaysMedications.length * 2}
+              </Text>
+              <Text style={styles.overviewSubtitle}>doses completed</Text>
+            </View>
+            <View style={styles.glowRingContainer}>
+              <CircularProgress
+                progress={progress}
+                totalDoses={todaysMedications.length * 2}
+                completedDoses={completedDoses}
+              />
+            </View>
+          </View>
         </View>
-      </LinearGradient>
+      </View>
 
-      <View style={styles.content}>
-        {/* Next Medication Section */}
-        {todaysMedications.length > 0 && (
-          <View style={styles.nextMedSection}>
-            <Text style={styles.sectionTitle}>Next Medication</Text>
-            {nextMed ? (
-              <View style={styles.nextMedCard}>
-                <View style={styles.nextMedLeft}>
-                  <View style={[styles.nextMedIcon, { backgroundColor: `${nextMed.medication.color}15` }]}>
-                    <Ionicons name="medical" size={24} color={nextMed.medication.color} />
-                  </View>
-                  <View style={styles.nextMedInfo}>
-                    <Text style={styles.nextMedName}>{nextMed.medication.name}</Text>
-                    <Text style={styles.nextMedDosage}>{nextMed.medication.dosage}</Text>
-                    <View style={styles.nextMedTimeRow}>
-                      <Ionicons name="time-outline" size={14} color="#999" />
-                      <Text style={styles.nextMedTime}>{nextMed.time}</Text>
+        <View style={styles.content}>
+          {/* Next Medication Hero Card */}
+          {todaysMedications.length > 0 && (
+            <View style={styles.heroSection}>
+              <Animated.View style={[styles.heroCard, { opacity: nextMedFade, transform: [{ translateY: nextMedSlide }] }]}>
+                {nextMed ? (
+                  <>
+                    <View style={styles.heroCardHeader}>
+                      <View style={styles.heroCardIconContainer}>
+                        {nextMed.medication.imageUrl ? (
+                          <Image source={{ uri: nextMed.medication.imageUrl }} style={styles.medIconImage} />
+                        ) : (
+                          <Ionicons name="medical" size={26} color="#0F766E" />
+                        )}
+                      </View>
+                      <View style={styles.heroCardText}>
+                        <Text style={styles.heroNextLabel}>UPCOMING MEDICATION</Text>
+                        <Text style={styles.heroMedName}>{nextMed.medication.name}</Text>
+                        <Text style={styles.heroMedDosage}>{nextMed.medication.dosage} • {nextMed.time}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.heroCardFooter}>
+                      <View style={styles.heroCountdown}>
+                        <Ionicons name="time" size={18} color="#0F766E" />
+                        <Text style={styles.heroCountdownText}>In {formatCountdown(nextMed.minutesUntil)}</Text>
+                      </View>
+                      
+                      {!isDoseTaken(nextMed.medication.id) && (
+                        <TouchableOpacity
+                          style={styles.heroTakeBtn}
+                          onPress={() => handleTakeDose(nextMed.medication)}
+                        >
+                          <LinearGradient
+                            colors={["#0F766E", "#047857"]}
+                            style={StyleSheet.absoluteFillObject}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                          />
+                          <Text style={styles.heroTakeText}>Mark Taken</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </>
+                ) : (
+                  <View style={styles.heroAllDone}>
+                    <Ionicons name="checkmark-circle" size={48} color="#10B981" />
+                    <View style={styles.heroAllDoneTextOverlay}>
+                      <Text style={styles.heroAllDoneTitle}>All caught up!</Text>
+                      <Text style={styles.heroAllDoneSubtitle}>You have taken all medications for today.</Text>
                     </View>
                   </View>
-                </View>
-                <View style={styles.nextMedRight}>
-                  <View style={styles.countdownContainer}>
-                    <Text style={styles.countdownLabel}>In</Text>
-                    <Text style={styles.countdownValue}>{formatCountdown(nextMed.minutesUntil)}</Text>
-                  </View>
-                  {!isDoseTaken(nextMed.medication.id) && (
-                    <TouchableOpacity
-                      style={[styles.takeNowBtn, { backgroundColor: nextMed.medication.color }]}
-                      onPress={() => handleTakeDose(nextMed.medication)}
-                    >
-                      <Text style={styles.takeNowText}>Take Now</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.allDoneCard}>
-                <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
-                <View style={styles.allDoneTextContainer}>
-                  <Text style={styles.allDoneTitle}>All Done!</Text>
-                  <Text style={styles.allDoneSubtitle}>All medications taken for today</Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
+                )}
+              </Animated.View>
+            </View>
+          )}
 
         <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
+          <Text style={styles.sectionPremiumTitle}>Quick Actions</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActionsScroll}>
             {QUICK_ACTIONS.map((action) => (
               <Link href={action.route} key={action.label} asChild>
-                <TouchableOpacity style={styles.actionButton}>
-                  <LinearGradient
-                    colors={action.gradient}
-                    style={styles.actionGradient}
-                  >
-                    <View style={styles.actionContent}>
-                      <View style={styles.actionIcon}>
-                        <Ionicons name={action.icon} size={28} color="white" />
-                      </View>
-                      <Text style={styles.actionLabel}>{action.label}</Text>
-                    </View>
-                  </LinearGradient>
+                <TouchableOpacity style={styles.pillActionBtn}>
+                  <View style={[styles.pillActionIcon, { backgroundColor: action.bgColor }]}>
+                    <Ionicons name={action.icon as any} size={22} color={action.color} />
+                  </View>
+                  <Text style={styles.pillActionLabel}>{action.label}</Text>
                 </TouchableOpacity>
               </Link>
             ))}
-          </View>
+          </ScrollView>
         </View>
 
-        <View style={styles.section}>
+        {/* Today's Schedule Options */}
+        <View style={styles.scheduleSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Schedule</Text>
+            <Text style={styles.sectionPremiumTitle}>Today's Schedule</Text>
             <Link href="/calendar" asChild>
               <TouchableOpacity>
-                <Text style={styles.seeAllButton}>See All</Text>
+                <Text style={styles.seeAllButton}>History</Text>
               </TouchableOpacity>
             </Link>
           </View>
-          {todaysMedications.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="medical-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyStateText}>
-                No medications scheduled for today
-              </Text>
-              <Link href="/medications/add" asChild>
-                <TouchableOpacity style={styles.addMedicationButton}>
-                  <Text style={styles.addMedicationButtonText}>
-                    Add Medication
-                  </Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
-          ) : (
-            todaysMedications.map((medication) => {
-              const taken = isDoseTaken(medication.id);
+
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search medications..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <Ionicons name="close-circle" size={20} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {(() => {
+            const filteredMeds = todaysMedications.filter(med => 
+              med.name.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+
+            if (todaysMedications.length === 0) {
               return (
-                <View key={medication.id} style={styles.doseCard}>
-                  <View
-                    style={[
-                      styles.doseBadge,
-                      { backgroundColor: `${medication.color}15` },
-                    ]}
-                  >
-                    <Ionicons
-                      name="medical"
-                      size={24}
-                      color={medication.color}
-                    />
-                  </View>
-                  <View style={styles.doseInfo}>
-                    <View>
-                      <Text style={styles.medicineName}>{medication.name}</Text>
-                      <Text style={styles.dosageInfo}>{medication.dosage}</Text>
-                    </View>
-                    <View style={styles.doseTime}>
-                      <Ionicons name="time-outline" size={16} color="#666" />
-                      <Text style={styles.timeText}>{medication.times[0]}</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.editDoseButton}
-                    onPress={() => router.push(`/medications/edit?id=${medication.id}`)}
-                  >
-                    <Ionicons name="create-outline" size={20} color="#666" />
-                  </TouchableOpacity>
-                  {taken ? (
-                    <View style={[styles.takenBadge]}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="#4CAF50"
-                      />
-                      <Text style={styles.takenText}>Taken</Text>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={[
-                        styles.takeDoseButton,
-                        { backgroundColor: medication.color },
-                      ]}
-                      onPress={() => handleTakeDose(medication)}
-                    >
-                      <Text style={styles.takeDoseText}>Take</Text>
-                    </TouchableOpacity>
-                  )}
+                <View style={styles.emptyState}>
+                  <Ionicons name="calendar-clear-outline" size={60} color="#CBD5E1" />
+                  <Text style={styles.emptyStateTitle}>No Medications Today</Text>
+                  <Text style={styles.emptyStateSub}>Take a break! You have nothing scheduled.</Text>
                 </View>
               );
-            })
-          )}
+            }
+
+            if (filteredMeds.length === 0) {
+              return (
+                <View style={styles.emptyState}>
+                  <Ionicons name="search-outline" size={48} color="#CBD5E1" />
+                  <Text style={styles.emptyStateTitle}>
+                    No medications match "{searchQuery}"
+                  </Text>
+                </View>
+              );
+            }
+
+            return (
+              <View style={styles.timelineContainer}>
+                {filteredMeds.map((medication, index) => {
+                  const isTaken = isDoseTaken(medication.id);
+                  return (
+                    <View key={medication.id} style={styles.timelineRow}>
+                      {/* Subtly dashed vertical timeline track */}
+                      <View style={styles.timelineTrack}>
+                        <View style={[styles.timelineDot, isTaken && styles.timelineDotTaken]} />
+                        {index !== filteredMeds.length - 1 && <View style={styles.timelineLine} />}
+                      </View>
+                      
+                      {/* The Medication Info Card */}
+                      <View style={[styles.premiumDoseCard, isTaken && styles.premiumDoseCardTaken]}>
+                        <View style={styles.doseInfo}>
+                          <Text style={[styles.premiumMedicineName, isTaken && styles.premiumTextTaken]}>
+                            {medication.name}
+                          </Text>
+                          <Text style={styles.premiumDosageInfo}>
+                            {medication.dosage} • {medication.times[0]}
+                          </Text>
+                        </View>
+                        
+                        {isTaken ? (
+                          <View style={styles.takenBadge}>
+                            <Ionicons name="checkmark" size={16} color="#0F766E" />
+                            <Text style={styles.takenBadgeText}>Taken</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.premiumTakeBtn}
+                            onPress={() => handleTakeDose(medication)}
+                          >
+                            <Text style={styles.premiumTakeBtnText}>Take</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </View>
       </View>
 
@@ -535,263 +581,292 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  mainWrapper: {
+    flex: 1,
+    backgroundColor: "#F8FAFC", // Elegant light premium gray background
+  },
+  headerBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 340,
+  },
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
   },
   header: {
-    paddingTop: 50,
-    paddingBottom: 25,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  headerContent: {
-    alignItems: "center",
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingHorizontal: 20,
+    paddingBottom: 60,
   },
   headerTop: {
     flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    marginBottom: 20,
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 24,
   },
-  greeting: {
-    fontSize: 22,
-    fontWeight: "700",
+  greetingHeader: {
+    flex: 1,
+  },
+  greetingSubtitle: {
+    fontSize: 16,
+    color: "rgba(255,255,255,0.8)",
+    marginBottom: 4,
+    fontWeight: "500",
+  },
+  greetingName: {
+    fontSize: 32,
+    fontWeight: "800",
     color: "white",
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(0,0,0,0.1)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  glassOverviewCard: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+  },
+  overviewTitle: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  overviewDoseCount: {
+    color: "white",
+    fontSize: 40,
+    fontWeight: "900",
+    marginBottom: 4,
+    letterSpacing: -1,
+  },
+  overviewSubtitle: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  glowRingContainer: {
+    shadowColor: "#10B981", // Emerald glow shadow
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   content: {
     flex: 1,
-    paddingTop: 20,
+    paddingTop: 8,
   },
   quickActionsContainer: {
+    marginBottom: 32,
+  },
+  sectionPremiumTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1E293B",
+    marginBottom: 16,
     paddingHorizontal: 20,
-    marginBottom: 25,
   },
-  quickActionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 15,
+  quickActionsScroll: {
+    paddingHorizontal: 20,
+    gap: 16,
   },
-  actionButton: {
-    width: (width - 52) / 2,
-    height: 110,
-    borderRadius: 16,
-    overflow: "hidden",
+  pillActionBtn: {
+    alignItems: "center",
+    width: 72,
   },
-  actionGradient: {
-    flex: 1,
-    padding: 15,
-  },
-  actionContent: {
-    flex: 1,
-    justifyContent: "space-between",
-  },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  pillActionIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  actionLabel: {
-    fontSize: 14,
+  pillActionLabel: {
+    fontSize: 13,
     fontWeight: "600",
-    color: "white",
-    marginTop: 8,
+    color: "#475569",
+    textAlign: "center",
   },
-  section: {
+  scheduleSection: {
     paddingHorizontal: 20,
+    paddingBottom: 40,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1a1a1a",
-    marginBottom: 5,
+    marginBottom: 16, // Title already has bottom margin, but keeping flexible
   },
   seeAllButton: {
-    color: "#2E7D32",
-    fontWeight: "600",
+    color: "#0F766E",
+    fontWeight: "700",
+    fontSize: 15,
   },
-  doseCard: {
-    flexDirection: "row",
+  emptyState: {
     alignItems: "center",
+    paddingVertical: 40,
     backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    borderStyle: "dashed",
   },
-  doseBadge: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#64748B",
+    marginTop: 16,
   },
-  doseInfo: {
-    flex: 1,
-    justifyContent: "space-between",
-  },
-  medicineName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  dosageInfo: {
+  emptyStateSub: {
     fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
+    color: "#94A3B8",
+    marginTop: 8,
   },
-  doseTime: {
+  heroSection: {
+    paddingHorizontal: 20,
+    marginTop: -40, // Overlap onto the green gradient header
+    marginBottom: 24,
+    zIndex: 10,
+  },
+  heroCard: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#0F766E",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  heroCardHeader: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  timeText: {
-    marginLeft: 5,
-    color: "#666",
-    fontSize: 14,
-  },
-  takeDoseButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 15,
-    marginLeft: 10,
-  },
-  takeDoseText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  editDoseButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#f5f5f5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 6,
-    marginRight: 4,
-  },
-  nextMedSection: {
-    paddingHorizontal: 20,
     marginBottom: 20,
   },
-  nextMedCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
+  heroCardIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#F0FDF4",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  heroCardText: {
+    flex: 1,
+  },
+  heroNextLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0F766E",
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  heroMedName: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1E293B",
+    marginBottom: 4,
+  },
+  heroMedDosage: {
+    fontSize: 15,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  heroCardFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-    borderLeftWidth: 4,
-    borderLeftColor: "#1a8e2d",
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
   },
-  nextMedLeft: {
+  heroCountdown: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
   },
-  nextMedIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  heroCountdownText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F766E",
+    marginLeft: 6,
+  },
+  heroTakeBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 16,
+    overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
   },
-  nextMedInfo: {
-    flex: 1,
-  },
-  nextMedName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 2,
-  },
-  nextMedDosage: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
-  },
-  nextMedTimeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  nextMedTime: {
-    fontSize: 13,
-    color: "#999",
-  },
-  nextMedRight: {
-    alignItems: "center",
-    marginLeft: 12,
-  },
-  countdownContainer: {
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  countdownLabel: {
-    fontSize: 11,
-    color: "#999",
-    fontWeight: "500",
-  },
-  countdownValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1a8e2d",
-  },
-  takeNowBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  takeNowText: {
+  heroTakeText: {
     color: "white",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  heroAllDone: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  heroAllDoneTextOverlay: {
+    alignItems: "center",
+    marginTop: 12,
+  },
+  heroAllDoneTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1E293B",
+    marginBottom: 6,
+  },
+  heroAllDoneSubtitle: {
+    fontSize: 15,
+    color: "#64748B",
+    textAlign: "center",
   },
   allDoneCard: {
-    backgroundColor: "#E8F5E9",
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 24,
+    padding: 24,
     flexDirection: "row",
     alignItems: "center",
     marginTop: 12,
-    gap: 14,
+    gap: 16,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   allDoneTextContainer: {
     flex: 1,
   },
   allDoneTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2E7D32",
-    marginBottom: 2,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#065F46",
+    marginBottom: 4,
   },
   allDoneSubtitle: {
-    fontSize: 14,
-    color: "#4CAF50",
+    fontSize: 15,
+    color: "#059669",
   },
   progressContainer: {
     alignItems: "center",
@@ -805,7 +880,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   progressPercentage: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: "bold",
     color: "white",
   },
@@ -820,54 +895,56 @@ const styles = StyleSheet.create({
   flex1: {
     flex: 1,
   },
-  profileButton: {
-    marginRight: 8,
-  },
-  avatarMini: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  avatarMiniText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  notificationButton: {
-    position: "relative",
-    padding: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: "#FF5252",
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#146922",
-    paddingHorizontal: 4,
-  },
-  notificationCount: {
-    color: "white",
-    fontSize: 11,
-    fontWeight: "bold",
-  },
   progressDetails: {
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 4,
+  },
+  profileButton: {
+    marginRight: 8,
+  },
+  avatarMini: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  avatarMiniText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  notificationButton: {
+    position: "relative",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f5f5f5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#E91E63",
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "white",
+  },
+  notificationCount: {
+    color: "white",
+    fontSize: 9,
+    fontWeight: "bold",
   },
   modalOverlay: {
     flex: 1,
@@ -929,42 +1006,125 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#999",
   },
-  emptyState: {
+  searchContainer: {
+    flexDirection: "row",
     alignItems: "center",
-    padding: 30,
     backgroundColor: "white",
     borderRadius: 16,
-    marginTop: 10,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: "#666",
-    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  addMedicationButton: {
-    backgroundColor: "#1a8e2d",
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#1E293B",
+    padding: 0,
+  },
+  timelineContainer: {
+    paddingTop: 16,
+  },
+  timelineRow: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  timelineTrack: {
+    width: 30,
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#CBD5E1",
+    marginTop: 24,
+    zIndex: 2,
+  },
+  timelineDotTaken: {
+    backgroundColor: "#10B981",
+  },
+  timelineLine: {
+    position: "absolute",
+    top: 36,
+    bottom: -32,
+    width: 2,
+    backgroundColor: "#E2E8F0",
+    borderStyle: "dashed",
+    zIndex: 1,
+  },
+  premiumDoseCard: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  premiumDoseCardTaken: {
+    backgroundColor: "#F8FAFC",
+    shadowOpacity: 0.01,
+  },
+  premiumMedicineName: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 4,
+  },
+  premiumTextTaken: {
+    color: "#94A3B8",
+    textDecorationLine: "line-through",
+  },
+  premiumDosageInfo: {
+    fontSize: 14,
+    color: "#64748B",
+  },
+  premiumTakeBtn: {
+    backgroundColor: "#0F766E",
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: 14,
   },
-  addMedicationButtonText: {
+  premiumTakeBtnText: {
     color: "white",
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  doseInfo: {
+    flex: 1,
+    justifyContent: "center",
   },
   takenBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#F0FDF4",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    marginLeft: 10,
   },
-  takenText: {
-    color: "#4CAF50",
-    fontWeight: "600",
-    fontSize: 14,
+  takenBadgeText: {
+    color: "#0F766E",
+    fontWeight: "700",
+    fontSize: 13,
     marginLeft: 4,
+  },
+  medIconImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
 });

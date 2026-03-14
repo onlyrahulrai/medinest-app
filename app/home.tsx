@@ -37,6 +37,25 @@ const { width } = Dimensions.get("window");
 // Create animated circle component
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+// Dynamic greeting based on time of day
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return { text: "Good Morning", icon: "sunny" as const, emoji: "☀️" };
+  if (hour < 17) return { text: "Good Afternoon", icon: "partly-sunny" as const, emoji: "🌤️" };
+  return { text: "Good Evening", icon: "moon" as const, emoji: "🌙" };
+};
+
+// Daily health tips pool
+const HEALTH_TIPS = [
+  { tip: "Stay hydrated! Drink at least 8 glasses of water today.", icon: "water" as const, color: "#0EA5E9" },
+  { tip: "Take your medications with food to reduce stomach irritation.", icon: "restaurant" as const, color: "#F59E0B" },
+  { tip: "A 20-minute walk can boost your mood and energy levels.", icon: "walk" as const, color: "#10B981" },
+  { tip: "Set a consistent bedtime to improve medication absorption.", icon: "bed" as const, color: "#8B5CF6" },
+  { tip: "Deep breathing for 5 minutes can lower stress and blood pressure.", icon: "leaf" as const, color: "#059669" },
+  { tip: "Avoid caffeine close to your evening medications.", icon: "cafe" as const, color: "#DC2626" },
+  { tip: "Keep a symptom journal — it helps your doctor help you better.", icon: "journal" as const, color: "#6366F1" },
+];
+
 const QUICK_ACTIONS = [
   {
     icon: "add" as const,
@@ -152,20 +171,52 @@ export default function HomeScreen() {
   const nextMedFade = useRef(new Animated.Value(0)).current;
   const nextMedSlide = useRef(new Animated.Value(20)).current;
 
+  // Staggered animation refs for sections
+  const streakAnim = useRef(new Animated.Value(0)).current;
+  const quickActionsAnim = useRef(new Animated.Value(0)).current;
+  const scheduleAnim = useRef(new Animated.Value(0)).current;
+  const tipAnim = useRef(new Animated.Value(0)).current;
+
+  // Dynamic greeting
+  const greeting = getGreeting();
+
+  // Daily health tip (rotates by day of year)
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  const todaysTip = HEALTH_TIPS[dayOfYear % HEALTH_TIPS.length];
+
+  // Mock weekly adherence data (in a real app, compute from doseHistory)
+  const weeklyData = [
+    { day: "Mon", status: "full" },
+    { day: "Tue", status: "full" },
+    { day: "Wed", status: "partial" },
+    { day: "Thu", status: "full" },
+    { day: "Fri", status: "full" },
+    { day: "Sat", status: "missed" },
+    { day: "Sun", status: "none" },
+  ];
+  const streakDays = 5; // Mock streak count
+
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(nextMedFade, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.timing(nextMedSlide, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }),
+    // Staggered entry animations
+    Animated.stagger(120, [
+      Animated.parallel([
+        Animated.timing(nextMedFade, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(nextMedSlide, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(streakAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(quickActionsAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(scheduleAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(tipAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start();
-  }, [nextMedFade, nextMedSlide]);
+  }, [nextMedFade, nextMedSlide, streakAnim, quickActionsAnim, scheduleAnim, tipAnim]);
 
   const loadMedications = useCallback(async () => {
     try {
@@ -336,8 +387,8 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.greetingHeader}>
-              <Text style={styles.greetingSubtitle}>Good Morning,</Text>
-              <Text style={styles.greetingName}>{userName.split(' ')[0]}</Text>
+              <Text style={styles.greetingSubtitle}>{greeting.text},</Text>
+              <Text style={styles.greetingName}>{userName.split(' ')[0]} {greeting.emoji}</Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/profile')} style={styles.profileButton}>
               <View style={styles.avatarMini}>
@@ -422,7 +473,38 @@ export default function HomeScreen() {
             </View>
           )}
 
-        <View style={styles.quickActionsContainer}>
+        {/* Adherence Streak & Weekly Chart */}
+        <Animated.View style={{ opacity: streakAnim }}>
+          <View style={styles.streakSection}>
+            <View style={styles.streakCard}>
+              <View style={styles.streakHeader}>
+                <Text style={styles.streakFlame}>🔥</Text>
+                <View style={styles.streakTextGroup}>
+                  <Text style={styles.streakCount}>{streakDays} Day Streak!</Text>
+                  <Text style={styles.streakSub}>Keep it going — you're doing amazing</Text>
+                </View>
+              </View>
+
+              {/* Weekly mini chart */}
+              <View style={styles.weeklyChart}>
+                {weeklyData.map((d, i) => (
+                  <View key={i} style={styles.weeklyDayCol}>
+                    <View style={[
+                      styles.weeklyDot,
+                      d.status === "full" && styles.weeklyDotFull,
+                      d.status === "partial" && styles.weeklyDotPartial,
+                      d.status === "missed" && styles.weeklyDotMissed,
+                    ]} />
+                    <Text style={styles.weeklyDayLabel}>{d.day}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Quick Actions */}
+        <Animated.View style={[styles.quickActionsContainer, { opacity: quickActionsAnim }]}>
           <Text style={styles.sectionPremiumTitle}>Quick Actions</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActionsScroll}>
             {QUICK_ACTIONS.map((action) => (
@@ -436,9 +518,10 @@ export default function HomeScreen() {
               </Link>
             ))}
           </ScrollView>
-        </View>
+        </Animated.View>
 
         {/* Today's Schedule Options */}
+        <Animated.View style={{ opacity: scheduleAnim }}>
         <View style={styles.scheduleSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionPremiumTitle}>Today's Schedule</Text>
@@ -536,6 +619,26 @@ export default function HomeScreen() {
             );
           })()}
         </View>
+        </Animated.View>
+
+        {/* Daily Health Tip */}
+        <Animated.View style={{ opacity: tipAnim }}>
+          <View style={styles.healthTipCard}>
+            <LinearGradient
+              colors={[`${todaysTip.color}15`, `${todaysTip.color}08`]}
+              style={StyleSheet.absoluteFillObject}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            <View style={[styles.healthTipIcon, { backgroundColor: `${todaysTip.color}20` }]}>
+              <Ionicons name={todaysTip.icon as any} size={24} color={todaysTip.color} />
+            </View>
+            <View style={styles.healthTipTextGroup}>
+              <Text style={styles.healthTipLabel}>DAILY TIP</Text>
+              <Text style={styles.healthTipText}>{todaysTip.tip}</Text>
+            </View>
+          </View>
+        </Animated.View>
       </View>
 
       <Modal
@@ -1122,6 +1225,118 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginLeft: 4,
   },
+  // ── Streak Section ──
+  streakSection: {
+    paddingHorizontal: 20,
+    marginBottom: 28,
+  },
+  streakCard: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  streakHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  streakFlame: {
+    fontSize: 36,
+    marginRight: 14,
+  },
+  streakTextGroup: {
+    flex: 1,
+  },
+  streakCount: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1E293B",
+    marginBottom: 2,
+  },
+  streakSub: {
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  weeklyChart: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  weeklyDayCol: {
+    alignItems: "center",
+    flex: 1,
+  },
+  weeklyDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#E2E8F0",
+    marginBottom: 8,
+  },
+  weeklyDotFull: {
+    backgroundColor: "#10B981",
+  },
+  weeklyDotPartial: {
+    backgroundColor: "#F59E0B",
+  },
+  weeklyDotMissed: {
+    backgroundColor: "#EF4444",
+  },
+  weeklyDayLabel: {
+    fontSize: 12,
+    color: "#94A3B8",
+    fontWeight: "600",
+  },
+
+  // ── Health Tip Card ──
+  healthTipCard: {
+    marginHorizontal: 20,
+    marginBottom: 32,
+    borderRadius: 24,
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  healthTipIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  healthTipTextGroup: {
+    flex: 1,
+  },
+  healthTipLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  healthTipText: {
+    fontSize: 15,
+    color: "#334155",
+    fontWeight: "500",
+    lineHeight: 22,
+  },
+
   medIconImage: {
     width: "100%",
     height: "100%",

@@ -22,7 +22,8 @@ import {
   deleteMedication,
   getUserProfile,
   ManagedPatient,
-  Medication 
+  Medication,
+  UserProfile
 } from "../../utils/storage";
 
 const { width } = Dimensions.get("window");
@@ -143,14 +144,16 @@ export default function EditMedicationScreen() {
   const [selectedDuration, setSelectedDuration] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const getPatientName = () => {
-    if (form.ownerId === "self") return "Me";
+    if (form.ownerId === "self") return userProfile?.name || "Me";
     const patient = managedPatients.find(p => p.id === form.ownerId);
     return patient ? patient.name : "Patient";
   };
 
   const getPatientAvatar = () => {
+    if (form.ownerId === "self") return userProfile?.image;
     const patient = managedPatients.find(p => p.id === form.ownerId);
     return patient?.image;
   };
@@ -158,6 +161,7 @@ export default function EditMedicationScreen() {
   useEffect(() => {
     const loadData = async () => {
       const profile = await getUserProfile();
+      setUserProfile(profile);
       setManagedPatients(profile?.managedPatients || []);
     };
     loadData();
@@ -360,7 +364,7 @@ export default function EditMedicationScreen() {
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {form.ownerId === "self" ? "Edit Medication" : `For ${getPatientName()}`}
+            {form.ownerId === "self" ? "Your Schedule" : `For ${getPatientName()}`}
           </Text>
           <View style={{ width: 44 }} />
         </View>
@@ -372,25 +376,29 @@ export default function EditMedicationScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.formContentContainer}
         >
-          {/* Patient Info Card */}
-          {form.ownerId !== "self" && (
-            <View style={styles.patientInfoCard}>
-              <View style={styles.patientInfoAvatarContainer}>
-                {getPatientAvatar() ? (
-                  <Image source={{ uri: getPatientAvatar() }} style={styles.patientInfoAvatar} />
-                ) : (
-                  <View style={[styles.patientInfoAvatar, styles.patientInfoAvatarPlaceholder]}>
-                    <Text style={styles.patientInfoAvatarText}>{getPatientName().charAt(0)}</Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.patientInfoContent}>
-                <Text style={styles.patientInfoName}>{getPatientName()}</Text>
-                <Text style={styles.patientInfoRole}>Managed Patient</Text>
-              </View>
-              <Ionicons name="person-circle-outline" size={24} color="#059669" />
+          {/* Patient Info Card (Always shown for context) */}
+          <View style={styles.patientInfoCard}>
+            <View style={styles.patientInfoAvatarContainer}>
+              {getPatientAvatar() ? (
+                <Image source={{ uri: getPatientAvatar() }} style={styles.patientInfoAvatar} />
+              ) : (
+                <View style={[styles.patientInfoAvatar, styles.patientInfoAvatarPlaceholder]}>
+                  <Text style={styles.patientInfoAvatarText}>{getPatientName().charAt(0)}</Text>
+                </View>
+              )}
             </View>
-          )}
+            <View style={styles.patientInfoContent}>
+              <Text style={styles.patientInfoName}>{getPatientName()}</Text>
+              <Text style={styles.patientInfoRole}>
+                {form.ownerId === "self" ? "Personal Health Profile" : "Managed Patient"}
+              </Text>
+            </View>
+            <Ionicons 
+              name={form.ownerId === "self" ? "heart-outline" : "person-circle-outline"} 
+              size={24} 
+              color="#059669" 
+            />
+          </View>
 
           {/* Basic Information */}
           <View style={styles.section}>

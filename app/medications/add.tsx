@@ -19,7 +19,16 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
-import { addMedication, getUserProfile, ManagedPatient, Medication } from "../../utils/storage";
+import {
+  addMedication,
+  getMedications,
+  updateMedication,
+  deleteMedication,
+  getUserProfile,
+  ManagedPatient,
+  Medication,
+  UserProfile
+} from "../../utils/storage";
 import { useCallback, useEffect } from "react";
 import {
   scheduleMedicationReminder,
@@ -116,14 +125,16 @@ export default function AddMedicationScreen() {
 
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
   const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const getPatientName = () => {
-    if (form.ownerId === "self") return "Me";
+    if (form.ownerId === "self") return userProfile?.name || "Me";
     const patient = managedPatients.find(p => p.id === form.ownerId);
     return patient ? patient.name : "Patient";
   };
 
   const getPatientAvatar = () => {
+    if (form.ownerId === "self") return userProfile?.image;
     const patient = managedPatients.find(p => p.id === form.ownerId);
     return patient?.image;
   };
@@ -131,6 +142,7 @@ export default function AddMedicationScreen() {
   useEffect(() => {
     const loadPatients = async () => {
       const profile = await getUserProfile();
+      setUserProfile(profile);
       setManagedPatients(profile?.managedPatients || []);
       
       // If patientId is provided in URL, set it as owner
@@ -371,7 +383,7 @@ export default function AddMedicationScreen() {
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {form.ownerId === "self" ? "New Medication" : `For ${getPatientName()}`}
+            {form.ownerId === "self" ? "Your Schedule" : `For ${getPatientName()}`}
           </Text>
           <View style={{ width: 44 }} />
         </View>
@@ -383,25 +395,29 @@ export default function AddMedicationScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.formContentContainer}
         >
-          {/* Patient Info Card (Prominent when selected) */}
-          {form.ownerId !== "self" && (
-            <View style={styles.patientInfoCard}>
-              <View style={styles.patientInfoAvatarContainer}>
-                {getPatientAvatar() ? (
-                  <Image source={{ uri: getPatientAvatar() }} style={styles.patientInfoAvatar} />
-                ) : (
-                  <View style={[styles.patientInfoAvatar, styles.patientInfoAvatarPlaceholder]}>
-                    <Text style={styles.patientInfoAvatarText}>{getPatientName().charAt(0)}</Text>
-                  </View>
-                )}
-              </View>
-              <View style={styles.patientInfoContent}>
-                <Text style={styles.patientInfoName}>{getPatientName()}</Text>
-                <Text style={styles.patientInfoRole}>Managed Patient</Text>
-              </View>
-              <Ionicons name="person-circle-outline" size={24} color="#059669" />
+          {/* Patient Info Card (Always shown for context) */}
+          <View style={styles.patientInfoCard}>
+            <View style={styles.patientInfoAvatarContainer}>
+              {getPatientAvatar() ? (
+                <Image source={{ uri: getPatientAvatar() }} style={styles.patientInfoAvatar} />
+              ) : (
+                <View style={[styles.patientInfoAvatar, styles.patientInfoAvatarPlaceholder]}>
+                  <Text style={styles.patientInfoAvatarText}>{getPatientName().charAt(0)}</Text>
+                </View>
+              )}
             </View>
-          )}
+            <View style={styles.patientInfoContent}>
+              <Text style={styles.patientInfoName}>{getPatientName()}</Text>
+              <Text style={styles.patientInfoRole}>
+                {form.ownerId === "self" ? "Personal Health Profile" : "Managed Patient"}
+              </Text>
+            </View>
+            <Ionicons 
+              name={form.ownerId === "self" ? "heart-outline" : "person-circle-outline"} 
+              size={24} 
+              color="#059669" 
+            />
+          </View>
 
           {/* Patient Selection */}
           {(managedPatients.length > 0 || patientId) && (

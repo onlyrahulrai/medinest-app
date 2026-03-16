@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { authStorage } from "../utils/authStorage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -26,6 +27,15 @@ export default function SplashScreen() {
 
     const timer = setTimeout(async () => {
       try {
+        const hasRunBefore = await AsyncStorage.getItem("has_run_before_v1");
+        if (!hasRunBefore) {
+          // Fresh install detected: Wipe iOS Keychain to prevent ghost sessions
+          await authStorage.deleteToken();
+          await AsyncStorage.setItem("has_run_before_v1", "true");
+          router.replace("/(onboarding)/language");
+          return;
+        }
+
         const token = await authStorage.getToken();
         if (token) {
           router.replace("/(tabs)");

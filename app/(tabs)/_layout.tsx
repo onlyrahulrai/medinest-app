@@ -20,7 +20,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeIconBg : undefined}>
+            <View style={[styles.iconContainer, focused && styles.activeIconBg]}>
               <Ionicons name={focused ? "home" : "home-outline"} size={24} color={color} />
             </View>
           ),
@@ -31,7 +31,7 @@ export default function TabLayout() {
         options={{
           title: "Calendar",
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeIconBg : undefined}>
+            <View style={[styles.iconContainer, focused && styles.activeIconBg]}>
               <Ionicons name={focused ? "calendar" : "calendar-outline"} size={24} color={color} />
             </View>
           ),
@@ -42,7 +42,7 @@ export default function TabLayout() {
         options={{
           title: "Activity",
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeIconBg : undefined}>
+            <View style={[styles.iconContainer, focused && styles.activeIconBg]}>
               <Ionicons name={focused ? "stats-chart" : "stats-chart-outline"} size={24} color={color} />
             </View>
           ),
@@ -53,7 +53,7 @@ export default function TabLayout() {
         options={{
           title: "Caregiver",
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeIconBg : undefined}>
+            <View style={[styles.iconContainer, focused && styles.activeIconBg]}>
               <Ionicons name={focused ? "people" : "people-outline"} size={24} color={color} />
             </View>
           ),
@@ -64,7 +64,7 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
-            <View style={focused ? styles.activeIconBg : undefined}>
+            <View style={[styles.iconContainer, focused && styles.activeIconBg]}>
               <Ionicons name={focused ? "person" : "person-outline"} size={24} color={color} />
             </View>
           ),
@@ -101,10 +101,14 @@ const styles = StyleSheet.create({
   tabBarItem: {
     paddingTop: 4,
   },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 14,
+  },
   activeIconBg: {
     backgroundColor: "#D1FAE5",
-    borderRadius: 14,
-    padding: 8,
-    marginTop: -4,
   },
 });

@@ -13,6 +13,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { SafeAreaView } from "react-native-safe-area-context";
 import NotificationBell from "../../components/caregiver/NotificationBell";
 import AlertCard from "../../components/caregiver/AlertCard";
 import FamilyAvatarList, {
@@ -286,17 +287,11 @@ export default function CaregiverDashboard() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity 
-            onPress={() => router.push("/(tabs)")} 
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#333" />
-            <Text style={styles.backButtonText}>Back to My Meds</Text>
-          </TouchableOpacity>
+          <View style={{ flex: 1 }} />
           <NotificationBell
             count={2}
             onPress={() => Alert.alert("Notifications", "You have 2 new alerts")}
@@ -454,44 +449,9 @@ export default function CaregiverDashboard() {
         </View>
       </Modal>
 
-      {/* ── FAB ── */}
       <FloatingAddButton onPress={() => router.push(`/medications/add?patientId=${selectedMember}`)} />
 
-      {/* ── Bottom Navigation ── */}
-      <View style={styles.bottomNav}>
-        {([
-          { key: "Home", icon: "home-outline", iconActive: "home" },
-          { key: "Family", icon: "people-outline", iconActive: "people" },
-          { key: "Events", icon: "calendar-outline", iconActive: "calendar" },
-          { key: "Settings", icon: "settings-outline", iconActive: "settings" },
-        ] as const).map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={styles.navItem}
-              onPress={() => {
-                setActiveTab(tab.key);
-                if (tab.key === "Home") router.push("/(tabs)");
-                if (tab.key === "Settings") router.push("/settings");
-              }}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={isActive ? tab.iconActive : tab.icon}
-                size={24}
-                color={isActive ? "#1a8e2d" : "#999"}
-              />
-              <Text
-                style={[styles.navText, isActive && styles.navTextActive]}
-              >
-                {tab.key}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -503,26 +463,16 @@ const styles = StyleSheet.create({
   },
   /* Header */
   header: {
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingTop: 8,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: "white",
   },
   headerTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
     marginBottom: 16,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backButtonText: {
-    color: "#333",
-    marginLeft: 8,
-    fontSize: 16,
-    fontWeight: "600",
   },
   appName: {
     fontSize: 28,
@@ -613,31 +563,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     color: "#999",
-  },
-  /* Bottom Nav */
-  bottomNav: {
-    flexDirection: "row",
-    backgroundColor: "white",
-    paddingVertical: 10,
-    paddingBottom: Platform.OS === "ios" ? 30 : 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-  },
-  navItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 4,
-  },
-  navText: {
-    fontSize: 11,
-    color: "#999",
-    marginTop: 4,
-    fontWeight: "500",
-  },
-  navTextActive: {
-    color: "#1a8e2d",
-    fontWeight: "700",
   },
   /* Modal Styles */
   modalOverlay: {

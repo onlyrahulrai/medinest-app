@@ -13,6 +13,8 @@ export default function ProfileScreen() {
     const [newCaregiverPhone, setNewCaregiverPhone] = useState("");
     const [newCaregiverRelation, setNewCaregiverRelation] = useState("");
 
+    const [isLoading, setIsLoading] = useState(true);
+
     useFocusEffect(
         useCallback(() => {
             loadProfile();
@@ -20,11 +22,21 @@ export default function ProfileScreen() {
     );
 
     const loadProfile = async () => {
+        setIsLoading(true);
         const data = await getUserProfile();
         setProfile(data);
+        setIsLoading(false);
     };
 
-    if (!profile) return <View style={styles.container} />;
+    if (isLoading) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#666' }}>Loading profile...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     const handleAddCaregiver = async () => {
         if (!newCaregiverName || !newCaregiverPhone || !profile) return;
@@ -49,7 +61,30 @@ export default function ProfileScreen() {
         setNewCaregiverRelation("");
     };
 
-    if (!profile) return <View style={styles.container} />;
+    if (!profile) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+                        <Ionicons name="arrow-back" size={24} color="#333" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>My Profile</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                    <Ionicons name="person-circle-outline" size={80} color="#ccc" />
+                    <Text style={{ fontSize: 18, fontWeight: '600', color: '#666', marginTop: 16 }}>No Profile Found</Text>
+                    <Text style={{ textAlign: 'center', color: '#999', marginTop: 8 }}>Please complete your setup to view your profile.</Text>
+                    <TouchableOpacity 
+                        style={{ marginTop: 24, backgroundColor: '#0F766E', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                        onPress={() => router.push('/(onboarding)/step1')}
+                    >
+                        <Text style={{ color: 'white', fontWeight: 'bold' }}>Setup Profile</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>

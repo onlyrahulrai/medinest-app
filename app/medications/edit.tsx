@@ -96,7 +96,7 @@ export default function EditMedicationScreen() {
     dosage: string;
     dosageUnit: string;
     type: string;
-    mealTiming: string;
+    mealTiming: string[];
     prescribedBy: string;
     purpose: string;
     color: string;
@@ -117,7 +117,7 @@ export default function EditMedicationScreen() {
     dosage: "",
     dosageUnit: "mg",
     type: "",
-    mealTiming: "",
+    mealTiming: [],
     prescribedBy: "",
     purpose: "",
     color: "#4CAF50",
@@ -150,7 +150,7 @@ export default function EditMedicationScreen() {
           dosage: med.dosage,
           dosageUnit: med.dosageUnit || "mg",
           type: med.type || "",
-          mealTiming: med.mealTiming || "",
+          mealTiming: Array.isArray(med.mealTiming) ? med.mealTiming : (med.mealTiming ? [med.mealTiming] : []),
           prescribedBy: med.prescribedBy || "",
           purpose: med.purpose || "",
           color: med.color || "#4CAF50",
@@ -439,13 +439,18 @@ export default function EditMedicationScreen() {
               {MEAL_TIMINGS.map((timing) => (
                 <TouchableOpacity
                   key={timing.id}
-                  style={[styles.mealChip, form.mealTiming === timing.label && styles.mealChipActive]}
-                  onPress={() => setForm({ ...form, mealTiming: timing.label })}
+                  style={[styles.mealChip, form.mealTiming.includes(timing.label) && styles.mealChipActive]}
+                  onPress={() => {
+                    const newTimings = form.mealTiming.includes(timing.label)
+                      ? form.mealTiming.filter(t => t !== timing.label)
+                      : [...form.mealTiming, timing.label];
+                    setForm({ ...form, mealTiming: newTimings });
+                  }}
                 >
-                  <View style={[styles.mealChipIcon, form.mealTiming === timing.label && styles.mealChipIconActive]}>
-                    <Ionicons name={timing.icon} size={20} color={form.mealTiming === timing.label ? "white" : "#1a8e2d"} />
+                  <View style={[styles.mealChipIcon, form.mealTiming.includes(timing.label) && styles.mealChipIconActive]}>
+                    <Ionicons name={timing.icon} size={20} color={form.mealTiming.includes(timing.label) ? "white" : "#1a8e2d"} />
                   </View>
-                  <Text style={[styles.mealChipText, form.mealTiming === timing.label && styles.mealChipTextActive]}>
+                  <Text style={[styles.mealChipText, form.mealTiming.includes(timing.label) && styles.mealChipTextActive]}>
                     {timing.label}
                   </Text>
                 </TouchableOpacity>

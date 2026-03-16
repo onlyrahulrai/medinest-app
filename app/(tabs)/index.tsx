@@ -630,19 +630,28 @@ export default function HomeScreen() {
                             </Text>
                           </View>
 
-                          {isTaken ? (
-                            <View style={styles.takenBadge}>
-                              <Ionicons name="checkmark" size={16} color="#0F766E" />
-                              <Text style={styles.takenBadgeText}>Taken</Text>
-                            </View>
-                          ) : (
+                          <View style={styles.cardActions}>
                             <TouchableOpacity
-                              style={styles.premiumTakeBtn}
-                              onPress={() => handleTakeDose(medication)}
+                              style={styles.editIconBtn}
+                              onPress={() => router.push(`/medications/edit?id=${medication.id}`)}
                             >
-                              <Text style={styles.premiumTakeBtnText}>Take</Text>
+                              <Ionicons name="create-outline" size={18} color="#666" />
                             </TouchableOpacity>
-                          )}
+
+                            {isTaken ? (
+                              <View style={styles.takenBadge}>
+                                <Ionicons name="checkmark" size={16} color="#0F766E" />
+                                <Text style={styles.takenBadgeText}>Taken</Text>
+                              </View>
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.premiumTakeBtn}
+                                onPress={() => handleTakeDose(medication)}
+                              >
+                                <Text style={styles.premiumTakeBtnText}>Take</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
                         </View>
                       </View>
                     );
@@ -1378,5 +1387,18 @@ const styles = StyleSheet.create({
     color: '#1a8e2d', 
     fontWeight: 'bold',
     marginLeft: 4
+  },
+  cardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  editIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
 });

@@ -71,11 +71,10 @@ export async function scheduleMedicationReminder(
           data: { medicationId: medication.id },
         },
         trigger: {
-          type: 'calendar' as any,
           hour: hours,
           minute: minutes,
           repeats: true,
-        },
+        } as any,
       });
 
       return identifier;
@@ -173,11 +172,10 @@ export async function scheduleMissedDoseAlert(
           data: { medicationId: medication.id, type: "missed", time },
         },
         trigger: {
-          type: 'calendar' as any,
           hour: alertHours,
           minute: alertMinutes,
           repeats: true,
-        },
+        } as any,
       });
     }
   } catch (error) {

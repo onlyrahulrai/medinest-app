@@ -326,23 +326,22 @@ export default function EditMedicationScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#0F766E", "#047857"]}
+        colors={["#065F46", "#064E3B"]}
         style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      />
-
-      <View style={styles.content}>
+      >
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="chevron-back" size={28} color="#0F766E" />
+            <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Medication</Text>
+          <View style={{ width: 44 }} />
         </View>
+      </LinearGradient>
 
+      <View style={styles.content}>
         <ScrollView
           style={styles.formContainer}
           showsVerticalScrollIndicator={false}
@@ -668,11 +667,11 @@ export default function EditMedicationScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f9fa" },
-  headerGradient: { position: "absolute", top: 0, left: 0, right: 0, height: Platform.OS === "ios" ? 140 : 120 },
-  content: { flex: 1, paddingTop: Platform.OS === "ios" ? 50 : 30 },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 20, zIndex: 1 },
-  backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "white", justifyContent: "center", alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  headerTitle: { fontSize: 24, fontWeight: "700", color: "white", marginLeft: 15 },
+  headerGradient: { paddingTop: Platform.OS === "ios" ? 60 : 40, paddingBottom: 80, paddingHorizontal: 20, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
+  content: { flex: 1, marginTop: -60 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24, zIndex: 1 },
+  backButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", alignItems: "center" },
+  headerTitle: { fontSize: 20, fontWeight: "800", color: "white", letterSpacing: 0.5 },
   formContainer: { flex: 1 },
   formContentContainer: { padding: 20 },
   section: { marginBottom: 25 },

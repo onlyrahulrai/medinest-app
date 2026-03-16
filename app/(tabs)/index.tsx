@@ -81,7 +81,7 @@ const HEALTH_TIPS = [
 
   // 📋 General Wellness
   { tip: "Keep a symptom journal — it helps your doctor help you better.", icon: "journal" as const, color: "#6366F1" },
-  { tip: "Regular health checkups can catch issues before they escalate.", icon: "medkit" as const, color: "#0F766E" },
+  { tip: "Regular health checkups can catch issues before they escalate.", icon: "medkit" as const, color: "#059669" },
 ];
 
 const QUICK_ACTIONS = [
@@ -407,7 +407,7 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
       <View style={styles.mainWrapper}>
         <LinearGradient
-          colors={["#0F766E", "#047857"]}
+          colors={["#065F46", "#064E3B"]}
           style={styles.headerBackground}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -457,7 +457,7 @@ export default function HomeScreen() {
                       {nextMed.medication.imageUrl ? (
                         <Image source={{ uri: nextMed.medication.imageUrl }} style={styles.medIconImage} />
                       ) : (
-                        <Ionicons name="medical" size={26} color="#0F766E" />
+                        <Ionicons name="medical" size={26} color="#059669" />
                       )}
                     </View>
                     <View style={styles.heroCardText}>
@@ -469,7 +469,7 @@ export default function HomeScreen() {
 
                   <View style={styles.heroCardFooter}>
                     <View style={styles.heroCountdown}>
-                      <Ionicons name="time" size={18} color="#0F766E" />
+                      <Ionicons name="time" size={18} color="#059669" />
                       <Text style={styles.heroCountdownText}>In {formatCountdown(nextMed.minutesUntil)}</Text>
                     </View>
 
@@ -479,7 +479,7 @@ export default function HomeScreen() {
                         onPress={() => handleTakeDose(nextMed.medication)}
                       >
                         <LinearGradient
-                          colors={["#0F766E", "#047857"]}
+                          colors={["#065F46", "#064E3B"]}
                           style={StyleSheet.absoluteFillObject}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
@@ -640,7 +640,7 @@ export default function HomeScreen() {
 
                             {isTaken ? (
                               <View style={styles.takenBadge}>
-                                <Ionicons name="checkmark" size={16} color="#0F766E" />
+                                <Ionicons name="checkmark" size={16} color="#059669" />
                                 <Text style={styles.takenBadgeText}>Taken</Text>
                               </View>
                             ) : (
@@ -859,7 +859,7 @@ const styles = StyleSheet.create({
     marginBottom: 16, // Title already has bottom margin, but keeping flexible
   },
   seeAllButton: {
-    color: "#0F766E",
+    color: "#059669",
     fontWeight: "700",
     fontSize: 15,
   },
@@ -893,7 +893,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderRadius: 24,
     padding: 24,
-    shadowColor: "#0F766E",
+    shadowColor: "#065F46",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
   heroNextLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0F766E",
+    color: "#059669",
     letterSpacing: 1,
     marginBottom: 4,
   },
@@ -949,7 +949,7 @@ const styles = StyleSheet.create({
   heroCountdownText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#0F766E",
+    color: "#059669",
     marginLeft: 6,
   },
   heroTakeBtn: {
@@ -1237,7 +1237,7 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   premiumTakeBtn: {
-    backgroundColor: "#0F766E",
+    backgroundColor: "#065F46",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 14,
@@ -1260,7 +1260,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   takenBadgeText: {
-    color: "#0F766E",
+    color: "#059669",
     fontWeight: "700",
     fontSize: 13,
     marginLeft: 4,
@@ -1384,7 +1384,7 @@ const styles = StyleSheet.create({
   },
   caregiverBadgeText: {
     fontSize: 10,
-    color: '#1a8e2d',
+    color: '#059669',
     fontWeight: 'bold',
     marginLeft: 4
   },

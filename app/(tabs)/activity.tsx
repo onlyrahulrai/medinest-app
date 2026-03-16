@@ -191,7 +191,7 @@ export default function ActivityScreen() {
       >
         <View style={styles.headerWrapper}>
           <LinearGradient
-            colors={["#0F766E", "#047857"]}
+            colors={["#065F46", "#064E3B"]}
             style={styles.headerBackground}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -290,7 +290,7 @@ export default function ActivityScreen() {
           <View style={styles.deviceCard}>
             <View style={styles.deviceInfo}>
               <View style={styles.watchIconContainer}>
-                <Ionicons name="watch" size={32} color="#0F766E" />
+                <Ionicons name="watch" size={32} color="#059669" />
               </View>
               <View>
                 <Text style={styles.deviceName}>MediWatch Pro</Text>
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
   batteryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F766E',
+    color: '#059669',
     marginLeft: 4,
   },
   // Workout Modals & Personalization

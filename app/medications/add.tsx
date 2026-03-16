@@ -403,7 +403,7 @@ export default function AddMedicationScreen() {
                 <Image source={{ uri: form.imageUri }} style={styles.medicationImage} />
               ) : (
                 <View style={styles.imagePlaceholder}>
-                  <Ionicons name="camera-outline" size={40} color="#0F766E" />
+                  <Ionicons name="camera-outline" size={40} color="#059669" />
                   <Text style={styles.imagePlaceholderText}>Add Photo</Text>
                 </View>
               )}
@@ -478,7 +478,7 @@ export default function AddMedicationScreen() {
           {/* Medication Type */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              <Ionicons name="medkit-outline" size={18} color="#0F766E" />{" "}
+              <Ionicons name="medkit-outline" size={18} color="#059669" />{" "}
               Medication Type
             </Text>
             <View style={styles.typeGrid}>
@@ -500,7 +500,7 @@ export default function AddMedicationScreen() {
                     <Ionicons
                       name={medType.icon}
                       size={20}
-                      color={form.type === medType.label ? "white" : "#0F766E"}
+                      color={form.type === medType.label ? "white" : "#059669"}
                     />
                   </View>
                   <Text
@@ -519,7 +519,7 @@ export default function AddMedicationScreen() {
           {/* Medicine Color */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              <Ionicons name="color-palette-outline" size={18} color="#0F766E" />{" "}
+              <Ionicons name="color-palette-outline" size={18} color="#059669" />{" "}
               Medicine Color
             </Text>
             <View style={styles.colorGrid}>
@@ -544,7 +544,7 @@ export default function AddMedicationScreen() {
           {/* Meal Timing */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              <Ionicons name="restaurant-outline" size={18} color="#0F766E" />{" "}
+              <Ionicons name="restaurant-outline" size={18} color="#059669" />{" "}
               When to Take
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealTimingScroller}>
@@ -571,7 +571,7 @@ export default function AddMedicationScreen() {
                     <Ionicons
                       name={timing.icon}
                       size={20}
-                      color={form.mealTiming.includes(timing.label) ? "white" : "#0F766E"}
+                      color={form.mealTiming.includes(timing.label) ? "white" : "#059669"}
                     />
                   </View>
                   <Text
@@ -606,7 +606,7 @@ export default function AddMedicationScreen() {
               onPress={() => setShowDatePicker(true)}
             >
               <View style={styles.dateIconContainer}>
-                <Ionicons name="calendar" size={20} color="#0F766E" />
+                <Ionicons name="calendar" size={20} color="#059669" />
               </View>
               <Text style={styles.dateButtonText}>
                 Starts {form.startDate.toLocaleDateString()}
@@ -637,7 +637,7 @@ export default function AddMedicationScreen() {
                     }}
                   >
                     <View style={styles.timeIconContainer}>
-                      <Ionicons name="time-outline" size={20} color="#0F766E" />
+                      <Ionicons name="time-outline" size={20} color="#059669" />
                     </View>
                     <Text style={styles.timeButtonText}>{time}</Text>
                     <Ionicons name="chevron-forward" size={20} color="#666" />
@@ -679,7 +679,7 @@ export default function AddMedicationScreen() {
               <View style={styles.switchRow}>
                 <View style={styles.switchLabelContainer}>
                   <View style={styles.iconContainer}>
-                    <Ionicons name="notifications" size={20} color="#0F766E" />
+                    <Ionicons name="notifications" size={20} color="#059669" />
                   </View>
                   <View>
                     <Text style={styles.switchLabel}>Reminders</Text>
@@ -693,7 +693,7 @@ export default function AddMedicationScreen() {
                   onValueChange={(value) =>
                     setForm({ ...form, reminderEnabled: value })
                   }
-                  trackColor={{ false: "#ddd", true: "#0F766E" }}
+                  trackColor={{ false: "#ddd", true: "#059669" }}
                   thumbColor="white"
                 />
               </View>
@@ -706,7 +706,7 @@ export default function AddMedicationScreen() {
               <View style={styles.switchRow}>
                 <View style={styles.switchLabelContainer}>
                   <View style={styles.iconContainer}>
-                    <Ionicons name="reload" size={20} color="#0F766E" />
+                    <Ionicons name="reload" size={20} color="#059669" />
                   </View>
                   <View>
                     <Text style={styles.switchLabel}>Refill Tracking</Text>
@@ -727,7 +727,7 @@ export default function AddMedicationScreen() {
                       });
                     }
                   }}
-                  trackColor={{ false: "#ddd", true: "#0F766E" }}
+                  trackColor={{ false: "#ddd", true: "#059669" }}
                   thumbColor="white"
                 />
               </View>
@@ -787,7 +787,7 @@ export default function AddMedicationScreen() {
           {/* Additional Details */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              <Ionicons name="medical-outline" size={18} color="#0F766E" />{" "}
+              <Ionicons name="medical-outline" size={18} color="#059669" />{" "}
               Additional Details
             </Text>
             <View style={styles.inputContainer}>
@@ -841,7 +841,7 @@ export default function AddMedicationScreen() {
             disabled={isSubmitting}
           >
             <LinearGradient
-              colors={["#0F766E", "#047857"]}
+              colors={["#059669", "#064E3B"]}
               style={styles.saveButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -935,7 +935,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   imagePlaceholderText: {
-    color: "#0F766E",
+    color: "#059669",
     fontSize: 12,
     fontWeight: "600",
     marginTop: 5,
@@ -976,8 +976,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   selectedOptionCard: {
-    backgroundColor: "#0F766E",
-    borderColor: "#0F766E",
+    backgroundColor: "#059669",
+    borderColor: "#059669",
   },
   optionIcon: {
     width: 50,
@@ -1003,7 +1003,7 @@ const styles = StyleSheet.create({
   durationNumber: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#0F766E",
+    color: "#059669",
     marginBottom: 5,
   },
   selectedDurationNumber: {
@@ -1223,8 +1223,8 @@ const styles = StyleSheet.create({
     borderColor: "#e0e0e0",
   },
   patientChipActive: {
-    backgroundColor: "#0F766E",
-    borderColor: "#0F766E",
+    backgroundColor: "#059669",
+    borderColor: "#059669",
   },
   patientChipText: {
     color: "#666",
@@ -1254,8 +1254,8 @@ const styles = StyleSheet.create({
     borderColor: "#e0e0e0",
   },
   unitChipActive: {
-    backgroundColor: "#0F766E",
-    borderColor: "#0F766E",
+    backgroundColor: "#059669",
+    borderColor: "#059669",
   },
   unitChipText: {
     fontSize: 14,
@@ -1286,8 +1286,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   typeChipActive: {
-    backgroundColor: "#0F766E",
-    borderColor: "#0F766E",
+    backgroundColor: "#059669",
+    borderColor: "#059669",
   },
   typeIconContainer: {
     width: 36,
@@ -1348,8 +1348,8 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   mealChipActive: {
-    backgroundColor: "#0F766E",
-    borderColor: "#0F766E",
+    backgroundColor: "#059669",
+    borderColor: "#059669",
   },
   mealChipIcon: {
     width: 36,

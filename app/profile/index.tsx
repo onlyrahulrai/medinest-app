@@ -92,7 +92,7 @@ export default function ProfileScreen() {
                     <Text style={{ fontSize: 18, fontWeight: '600', color: '#666', marginTop: 16 }}>No Profile Found</Text>
                     <Text style={{ textAlign: 'center', color: '#999', marginTop: 8 }}>Please complete your setup to view your profile.</Text>
                     <TouchableOpacity 
-                        style={{ marginTop: 24, backgroundColor: '#0F766E', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                        style={{ marginTop: 24, backgroundColor: '#065F46', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
                         onPress={() => router.push('/(onboarding)/step1')}
                     >
                         <Text style={{ color: 'white', fontWeight: 'bold' }}>Setup Profile</Text>

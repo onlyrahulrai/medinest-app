@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -127,7 +127,11 @@ export default function ProfileScreen() {
             >
                 <View style={styles.avatarSection}>
                     <View style={styles.avatarPlaceholder}>
-                        <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
+                        {profile.image ? (
+                            <Image source={{ uri: profile.image }} style={styles.avatarImage} />
+                        ) : (
+                            <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
+                        )}
                     </View>
                     <Text style={styles.name}>{profile.name}</Text>
                     <Text style={styles.subText}>{profile.age} years • {profile.gender} • {profile.weight} kg</Text>
@@ -317,6 +321,11 @@ const styles = StyleSheet.create({
         fontSize: 40,
         fontWeight: 'bold',
         color: '#4CAF50',
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 50,
     },
     name: {
         fontSize: 24,

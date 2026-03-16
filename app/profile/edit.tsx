@@ -4,7 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { getUserProfile, saveUserProfile, UserProfile } from '../../utils/storage';
+import { Image } from 'react-native';
 
 const PREDEFINED_CONDITIONS = [
     'Diabetes',
@@ -30,6 +32,7 @@ export default function EditProfileScreen() {
     const [emergencyRelation, setEmergencyRelation] = useState('');
     const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
     const [weight, setWeight] = useState('');
+    const [image, setImage] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
@@ -45,12 +48,26 @@ export default function EditProfileScreen() {
             setGender(data.gender);
             setWeight(data.weight || '');
             setPhoneNumber(data.phoneNumber);
+            setImage(data.image || null);
             if (data.caregivers && data.caregivers.length > 0) {
                 setEmergencyName(data.caregivers[0].name);
                 setEmergencyPhone(data.caregivers[0].phoneNumber);
                 setEmergencyRelation(data.caregivers[0].relation);
             }
             setSelectedConditions(data.conditions || []);
+        }
+    };
+
+    const pickImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.5,
+        });
+
+        if (!result.canceled) {
+            setImage(result.assets[0].uri);
         }
     };
 
@@ -87,6 +104,7 @@ export default function EditProfileScreen() {
                 gender,
                 weight,
                 phoneNumber,
+                image: image || undefined,
                 caregivers: emergencyName ? [{
                     id: profile.caregivers && profile.caregivers[0]?.id ? profile.caregivers[0].id : Math.random().toString(36).substr(2, 9),
                     name: emergencyName,
@@ -130,6 +148,22 @@ export default function EditProfileScreen() {
                 showsVerticalScrollIndicator={true}
                 bounces={true}
             >
+                <View style={styles.imageSection}>
+                    <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
+                        {image ? (
+                            <Image source={{ uri: image }} style={styles.profileImage} />
+                        ) : (
+                            <View style={styles.imagePlaceholder}>
+                                <Text style={styles.imagePlaceholderText}>{name.charAt(0).toUpperCase() || "U"}</Text>
+                            </View>
+                        )}
+                        <View style={styles.editBadge}>
+                            <Ionicons name="camera" size={20} color="white" />
+                        </View>
+                    </TouchableOpacity>
+                    <Text style={styles.imageHint}>Tap to change profile picture</Text>
+                </View>
+
                 <View style={styles.formSection}>
                     <Text style={styles.sectionHeader}>Basic Information</Text>
 
@@ -290,6 +324,54 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         justifyContent: 'center',
+    },
+    imageSection: {
+        alignItems: 'center',
+        marginBottom: 32,
+    },
+    imagePicker: {
+        position: 'relative',
+    },
+    profileImage: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        borderWidth: 3,
+        borderColor: '#4CAF50',
+    },
+    imagePlaceholder: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: '#E8F5E9',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 3,
+        borderColor: '#4CAF50',
+    },
+    imagePlaceholderText: {
+        fontSize: 48,
+        fontWeight: 'bold',
+        color: '#4CAF50',
+    },
+    editBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        backgroundColor: '#4CAF50',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 3,
+        borderColor: 'white',
+    },
+    imageHint: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#666',
+        fontWeight: '500',
     },
     scrollContent: {
         flexGrow: 1,

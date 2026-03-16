@@ -25,6 +25,7 @@ export interface UserProfile {
   age: string;
   gender: string;
   weight: string;
+  image?: string; // Profile image URI
   conditions: string[];
   phoneNumber: string;
   caregivers: Array<{

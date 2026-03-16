@@ -109,15 +109,20 @@ export default function EditProfileScreen() {
     if (!profile) return <View style={styles.container} />;
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.container}>
             <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="close" size={24} color="#333" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Edit Profile</Text>
-                <View style={{ width: 40 }} />
-            </View>
+            <LinearGradient
+                colors={["#065F46", "#064E3B"]}
+                style={styles.header}
+            >
+                <View style={styles.headerTop}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <Ionicons name="close" size={26} color="white" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Edit Profile</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+            </LinearGradient>
 
             <ScrollView 
                 style={styles.scrollView}
@@ -246,7 +251,7 @@ export default function EditProfileScreen() {
                 </TouchableOpacity>
             </View>
             </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -256,22 +261,30 @@ const styles = StyleSheet.create({
         backgroundColor: '#ffffff',
     },
     header: {
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingHorizontal: 20,
+        paddingBottom: 40,
+        borderBottomLeftRadius: 40,
+        borderBottomRightRadius: 40,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+    },
+    headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 16,
-        paddingTop: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: 'white',
+        letterSpacing: 0.5,
     },
     scrollView: {
         flex: 1,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
     },
     backButton: {
         width: 40,

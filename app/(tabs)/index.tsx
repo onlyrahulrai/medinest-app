@@ -1382,9 +1382,9 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
-  caregiverBadgeText: { 
-    fontSize: 10, 
-    color: '#1a8e2d', 
+  caregiverBadgeText: {
+    fontSize: 10,
+    color: '#1a8e2d',
     fontWeight: 'bold',
     marginLeft: 4
   },

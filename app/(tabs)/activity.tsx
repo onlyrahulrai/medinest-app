@@ -11,7 +11,8 @@ import {
   Modal,
   TextInput,
   Alert,
-  StatusBar
+  StatusBar,
+  Switch
 } from 'react-native';
 import { saveUserProfile } from '../../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,15 +127,17 @@ export default function ActivityScreen() {
   const [goal, setGoal] = useState<'weight_loss' | 'muscle_gain' | 'fitness' | 'strength' | 'none'>('none');
   const [frequency, setFrequency] = useState('');
   const [intensity, setIntensity] = useState<'light' | 'moderate' | 'high'>('moderate');
+  const [shareActivity, setShareActivity] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const loadProfile = useCallback(async () => {
     const profile = await getUserProfile();
     setUserProfile(profile);
-    if (profile?.workoutPlan) {
-      setGoal(profile.workoutPlan.goal);
-      setFrequency(profile.workoutPlan.frequency);
-      setIntensity(profile.workoutPlan.intensity);
+    if (profile) {
+      setGoal(profile.workoutPlan?.goal || 'none');
+      setFrequency(profile.workoutPlan?.frequency || '');
+      setIntensity(profile.workoutPlan?.intensity || 'moderate');
+      setShareActivity(profile.shareActivityWithCaregiver || false);
     }
   }, []);
 
@@ -160,7 +163,8 @@ export default function ActivityScreen() {
           frequency,
           intensity,
           lastUpdated: new Date().toISOString()
-        }
+        },
+        shareActivityWithCaregiver: shareActivity
       };
       await saveUserProfile(updatedProfile);
       setUserProfile(updatedProfile);
@@ -200,7 +204,15 @@ export default function ActivityScreen() {
 
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Daily Activity</Text>
-            <Text style={styles.headerSubtitle}>Keep pushing your limits!</Text>
+            <View style={styles.headerSubtitleRow}>
+              <Text style={styles.headerSubtitle}>Keep pushing your limits!</Text>
+              {userProfile?.shareActivityWithCaregiver && (
+                <View style={styles.sharedBadge}>
+                  <Ionicons name="share-social" size={12} color="#4ADE80" />
+                  <Text style={styles.sharedBadgeText}>Shared</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Hero Glass Section - Now inside headerWrapper */}
@@ -362,6 +374,19 @@ export default function ActivityScreen() {
                 placeholderTextColor="#999"
               />
 
+              <View style={styles.shareRow}>
+                <View style={styles.shareInfo}>
+                  <Text style={styles.shareTitle}>Share with Caregiver</Text>
+                  <Text style={styles.shareSubtitle}>Allow caregiver to see your daily activity</Text>
+                </View>
+                <Switch
+                  value={shareActivity}
+                  onValueChange={setShareActivity}
+                  trackColor={{ false: '#e0e0e0', true: '#A5D6A7' }}
+                  thumbColor={shareActivity ? '#4CAF50' : '#f4f3f4'}
+                />
+              </View>
+
               <TouchableOpacity
                 style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
                 onPress={handleSaveWorkoutPlan}
@@ -410,9 +435,28 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
     marginTop: 4,
+  },
+  headerSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 12,
+  },
+  sharedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(74, 222, 128, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 4,
+  },
+  sharedBadgeText: {
+    color: '#4ADE80',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   heroSection: {
     paddingHorizontal: 20,
@@ -723,5 +767,29 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '700',
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    marginBottom: 24,
+  },
+  shareInfo: {
+    flex: 1,
+  },
+  shareTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  shareSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
 });

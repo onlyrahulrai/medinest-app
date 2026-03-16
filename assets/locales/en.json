@@ -51,6 +51,10 @@
         "title": "Vibration",
         "description": "Vibrate phone on alerts"
       },
+      "shareActivity": {
+        "title": "Share Activity",
+        "description": "Share daily activity with caregivers"
+      },
       "complete": "Complete Setup",
       "saving": "Saving..."
     }

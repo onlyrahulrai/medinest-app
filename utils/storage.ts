@@ -38,6 +38,7 @@ export interface UserProfile {
   reminderTimes: string[];
   soundEnabled: boolean;
   vibrationEnabled: boolean;
+  shareActivityWithCaregiver: boolean;
   isOnboardingCompleted: boolean;
   workoutPlan?: WorkoutPlan;
 }

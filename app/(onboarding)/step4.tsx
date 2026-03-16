@@ -25,6 +25,7 @@ export default function Step4Screen() {
 
     const [soundEnabled, setSoundEnabled] = useState(true);
     const [vibrationEnabled, setVibrationEnabled] = useState(true);
+    const [shareActivity, setShareActivity] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
     const handleComplete = async () => {
@@ -49,6 +50,7 @@ export default function Step4Screen() {
                 reminderTimes: ['08:00', '20:00'], // Default reminder times, can be customized later
                 soundEnabled,
                 vibrationEnabled,
+                shareActivityWithCaregiver: shareActivity,
                 isOnboardingCompleted: true,
             };
 
@@ -113,6 +115,22 @@ export default function Step4Screen() {
                             onValueChange={setVibrationEnabled}
                             trackColor={{ false: '#e0e0e0', true: '#A5D6A7' }}
                             thumbColor={vibrationEnabled ? '#4CAF50' : '#f4f3f4'}
+                        />
+                    </View>
+
+                    <View style={styles.settingRow}>
+                        <View style={styles.settingInfo}>
+                            <Ionicons name="share-social-outline" size={24} color="#4CAF50" style={styles.settingIcon} />
+                            <View>
+                                <Text style={styles.settingTitle}>{t('onboarding.step4.shareActivity.title')}</Text>
+                                <Text style={styles.settingDescription}>{t('onboarding.step4.shareActivity.description')}</Text>
+                             </View>
+                        </View>
+                        <Switch
+                            value={shareActivity}
+                            onValueChange={setShareActivity}
+                            trackColor={{ false: '#e0e0e0', true: '#A5D6A7' }}
+                            thumbColor={shareActivity ? '#4CAF50' : '#f4f3f4'}
                         />
                     </View>
                 </View>

@@ -9,6 +9,7 @@ export default function OnboardingLayout() {
                 contentStyle: { backgroundColor: "white" },
             }}
         >
+            <Stack.Screen name="language" />
             <Stack.Screen name="step1" />
             <Stack.Screen name="step2" />
             <Stack.Screen name="step3" />

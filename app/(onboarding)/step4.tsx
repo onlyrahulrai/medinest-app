@@ -3,10 +3,13 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Switch 
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { saveUserProfile, UserProfile } from '../../utils/storage';
+import '../../utils/i18n';
 
 export default function Step4Screen() {
     const router = useRouter();
+    const { t } = useTranslation();
     const params = useLocalSearchParams();
 
     // Params from previous steps
@@ -42,6 +45,7 @@ export default function Step4Screen() {
                     phoneNumber: emergencyPhone,
                     relation: emergencyRelation
                 }] : [],
+                managedPatients: [], // Initialize empty
                 reminderTimes: ['08:00', '20:00'], // Default reminder times, can be customized later
                 soundEnabled,
                 vibrationEnabled,
@@ -69,22 +73,23 @@ export default function Step4Screen() {
                     <View style={styles.progressDot} />
                     <View style={styles.progressDot} />
                     <View style={styles.progressDot} />
+                    <View style={styles.progressDot} />
                     <View style={[styles.progressDot, styles.progressDotActive]} />
                 </View>
                 <View style={{ width: 40 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <Text style={styles.title}>Preferences</Text>
-                <Text style={styles.subtitle}>Customize how you want to be reminded about your medications.</Text>
+                <Text style={styles.title}>{t('onboarding.step4.title')}</Text>
+                <Text style={styles.subtitle}>{t('onboarding.step4.subtitle')}</Text>
 
                 <View style={styles.formSection}>
                     <View style={styles.settingRow}>
                         <View style={styles.settingInfo}>
                             <Ionicons name="volume-high-outline" size={24} color="#4CAF50" style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingTitle}>Sound Alerts</Text>
-                                <Text style={styles.settingDescription}>Play a sound for reminders</Text>
+                                <Text style={styles.settingTitle}>{t('onboarding.step4.sound.title')}</Text>
+                                <Text style={styles.settingDescription}>{t('onboarding.step4.sound.description')}</Text>
                             </View>
                         </View>
                         <Switch
@@ -99,8 +104,8 @@ export default function Step4Screen() {
                         <View style={styles.settingInfo}>
                             <Ionicons name="phone-portrait-outline" size={24} color="#4CAF50" style={styles.settingIcon} />
                             <View>
-                                <Text style={styles.settingTitle}>Vibration</Text>
-                                <Text style={styles.settingDescription}>Vibrate phone on alerts</Text>
+                                <Text style={styles.settingTitle}>{t('onboarding.step4.vibration.title')}</Text>
+                                <Text style={styles.settingDescription}>{t('onboarding.step4.vibration.description')}</Text>
                             </View>
                         </View>
                         <Switch
@@ -124,7 +129,7 @@ export default function Step4Screen() {
                         style={styles.nextButtonGradient}
                     >
                         <Text style={[styles.nextButtonText, isSaving && styles.nextButtonTextDisabled]}>
-                            {isSaving ? 'Saving...' : 'Complete Setup'}
+                            {isSaving ? t('onboarding.step4.saving') : t('onboarding.step4.complete')}
                         </Text>
                         {!isSaving && <Ionicons name="checkmark-circle-outline" size={24} color="white" />}
                     </LinearGradient>

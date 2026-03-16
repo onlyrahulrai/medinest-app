@@ -3,9 +3,12 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platfo
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
+import '../../utils/i18n';
 
 export default function Step3Screen() {
     const router = useRouter();
+    const { t } = useTranslation();
     const params = useLocalSearchParams();
 
     // Params from previous steps
@@ -14,6 +17,7 @@ export default function Step3Screen() {
     const gender = params.gender as string;
     const weight = params.weight as string;
     const conditions = params.conditions as string; // JSON stringified
+    const phoneNumber = params.phoneNumber as string;
 
     const [emergencyName, setEmergencyName] = useState('');
     const [emergencyPhone, setEmergencyPhone] = useState('');
@@ -28,12 +32,15 @@ export default function Step3Screen() {
                 gender,
                 weight,
                 conditions,
+                phoneNumber,
                 emergencyName,
                 emergencyPhone,
                 emergencyRelation
             }
         });
     };
+
+    const hasCaregiverData = emergencyName.trim().length > 0 || emergencyPhone.trim().length > 0;
 
     return (
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -44,6 +51,7 @@ export default function Step3Screen() {
                 <View style={styles.progressContainer}>
                     <View style={styles.progressDot} />
                     <View style={styles.progressDot} />
+                    <View style={styles.progressDot} />
                     <View style={[styles.progressDot, styles.progressDotActive]} />
                     <View style={styles.progressDot} />
                 </View>
@@ -51,13 +59,18 @@ export default function Step3Screen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <Text style={styles.title}>Caregiver Details</Text>
-                <Text style={styles.subtitle}>Please provide the details of your primary caregiver who helps manage your medications.</Text>
+                <Text style={styles.title}>{t('onboarding.step3.title')}</Text>
+                <Text style={styles.subtitle}>{t('onboarding.step3.subtitle')}</Text>
+
+                <View style={styles.encouragementCard}>
+                    <Ionicons name="shield-checkmark" size={24} color="#4CAF50" />
+                    <Text style={styles.encouragementText}>{t('onboarding.step3.encouragement')}</Text>
+                </View>
 
                 <View style={styles.formSection}>
-                    <Text style={styles.sectionDivider}>Primary Caregiver (Optional)</Text>
+                    <Text style={styles.sectionDivider}>{t('onboarding.step3.form.title')}</Text>
 
-                    <Text style={styles.label}>Name</Text>
+                    <Text style={styles.label}>{t('onboarding.step3.form.name')}</Text>
                     <View style={styles.inputContainer}>
                         <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
                         <TextInput
@@ -69,7 +82,7 @@ export default function Step3Screen() {
                         />
                     </View>
 
-                    <Text style={styles.label}>Phone Number</Text>
+                    <Text style={styles.label}>{t('onboarding.step3.form.phone')}</Text>
                     <View style={styles.inputContainer}>
                         <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
                         <TextInput
@@ -82,7 +95,7 @@ export default function Step3Screen() {
                         />
                     </View>
 
-                    <Text style={styles.label}>Relation</Text>
+                    <Text style={styles.label}>{t('onboarding.step3.form.relation')}</Text>
                     <View style={styles.inputContainer}>
                         <Ionicons name="people-outline" size={20} color="#666" style={styles.inputIcon} />
                         <TextInput
@@ -98,16 +111,21 @@ export default function Step3Screen() {
 
             <View style={styles.footer}>
                 <TouchableOpacity
-                    style={[styles.nextButton, styles.nextButtonDisabled]}
+                    style={styles.nextButton}
                     onPress={handleNext}
-                    disabled={false}
                 >
                     <LinearGradient
-                        colors={false ? ['#e0e0e0', '#e0e0e0'] : ['#4CAF50', '#2E7D32']}
+                        colors={['#4CAF50', '#2E7D32']}
                         style={styles.nextButtonGradient}
                     >
-                        <Text style={[styles.nextButtonText, false ? styles.nextButtonTextDisabled : null]}>Next Step</Text>
-                        <Ionicons name="arrow-forward" size={20} color={false ? "#999" : "white"} />
+                        <Text style={styles.nextButtonText}>
+                            {hasCaregiverData ? t('common.next') : t('onboarding.step3.skip')}
+                        </Text>
+                        <Ionicons 
+                            name={hasCaregiverData ? "arrow-forward" : "play-skip-forward"} 
+                            size={20} 
+                            color="white" 
+                        />
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -161,8 +179,26 @@ const styles = StyleSheet.create({
     subtitle: {
         fontSize: 16,
         color: '#666',
-        marginBottom: 40,
+        marginBottom: 24,
         lineHeight: 24,
+    },
+    encouragementCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E8F5E9',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 32,
+        gap: 12,
+        borderWidth: 1,
+        borderColor: '#C8E6C9',
+    },
+    encouragementText: {
+        flex: 1,
+        fontSize: 14,
+        color: '#2E7D32',
+        lineHeight: 20,
+        fontWeight: '500',
     },
     formSection: {
         gap: 16,

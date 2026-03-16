@@ -3,9 +3,12 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platfo
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
+import '../../utils/i18n';
 
 export default function Step1Screen() {
     const router = useRouter();
+    const { t } = useTranslation();
     const [name, setName] = useState('');
     const [age, setAge] = useState('');
     const [gender, setGender] = useState('');
@@ -32,6 +35,7 @@ export default function Step1Screen() {
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
                 <View style={styles.progressContainer}>
+                    <View style={styles.progressDot} />
                     <View style={[styles.progressDot, styles.progressDotActive]} />
                     <View style={styles.progressDot} />
                     <View style={styles.progressDot} />
@@ -41,11 +45,11 @@ export default function Step1Screen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                <Text style={styles.title}>Welcome!</Text>
-                <Text style={styles.subtitle}>Let's get to know you better to personalize your reminders.</Text>
+                <Text style={styles.title}>{t('onboarding.step1.title')}</Text>
+                <Text style={styles.subtitle}>{t('onboarding.step1.subtitle')}</Text>
 
                 <View style={styles.formSection}>
-                    <Text style={styles.label}>Full Name</Text>
+                    <Text style={styles.label}>{t('onboarding.step1.fullName')}</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="John Doe"
@@ -54,7 +58,7 @@ export default function Step1Screen() {
                         placeholderTextColor="#999"
                     />
 
-                    <Text style={styles.label}>Age</Text>
+                    <Text style={styles.label}>{t('onboarding.step1.age')}</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="e.g., 28"
@@ -64,7 +68,7 @@ export default function Step1Screen() {
                         placeholderTextColor="#999"
                     />
  
-                    <Text style={styles.label}>Weight (kg)</Text>
+                    <Text style={styles.label}>{t('onboarding.step1.weight')}</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="e.g., 70"
@@ -74,7 +78,7 @@ export default function Step1Screen() {
                         placeholderTextColor="#999"
                     />
 
-                    <Text style={styles.label}>Gender</Text>
+                    <Text style={styles.label}>{t('onboarding.step1.gender')}</Text>
                     <View style={styles.genderContainer}>
                         {['Male', 'Female', 'Other'].map((g) => (
                             <TouchableOpacity
@@ -99,7 +103,7 @@ export default function Step1Screen() {
                         colors={isNextDisabled ? ['#e0e0e0', '#e0e0e0'] : ['#4CAF50', '#2E7D32']}
                         style={styles.nextButtonGradient}
                     >
-                        <Text style={[styles.nextButtonText, isNextDisabled && styles.nextButtonTextDisabled]}>Next Step</Text>
+                        <Text style={[styles.nextButtonText, isNextDisabled && styles.nextButtonTextDisabled]}>{t('common.next')}</Text>
                         <Ionicons name="arrow-forward" size={20} color={isNextDisabled ? "#999" : "white"} />
                     </LinearGradient>
                 </TouchableOpacity>

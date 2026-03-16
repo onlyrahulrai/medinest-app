@@ -1,17 +1,10 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  KeyboardAvoidingView,
-} from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import React, { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
+import '../../utils/i18n';
 
 const PREDEFINED_CONDITIONS = [
   "Diabetes",
@@ -25,6 +18,7 @@ const PREDEFINED_CONDITIONS = [
 
 export default function Step2Screen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams();
 
   // Params from Step 1
@@ -85,6 +79,7 @@ export default function Step2Screen() {
         </TouchableOpacity>
         <View style={styles.progressContainer}>
           <View style={styles.progressDot} />
+          <View style={styles.progressDot} />
           <View style={[styles.progressDot, styles.progressDotActive]} />
           <View style={styles.progressDot} />
           <View style={styles.progressDot} />
@@ -96,11 +91,8 @@ export default function Step2Screen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Health Profile</Text>
-        <Text style={styles.subtitle}>
-          Select any existing health conditions so we can better tailor your
-          experience.
-        </Text>
+        <Text style={styles.title}>{t('onboarding.step2.title')}</Text>
+        <Text style={styles.subtitle}>{t('onboarding.step2.subtitle')}</Text>
 
         <View style={styles.conditionsGrid}>
           {PREDEFINED_CONDITIONS.map((condition) => {
@@ -128,10 +120,10 @@ export default function Step2Screen() {
         </View>
 
         <View>
-          <Text style={styles.label}>Other</Text>
+          <Text style={styles.label}>{t('onboarding.step2.other')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Please specify..."
+            placeholder={t('onboarding.step2.placeholder')}
             value={otherCondition}
             onChangeText={setOtherCondition}
             placeholderTextColor="#999"
@@ -160,7 +152,7 @@ export default function Step2Screen() {
                 isNextDisabled && styles.nextButtonTextDisabled,
               ]}
             >
-              Next Step
+              {t('common.next')}
             </Text>
             <Ionicons
               name="arrow-forward"

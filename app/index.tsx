@@ -30,10 +30,10 @@ export default function SplashScreen() {
         if (token) {
           router.replace("/(tabs)");
         } else {
-          router.replace("/(auth)/login");
+          router.replace("/(onboarding)/language");
         }
       } catch (e) {
-        router.replace("/(auth)/login");
+        router.replace("/(onboarding)/language");
       }
     }, 2000);
 

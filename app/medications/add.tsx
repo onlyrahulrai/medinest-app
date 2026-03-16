@@ -28,6 +28,32 @@ import {
 
 const { width } = Dimensions.get("window");
 
+const MEDICATION_TYPES = [
+  { id: "tablet", label: "Tablet", icon: "tablet-portrait-outline" as const },
+  { id: "capsule", label: "Capsule", icon: "ellipse-outline" as const },
+  { id: "liquid", label: "Liquid", icon: "water-outline" as const },
+  { id: "injection", label: "Injection", icon: "fitness-outline" as const },
+  { id: "drops", label: "Drops", icon: "eyedrop-outline" as const },
+  { id: "inhaler", label: "Inhaler", icon: "cloud-outline" as const },
+  { id: "cream", label: "Cream", icon: "bandage-outline" as const },
+  { id: "patch", label: "Patch", icon: "square-outline" as const },
+];
+
+const MEAL_TIMINGS = [
+  { id: "before", label: "Before Meal", icon: "time-outline" as const },
+  { id: "after", label: "After Meal", icon: "restaurant-outline" as const },
+  { id: "with", label: "With Meal", icon: "fast-food-outline" as const },
+  { id: "empty", label: "Empty Stomach", icon: "moon-outline" as const },
+  { id: "any", label: "Any Time", icon: "sunny-outline" as const },
+];
+
+const DOSAGE_UNITS = ["mg", "ml", "mcg", "IU", "drops", "puffs", "units"];
+
+const MEDICINE_COLORS = [
+  "#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0",
+  "#00BCD4", "#FF5722", "#607D8B", "#795548", "#F44336",
+];
+
 const FREQUENCIES = [
   {
     id: "1",
@@ -69,6 +95,12 @@ export default function AddMedicationScreen() {
   const [form, setForm] = useState({
     name: "",
     dosage: "",
+    dosageUnit: "mg",
+    type: "",
+    mealTiming: "",
+    prescribedBy: "",
+    purpose: "",
+    color: "#4CAF50",
     frequency: "",
     duration: "",
     startDate: new Date(),
@@ -169,10 +201,6 @@ export default function AddMedicationScreen() {
       if (isSubmitting) return;
       setIsSubmitting(true);
 
-      // Generate a random color
-      const colors = ["#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
-      const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
       const medicationData = {
         id: Math.random().toString(36).substr(2, 9),
         ...form,
@@ -180,7 +208,7 @@ export default function AddMedicationScreen() {
         totalSupply: form.currentSupply ? Number(form.currentSupply) : 0,
         refillAt: form.refillAt ? Number(form.refillAt) : 0,
         startDate: form.startDate.toISOString(),
-        color: randomColor,
+        color: form.color,
         imageUrl: form.imageUri || undefined,
         addedBy: (form.ownerId === "self" ? 'patient' : 'caregiver') as 'patient' | 'caregiver',
       } as Medication;
@@ -402,10 +430,12 @@ export default function AddMedicationScreen() {
                 <Text style={styles.errorText}>{errors.name}</Text>
               )}
             </View>
+
+            {/* Dosage Input */}
             <View style={styles.inputContainer}>
               <TextInput
                 style={[styles.mainInput, errors.dosage && styles.inputError]}
-                placeholder="Dosage (e.g., 500mg)"
+                placeholder="Dosage (e.g., 500)"
                 placeholderTextColor="#999"
                 value={form.dosage}
                 onChangeText={(text) => {
@@ -414,11 +444,143 @@ export default function AddMedicationScreen() {
                     setErrors({ ...errors, dosage: "" });
                   }
                 }}
+                keyboardType="numeric"
               />
-              {errors.dosage && (
-                <Text style={styles.errorText}>{errors.dosage}</Text>
-              )}
             </View>
+
+            {/* Dosage Unit */}
+            <Text style={styles.unitLabel}>Unit</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitScroller}>
+              {DOSAGE_UNITS.map((unit) => (
+                <TouchableOpacity
+                  key={unit}
+                  style={[
+                    styles.unitChip,
+                    form.dosageUnit === unit && styles.unitChipActive,
+                  ]}
+                  onPress={() => setForm({ ...form, dosageUnit: unit })}
+                >
+                  <Text
+                    style={[
+                      styles.unitChipText,
+                      form.dosageUnit === unit && styles.unitChipTextActive,
+                    ]}
+                  >
+                    {unit}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {errors.dosage && (
+              <Text style={styles.errorText}>{errors.dosage}</Text>
+            )}
+          </View>
+
+          {/* Medication Type */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="medkit-outline" size={18} color="#1a8e2d" />{" "}
+              Medication Type
+            </Text>
+            <View style={styles.typeGrid}>
+              {MEDICATION_TYPES.map((medType) => (
+                <TouchableOpacity
+                  key={medType.id}
+                  style={[
+                    styles.typeChip,
+                    form.type === medType.label && styles.typeChipActive,
+                  ]}
+                  onPress={() => setForm({ ...form, type: medType.label })}
+                >
+                  <View
+                    style={[
+                      styles.typeIconContainer,
+                      form.type === medType.label && styles.typeIconContainerActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name={medType.icon}
+                      size={20}
+                      color={form.type === medType.label ? "white" : "#1a8e2d"}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.typeChipLabel,
+                      form.type === medType.label && styles.typeChipLabelActive,
+                    ]}
+                  >
+                    {medType.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Medicine Color */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="color-palette-outline" size={18} color="#1a8e2d" />{" "}
+              Medicine Color
+            </Text>
+            <View style={styles.colorGrid}>
+              {MEDICINE_COLORS.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorCircle,
+                    { backgroundColor: color },
+                    form.color === color && styles.colorCircleActive,
+                  ]}
+                  onPress={() => setForm({ ...form, color })}
+                >
+                  {form.color === color && (
+                    <Ionicons name="checkmark" size={20} color="white" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Meal Timing */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="restaurant-outline" size={18} color="#1a8e2d" />{" "}
+              When to Take
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealTimingScroller}>
+              {MEAL_TIMINGS.map((timing) => (
+                <TouchableOpacity
+                  key={timing.id}
+                  style={[
+                    styles.mealChip,
+                    form.mealTiming === timing.label && styles.mealChipActive,
+                  ]}
+                  onPress={() => setForm({ ...form, mealTiming: timing.label })}
+                >
+                  <View
+                    style={[
+                      styles.mealChipIcon,
+                      form.mealTiming === timing.label && styles.mealChipIconActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name={timing.icon}
+                      size={20}
+                      color={form.mealTiming === timing.label ? "white" : "#1a8e2d"}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.mealChipText,
+                      form.mealTiming === timing.label && styles.mealChipTextActive,
+                    ]}
+                  >
+                    {timing.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
 
           {/* Schedule */}
@@ -615,6 +777,36 @@ export default function AddMedicationScreen() {
                   </View>
                 </View>
               )}
+            </View>
+          </View>
+
+          {/* Additional Details */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="medical-outline" size={18} color="#1a8e2d" />{" "}
+              Additional Details
+            </Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.mainInput}
+                placeholder="Prescribed By (Doctor's Name)"
+                placeholderTextColor="#999"
+                value={form.prescribedBy}
+                onChangeText={(text) =>
+                  setForm({ ...form, prescribedBy: text })
+                }
+              />
+            </View>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.mainInput}
+                placeholder="Purpose (e.g., Blood Pressure, Diabetes)"
+                placeholderTextColor="#999"
+                value={form.purpose}
+                onChangeText={(text) =>
+                  setForm({ ...form, purpose: text })
+                }
+              />
             </View>
           </View>
 
@@ -1040,6 +1232,145 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   patientChipTextActive: {
+    color: "white",
+  },
+  // Dosage Row
+  unitLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  unitScroller: {
+    marginBottom: 8,
+  },
+  unitChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "white",
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  unitChipActive: {
+    backgroundColor: "#1a8e2d",
+    borderColor: "#1a8e2d",
+  },
+  unitChipText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+  },
+  unitChipTextActive: {
+    color: "white",
+  },
+  // Medication Type Grid
+  typeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  typeChip: {
+    width: (width - 70) / 4,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  typeChipActive: {
+    backgroundColor: "#1a8e2d",
+    borderColor: "#1a8e2d",
+  },
+  typeIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8F5E9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  typeIconContainerActive: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  typeChipLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
+  },
+  typeChipLabelActive: {
+    color: "white",
+  },
+  // Color Grid
+  colorGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+  },
+  colorCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  colorCircleActive: {
+    borderWidth: 3,
+    borderColor: "white",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  // Meal Timing
+  mealTimingScroller: {
+    flexDirection: "row",
+  },
+  mealChip: {
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: "white",
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    minWidth: 100,
+  },
+  mealChipActive: {
+    backgroundColor: "#1a8e2d",
+    borderColor: "#1a8e2d",
+  },
+  mealChipIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8F5E9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  mealChipIconActive: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  mealChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
+  },
+  mealChipTextActive: {
     color: "white",
   },
 });

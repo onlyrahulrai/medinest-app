@@ -1,0 +1,58 @@
+{
+  "common": {
+    "next": "Next Step",
+    "back": "Back",
+    "continue": "Continue",
+    "welcome": "Welcome!",
+    "getStarted": "Get Started"
+  },
+  "onboarding": {
+    "language": {
+      "title": "Choose Language",
+      "subtitle": "Please select your preferred language to continue.",
+      "en": "English",
+      "hi": "Hindi",
+      "selected": "Selected"
+    },
+    "step1": {
+      "title": "Welcome!",
+      "subtitle": "Let's get to know you better to personalize your reminders.",
+      "fullName": "Full Name",
+      "age": "Age",
+      "weight": "Weight (kg)",
+      "gender": "Gender"
+    },
+    "step2": {
+      "title": "Health Profile",
+      "subtitle": "Select any existing health conditions so we can better tailor your experience.",
+      "other": "Other",
+      "placeholder": "Please specify..."
+    },
+    "step3": {
+      "title": "Caregiver Details",
+      "subtitle": "Please provide the details of your primary caregiver who helps manage your medications.",
+      "encouragement": "Providing a caregiver ensures someone you trust is notified if you miss a critical dose.",
+      "skip": "Skip for Now",
+      "form": {
+        "title": "Primary Caregiver (Optional)",
+        "name": "Name",
+        "phone": "Phone Number",
+        "relation": "Relation"
+      }
+    },
+    "step4": {
+      "title": "Preferences",
+      "subtitle": "Customize how you want to be reminded about your medications.",
+      "sound": {
+        "title": "Sound Alerts",
+        "description": "Play a sound for reminders"
+      },
+      "vibration": {
+        "title": "Vibration",
+        "description": "Vibrate phone on alerts"
+      },
+      "complete": "Complete Setup",
+      "saving": "Saving..."
+    }
+  }
+}

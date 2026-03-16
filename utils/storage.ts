@@ -46,6 +46,11 @@ export interface Medication {
   ownerId?: string; // userId of the patient (defaults to 'self')
   name: string;
   dosage: string;
+  dosageUnit?: string; // mg, ml, mcg, IU, drops, puffs
+  type?: string; // Tablet, Capsule, Liquid, Injection, etc.
+  mealTiming?: string; // Before Meal, After Meal, With Meal, etc.
+  prescribedBy?: string; // Doctor name
+  purpose?: string; // Condition it treats
   frequency?: string; // e.g., 'Once daily'
   times: string[];
   startDate: string;

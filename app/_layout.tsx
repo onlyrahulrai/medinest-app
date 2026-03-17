@@ -62,6 +62,13 @@ export default function Layout() {
           }}
         />
         <Stack.Screen
+          name="caregiver/activity"
+          options={{
+            headerShown: false,
+            title: "",
+          }}
+        />
+        <Stack.Screen
           name="history"
           options={{
             headerShown: false,

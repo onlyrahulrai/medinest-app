@@ -24,6 +24,7 @@ interface FamilyAvatarListProps {
   onSelect: (id: string) => void;
   onAddMember?: () => void;
   onAddMedication?: (id: string) => void;
+  onViewActivity?: (id: string) => void;
 }
 
 export default function FamilyAvatarList({
@@ -32,6 +33,7 @@ export default function FamilyAvatarList({
   onSelect,
   onAddMember,
   onAddMedication,
+  onViewActivity,
 }: FamilyAvatarListProps) {
   const getInitials = (name: string) =>
     name
@@ -78,6 +80,13 @@ export default function FamilyAvatarList({
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Ionicons name="add-circle" size={28} color="#059669" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.viewActivityButton}
+                  onPress={() => onViewActivity && onViewActivity(member.id)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="stats-chart" size={24} color="#6366F1" />
                 </TouchableOpacity>
                 <View style={[styles.radio, isSelected && styles.radioSelected]}>
                   {isSelected && <View style={styles.radioInner} />}
@@ -199,6 +208,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   addMedicationButton: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewActivityButton: {
     justifyContent: "center",
     alignItems: "center",
   },

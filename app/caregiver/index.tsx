@@ -217,6 +217,10 @@ export default function CaregiverDashboard() {
     Alert.alert("Success", `${newMemberName} added successfully`);
   };
 
+  const handleViewActivity = (id: string) => {
+    router.push(`/caregiver/activity?patientId=${id}`);
+  };
+
   const categorizeMedications = () => {
     const morning: ScheduleMedication[] = [];
     const afternoon: ScheduleMedication[] = [];
@@ -376,6 +380,7 @@ export default function CaregiverDashboard() {
                 onSelect={setSelectedMember}
                 onAddMember={() => setShowAddMemberModal(true)}
                 onAddMedication={(id) => router.push(`/medications/add?patientId=${id}`)}
+                onViewActivity={handleViewActivity}
             />
           ) : (
             <View style={{ padding: 20, alignItems: 'center' }}>
@@ -410,6 +415,31 @@ export default function CaregiverDashboard() {
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#059669" />
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.quickActionCard, { marginTop: 12 }]}
+              onPress={() => handleViewActivity(selectedMember)}
+            >
+              <LinearGradient
+                colors={["#f5f3ff", "#ede9fe"]}
+                style={styles.quickActionGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <View style={styles.quickActionContent}>
+                  <View style={[styles.quickActionIconContainer, { backgroundColor: "#f5f3ff" }]}>
+                    <Ionicons name="stats-chart-outline" size={24} color="#6366F1" />
+                  </View>
+                  <View>
+                    <Text style={[styles.quickActionTitle, { color: "#4F46E5" }]}>View Activity</Text>
+                    <Text style={[styles.quickActionSubtitle, { color: "#6366F1" }]}>
+                      Daily metrics for {managedPatients.find(p => p.id === selectedMember)?.name}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#6366F1" />
               </LinearGradient>
             </TouchableOpacity>
           </View>

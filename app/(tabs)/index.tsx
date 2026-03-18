@@ -349,25 +349,9 @@ export default function HomeScreen() {
     }
   };
 
-  const handleSkipDose = async (medication: Medication) => {
-    try {
-      await recordDose(medication.id, false, new Date().toISOString(), 'self', 'skipped');
-      await loadMedications();
-    } catch (error) {
-      console.error("Error skipping dose:", error);
-      Alert.alert("Error", "Failed to skip dose. Please try again.");
-    }
-  };
-
   const isDoseTaken = (medicationId: string) => {
     return doseHistory.some(
       (dose) => dose.medicationId === medicationId && dose.taken
-    );
-  };
-
-  const isDoseSkipped = (medicationId: string) => {
-    return doseHistory.some(
-      (dose) => dose.medicationId === medicationId && dose.status === 'skipped'
     );
   };
 
@@ -673,12 +657,10 @@ export default function HomeScreen() {
 
                           {group.meds.map((medication) => {
                             const isTaken = isDoseTaken(medication.id);
-                            const isSkipped = isDoseSkipped(medication.id);
-                            const isHandled = isTaken || isSkipped;
                             return (
                               <View key={medication.id} style={[styles.groupMedRow, isGroup && styles.groupMedRowBorder]}>
                                 <View style={styles.doseInfo}>
-                                  <Text style={[styles.premiumMedicineName, isHandled && styles.premiumTextTaken]}>
+                                  <Text style={[styles.premiumMedicineName, isTaken && styles.premiumTextTaken]}>
                                     {medication.name}
                                     {medication.addedBy === 'caregiver' && (
                                       <Text style={styles.caregiverBadgeText}> ✨</Text>
@@ -694,26 +676,13 @@ export default function HomeScreen() {
                                       <Ionicons name="checkmark" size={16} color="#059669" />
                                       <Text style={styles.takenBadgeText}>Taken</Text>
                                     </View>
-                                  ) : isSkipped ? (
-                                    <View style={styles.skippedBadge}>
-                                      <Ionicons name="remove-circle-outline" size={16} color="#F59E0B" />
-                                      <Text style={styles.skippedBadgeText}>Skipped</Text>
-                                    </View>
                                   ) : (
-                                    <View style={styles.doseActionButtons}>
-                                      <TouchableOpacity
-                                        style={styles.skipBtn}
-                                        onPress={() => handleSkipDose(medication)}
-                                      >
-                                        <Text style={styles.skipBtnText}>Skip</Text>
-                                      </TouchableOpacity>
-                                      <TouchableOpacity
-                                        style={styles.premiumTakeBtn}
-                                        onPress={() => handleTakeDose(medication)}
-                                      >
-                                        <Text style={styles.premiumTakeBtnText}>Take</Text>
-                                      </TouchableOpacity>
-                                    </View>
+                                    <TouchableOpacity
+                                      style={styles.premiumTakeBtn}
+                                      onPress={() => handleTakeDose(medication)}
+                                    >
+                                      <Text style={styles.premiumTakeBtnText}>Take</Text>
+                                    </TouchableOpacity>
                                   )}
                                 </View>
                               </View>
@@ -1338,36 +1307,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 13,
     marginLeft: 4,
-  },
-  skippedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFBEB",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  skippedBadgeText: {
-    color: "#F59E0B",
-    fontWeight: "700",
-    fontSize: 13,
-    marginLeft: 4,
-  },
-  doseActionButtons: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  skipBtn: {
-    backgroundColor: "#FEF3C7",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-  },
-  skipBtnText: {
-    color: "#D97706",
-    fontWeight: "700",
-    fontSize: 14,
   },
   // ── Streak Section ──
   streakSection: {

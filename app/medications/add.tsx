@@ -94,7 +94,8 @@ interface MedicineEntry {
   currentSupply: string;
   refillAt: string;
   imageUri: string;
-  // Per-medicine schedule fields
+  // Per-medicine schedule override
+  customSchedule: boolean;
   frequency: string;
   times: string[];
   duration: string;
@@ -115,6 +116,7 @@ const createEmptyMedicine = (): MedicineEntry => ({
   currentSupply: "",
   refillAt: "",
   imageUri: "",
+  customSchedule: false,
   frequency: "Once daily",
   times: ["09:00"],
   duration: "30 days",
@@ -124,10 +126,14 @@ const createEmptyMedicine = (): MedicineEntry => ({
 export default function AddMedicationScreen() {
   const router = useRouter();
 
-  // Common group-level fields
+  // Common group-level fields (including global schedule)
   const [schedule, setSchedule] = useState({
     reminderEnabled: true,
     ownerId: "self",
+    frequency: "Once daily",
+    times: ["09:00"] as string[],
+    duration: "30 days",
+    startDate: new Date(),
   });
 
   // Per-medicine fields
@@ -136,6 +142,7 @@ export default function AddMedicationScreen() {
 
   // Picker management
   const [activePickerIndex, setActivePickerIndex] = useState<number | null>(null);
+  const [activePickerIsGlobal, setActivePickerIsGlobal] = useState(true);
   const [activeTimeIndex, setActiveTimeIndex] = useState<number>(0);
 
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
@@ -225,6 +232,14 @@ export default function AddMedicationScreen() {
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
 
+    // Validate global schedule
+    if (!schedule.frequency) {
+      newErrors['global_frequency'] = "Frequency is required";
+    }
+    if (!schedule.duration) {
+      newErrors['global_duration'] = "Duration is required";
+    }
+
     // Validate each medicine
     medicines.forEach((med, index) => {
       if (!med.name.trim()) {
@@ -233,11 +248,14 @@ export default function AddMedicationScreen() {
       if (!med.dosage.trim()) {
         newErrors[`dosage_${index}`] = "Dosage is required";
       }
-      if (!med.frequency) {
-        newErrors[`frequency_${index}`] = "Frequency is required";
-      }
-      if (!med.duration) {
-        newErrors[`duration_${index}`] = "Duration is required";
+      // Validate per-medicine schedule if custom
+      if (med.customSchedule) {
+        if (!med.frequency) {
+          newErrors[`frequency_${index}`] = "Frequency is required";
+        }
+        if (!med.duration) {
+          newErrors[`duration_${index}`] = "Duration is required";
+        }
       }
       if (med.refillReminder) {
         if (!med.currentSupply) {
@@ -265,31 +283,34 @@ export default function AddMedicationScreen() {
       if (isSubmitting) return;
       setIsSubmitting(true);
 
-      const medicationDataList: Medication[] = medicines.map(med => ({
-        id: Math.random().toString(36).substr(2, 9),
-        name: med.name,
-        dosage: med.dosage,
-        dosageUnit: med.dosageUnit,
-        type: med.type,
-        mealTiming: med.mealTiming,
-        prescribedBy: med.prescribedBy,
-        purpose: med.purpose,
-        color: med.color,
-        notes: med.notes,
-        imageUrl: med.imageUri || undefined,
-        refillReminder: med.refillReminder,
-        currentSupply: med.currentSupply ? Number(med.currentSupply) : 0,
-        totalSupply: med.currentSupply ? Number(med.currentSupply) : 0,
-        refillAt: med.refillAt ? Number(med.refillAt) : 0,
-        // Per-medicine schedule fields
-        frequency: med.frequency,
-        times: med.times,
-        duration: med.duration,
-        startDate: med.startDate.toISOString(),
-        reminderEnabled: schedule.reminderEnabled,
-        ownerId: schedule.ownerId,
-        addedBy: (schedule.ownerId === "self" ? 'patient' : 'caregiver') as 'patient' | 'caregiver',
-      }));
+      const medicationDataList: Medication[] = medicines.map(med => {
+        const useCustom = med.customSchedule;
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          name: med.name,
+          dosage: med.dosage,
+          dosageUnit: med.dosageUnit,
+          type: med.type,
+          mealTiming: med.mealTiming,
+          prescribedBy: med.prescribedBy,
+          purpose: med.purpose,
+          color: med.color,
+          notes: med.notes,
+          imageUrl: med.imageUri || undefined,
+          refillReminder: med.refillReminder,
+          currentSupply: med.currentSupply ? Number(med.currentSupply) : 0,
+          totalSupply: med.currentSupply ? Number(med.currentSupply) : 0,
+          refillAt: med.refillAt ? Number(med.refillAt) : 0,
+          // Use per-medicine or global schedule
+          frequency: useCustom ? med.frequency : schedule.frequency,
+          times: useCustom ? med.times : schedule.times,
+          duration: useCustom ? med.duration : schedule.duration,
+          startDate: (useCustom ? med.startDate : schedule.startDate).toISOString(),
+          reminderEnabled: schedule.reminderEnabled,
+          ownerId: schedule.ownerId,
+          addedBy: (schedule.ownerId === "self" ? 'patient' : 'caregiver') as 'patient' | 'caregiver',
+        };
+      });
 
       if (medicationDataList.length > 1) {
         await addMedicationGroup(medicationDataList);
@@ -327,47 +348,63 @@ export default function AddMedicationScreen() {
     }
   };
 
-  const renderFrequencyOptions = (medIndex: number) => (
-    <View style={styles.optionsGrid}>
-      {FREQUENCIES.map((freq) => (
-        <TouchableOpacity
-          key={freq.id}
-          style={[styles.optionCard, medicines[medIndex].frequency === freq.label && styles.selectedOptionCard]}
-          onPress={() => {
-            updateMedicine(medIndex, { frequency: freq.label, times: freq.times });
-          }}
-        >
-          <View style={[styles.optionIcon, medicines[medIndex].frequency === freq.label && styles.selectedOptionIcon]}>
-            <Ionicons name={freq.icon} size={24} color={medicines[medIndex].frequency === freq.label ? "white" : "#666"} />
-          </View>
-          <Text style={[styles.optionLabel, medicines[medIndex].frequency === freq.label && styles.selectedOptionLabel]}>
-            {freq.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  const renderFrequencyOptions = (medIndex: number | 'global') => {
+    const freq = medIndex === 'global' ? schedule.frequency : medicines[medIndex].frequency;
+    const setFreq = (label: string, times: string[]) => {
+      if (medIndex === 'global') {
+        setSchedule(prev => ({ ...prev, frequency: label, times }));
+      } else {
+        updateMedicine(medIndex, { frequency: label, times });
+      }
+    };
+    return (
+      <View style={styles.optionsGrid}>
+        {FREQUENCIES.map((f) => (
+          <TouchableOpacity
+            key={f.id}
+            style={[styles.optionCard, freq === f.label && styles.selectedOptionCard]}
+            onPress={() => setFreq(f.label, f.times)}
+          >
+            <View style={[styles.optionIcon, freq === f.label && styles.selectedOptionIcon]}>
+              <Ionicons name={f.icon} size={24} color={freq === f.label ? "white" : "#666"} />
+            </View>
+            <Text style={[styles.optionLabel, freq === f.label && styles.selectedOptionLabel]}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
 
-  const renderDurationOptions = (medIndex: number) => (
-    <View style={styles.optionsGrid}>
-      {DURATIONS.map((dur) => (
-        <TouchableOpacity
-          key={dur.id}
-          style={[styles.optionCard, medicines[medIndex].duration === dur.label && styles.selectedOptionCard]}
-          onPress={() => {
-            updateMedicine(medIndex, { duration: dur.label });
-          }}
-        >
-          <Text style={[styles.durationNumber, medicines[medIndex].duration === dur.label && styles.selectedDurationNumber]}>
-            {dur.value > 0 ? dur.value : "∞"}
-          </Text>
-          <Text style={[styles.optionLabel, medicines[medIndex].duration === dur.label && styles.selectedOptionLabel]}>
-            {dur.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  const renderDurationOptions = (medIndex: number | 'global') => {
+    const dur = medIndex === 'global' ? schedule.duration : medicines[medIndex].duration;
+    const setDur = (label: string) => {
+      if (medIndex === 'global') {
+        setSchedule(prev => ({ ...prev, duration: label }));
+      } else {
+        updateMedicine(medIndex, { duration: label });
+      }
+    };
+    return (
+      <View style={styles.optionsGrid}>
+        {DURATIONS.map((d) => (
+          <TouchableOpacity
+            key={d.id}
+            style={[styles.optionCard, dur === d.label && styles.selectedOptionCard]}
+            onPress={() => setDur(d.label)}
+          >
+            <Text style={[styles.durationNumber, dur === d.label && styles.selectedDurationNumber]}>
+              {d.value > 0 ? d.value : "∞"}
+            </Text>
+            <Text style={[styles.optionLabel, dur === d.label && styles.selectedOptionLabel]}>
+              {d.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
 
   const renderMedicineCard = (med: MedicineEntry, index: number) => {
     const isExpanded = expandedMedicine === index;
@@ -467,48 +504,73 @@ export default function AddMedicationScreen() {
 
             {/* Schedule Section */}
             <View style={styles.innerSection}>
-              <Text style={styles.sectionTitle}>How often?</Text>
-              {errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
-              {renderFrequencyOptions(index)}
-
-              <Text style={styles.sectionTitle}>For how long?</Text>
-              {errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
-              {renderDurationOptions(index)}
-
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => {
-                  setActivePickerIndex(index);
-                  setShowDatePicker(true);
-                }}
-              >
-                <View style={styles.dateIconContainer}>
-                  <Ionicons name="calendar" size={20} color={theme.accent} />
+              {/* Customize Schedule Toggle */}
+              <View style={styles.switchRow}>
+                <View style={styles.switchLabelContainer}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                  </View>
+                  <View>
+                    <Text style={styles.switchLabel}>Custom Schedule</Text>
+                    <Text style={styles.switchSubLabel}>Override global schedule for this medicine</Text>
+                  </View>
                 </View>
-                <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#666" />
-              </TouchableOpacity>
+                <Switch
+                  value={med.customSchedule}
+                  onValueChange={(value) => updateMedicine(index, { customSchedule: value })}
+                  trackColor={{ false: "#ddd", true: theme.accent }}
+                  thumbColor="white"
+                />
+              </View>
 
-              {med.frequency && med.frequency !== "As needed" && (
-                <View style={styles.timesContainer}>
-                  <Text style={styles.timesTitle}>Medication Times</Text>
-                  {med.times.map((time, tIndex) => (
-                    <TouchableOpacity
-                      key={tIndex}
-                      style={styles.timeButton}
-                      onPress={() => {
-                        setActivePickerIndex(index);
-                        setActiveTimeIndex(tIndex);
-                        setShowTimePicker(true);
-                      }}
-                    >
-                      <View style={styles.timeIconContainer}>
-                        <Ionicons name="time-outline" size={20} color={theme.accent} />
-                      </View>
-                      <Text style={styles.timeButtonText}>{time}</Text>
-                      <Ionicons name="chevron-forward" size={20} color="#666" />
-                    </TouchableOpacity>
-                  ))}
+              {med.customSchedule && (
+                <View style={{ marginTop: 15 }}>
+                  <Text style={styles.sectionTitle}>How often?</Text>
+                  {errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
+                  {renderFrequencyOptions(index)}
+
+                  <Text style={styles.sectionTitle}>For how long?</Text>
+                  {errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
+                  {renderDurationOptions(index)}
+
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => {
+                      setActivePickerIndex(index);
+                      setActivePickerIsGlobal(false);
+                      setShowDatePicker(true);
+                    }}
+                  >
+                    <View style={styles.dateIconContainer}>
+                      <Ionicons name="calendar" size={20} color={theme.accent} />
+                    </View>
+                    <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
+                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                  </TouchableOpacity>
+
+                  {med.frequency && med.frequency !== "As needed" && (
+                    <View style={styles.timesContainer}>
+                      <Text style={styles.timesTitle}>Medication Times</Text>
+                      {med.times.map((time, tIndex) => (
+                        <TouchableOpacity
+                          key={tIndex}
+                          style={styles.timeButton}
+                          onPress={() => {
+                            setActivePickerIndex(index);
+                            setActivePickerIsGlobal(false);
+                            setActiveTimeIndex(tIndex);
+                            setShowTimePicker(true);
+                          }}
+                        >
+                          <View style={styles.timeIconContainer}>
+                            <Ionicons name="time-outline" size={20} color={theme.accent} />
+                          </View>
+                          <Text style={styles.timeButtonText}>{time}</Text>
+                          <Ionicons name="chevron-forward" size={20} color="#666" />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -759,6 +821,59 @@ export default function AddMedicationScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* ======= GLOBAL SCHEDULE SECTION ======= */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="calendar-outline" size={18} color={theme.accent} />{" "}
+              Schedule
+            </Text>
+
+            <Text style={styles.sectionTitle}>How often?</Text>
+            {errors['global_frequency'] && <Text style={styles.errorText}>{errors['global_frequency']}</Text>}
+            {renderFrequencyOptions('global')}
+
+            <Text style={styles.sectionTitle}>For how long?</Text>
+            {errors['global_duration'] && <Text style={styles.errorText}>{errors['global_duration']}</Text>}
+            {renderDurationOptions('global')}
+
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => {
+                setActivePickerIsGlobal(true);
+                setShowDatePicker(true);
+              }}
+            >
+              <View style={styles.dateIconContainer}>
+                <Ionicons name="calendar" size={20} color={theme.accent} />
+              </View>
+              <Text style={styles.dateButtonText}>Starts {schedule.startDate.toLocaleDateString()}</Text>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
+
+            {schedule.frequency && schedule.frequency !== "As needed" && (
+              <View style={styles.timesContainer}>
+                <Text style={styles.timesTitle}>Medication Times</Text>
+                {schedule.times.map((time, tIndex) => (
+                  <TouchableOpacity
+                    key={tIndex}
+                    style={styles.timeButton}
+                    onPress={() => {
+                      setActivePickerIsGlobal(true);
+                      setActiveTimeIndex(tIndex);
+                      setShowTimePicker(true);
+                    }}
+                  >
+                    <View style={styles.timeIconContainer}>
+                      <Ionicons name="time-outline" size={20} color={theme.accent} />
+                    </View>
+                    <Text style={styles.timeButtonText}>{time}</Text>
+                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
               <Ionicons name="notifications-outline" size={18} color={theme.accent} />{" "}
@@ -788,23 +903,28 @@ export default function AddMedicationScreen() {
             </View>
           </View>
 
-          {showDatePicker && activePickerIndex !== null && (
+          {showDatePicker && (
             <DateTimePicker
-              value={medicines[activePickerIndex].startDate}
+              value={activePickerIsGlobal ? schedule.startDate : (activePickerIndex !== null ? medicines[activePickerIndex].startDate : new Date())}
               mode="date"
               onChange={(event, date) => {
                 setShowDatePicker(false);
                 if (date) {
-                  updateMedicine(activePickerIndex, { startDate: date });
+                  if (activePickerIsGlobal) {
+                    setSchedule(prev => ({ ...prev, startDate: date }));
+                  } else if (activePickerIndex !== null) {
+                    updateMedicine(activePickerIndex, { startDate: date });
+                  }
                 }
               }}
             />
           )}
 
-          {showTimePicker && activePickerIndex !== null && (
+          {showTimePicker && (
             <DateTimePicker
               value={(() => {
-                const [hours, minutes] = medicines[activePickerIndex].times[activeTimeIndex].split(":").map(Number);
+                const times = activePickerIsGlobal ? schedule.times : (activePickerIndex !== null ? medicines[activePickerIndex].times : ["09:00"]);
+                const [hours, minutes] = times[activeTimeIndex].split(":").map(Number);
                 const date = new Date();
                 date.setHours(hours, minutes, 0, 0);
                 return date;
@@ -816,9 +936,15 @@ export default function AddMedicationScreen() {
                   const newTime = date.toLocaleTimeString("default", {
                     hour: "2-digit", minute: "2-digit", hour12: false,
                   });
-                  const newTimes = [...medicines[activePickerIndex].times];
-                  newTimes[activeTimeIndex] = newTime;
-                  updateMedicine(activePickerIndex, { times: newTimes });
+                  if (activePickerIsGlobal) {
+                    const newTimes = [...schedule.times];
+                    newTimes[activeTimeIndex] = newTime;
+                    setSchedule(prev => ({ ...prev, times: newTimes }));
+                  } else if (activePickerIndex !== null) {
+                    const newTimes = [...medicines[activePickerIndex].times];
+                    newTimes[activeTimeIndex] = newTime;
+                    updateMedicine(activePickerIndex, { times: newTimes });
+                  }
                 }
               }}
             />

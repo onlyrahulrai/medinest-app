@@ -48,7 +48,8 @@ export async function registerForPushNotificationsAsync(): Promise<
 }
 
 export async function scheduleMedicationReminder(
-  medication: Medication
+  medication: Medication,
+  groupMedNames?: string[]
 ): Promise<string | undefined> {
   if (!medication.reminderEnabled) return;
 
@@ -64,10 +65,14 @@ export async function scheduleMedicationReminder(
         today.setDate(today.getDate() + 1);
       }
 
+      const body = groupMedNames && groupMedNames.length > 1
+        ? `Time to take: ${groupMedNames.join(", ")} (${medication.dosage})`
+        : `Time to take ${medication.name} (${medication.dosage})`;
+
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
           title: "Medication Reminder",
-          body: `Time to take ${medication.name} (${medication.dosage})`,
+          body,
           data: { medicationId: medication.id },
         },
         trigger: {

@@ -46,6 +46,7 @@ export interface UserProfile {
 export interface Medication {
   id: string;
   ownerId?: string; // userId of the patient (defaults to 'self')
+  scheduleGroupId?: string; // Groups multiple medicines under one schedule
   name: string;
   dosage: string;
   dosageUnit?: string; // mg, ml, mcg, IU, drops, puffs
@@ -66,6 +67,7 @@ export interface Medication {
   lastRefillDate?: string;
   imageUrl?: string;
   addedBy?: 'patient' | 'caregiver';
+  notes?: string;
 }
 
 export interface DoseHistory {
@@ -102,6 +104,27 @@ export async function addMedication(medication: Medication): Promise<void> {
     console.error("Error adding medication:", error);
     throw error;
   }
+}
+
+export async function addMedicationGroup(medicationGroup: Medication[]): Promise<void> {
+  try {
+    const medications = await getMedications();
+    const groupId = Math.random().toString(36).substr(2, 9);
+    for (const med of medicationGroup) {
+      if (!med.ownerId) med.ownerId = 'self';
+      med.scheduleGroupId = groupId;
+      medications.push(med);
+    }
+    await AsyncStorage.setItem(MEDICATIONS_KEY, JSON.stringify(medications));
+  } catch (error) {
+    console.error("Error adding medication group:", error);
+    throw error;
+  }
+}
+
+export async function getMedicationsByGroupId(groupId: string): Promise<Medication[]> {
+  const allMedications = await getMedications();
+  return allMedications.filter(med => med.scheduleGroupId === groupId);
 }
 
 export async function updateMedication(

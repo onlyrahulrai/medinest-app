@@ -262,22 +262,18 @@ export default function HomeScreen() {
 
       // Filter medications for today
       const today = new Date();
+      const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const todayMeds = allMedications.filter((med: Medication) => {
         const startDate = new Date(med.startDate);
-        const durationDays = parseInt(med.duration.split(" ")[0]);
+        const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+        const durationDays = parseInt(med.duration?.split(" ")[0]);
 
-        // For ongoing medications or if within duration
-        if (
-          durationDays === -1 ||
-          (today >= startDate &&
-            today <=
-            new Date(
-              startDate.getTime() + durationDays * 24 * 60 * 60 * 1000
-            ))
-        ) {
-          return true;
-        }
-        return false;
+        // Ongoing / unrecognizable duration → always show
+        if (isNaN(durationDays) || durationDays <= 0) return true;
+
+        // Within start → end window
+        const endDay = new Date(startDay.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        return todayDay >= startDay && todayDay <= endDay;
       });
 
       setTodaysMedications(todayMeds);

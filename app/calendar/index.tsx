@@ -8,6 +8,8 @@ import {
   Platform,
   Dimensions,
   Animated,
+  TextInput,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -35,19 +37,23 @@ export default function CalendarScreen() {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
   const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadData = useCallback(async () => {
     try {
+      console.log("[Calendar] loadData called with patientId:", patientId);
       const [meds, history, profile] = await Promise.all([
         getMedicationsForUser(patientId),
         getDoseHistory(),
         getUserProfile(),
       ]);
+      console.log("[Calendar] getMedicationsForUser returned:", meds.length, "medications");
+      console.log("[Calendar] Medication names:", meds.map(m => m.name));
       setMedications(meds);
       setDoseHistory(history.filter(h => h.patientId === patientId || (patientId === 'self' && h.patientId === undefined)));
       setManagedPatients(profile?.managedPatients || []);
-      
+
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 500,
@@ -58,6 +64,12 @@ export default function CalendarScreen() {
     }
   }, [selectedDate, patientId]);
 
+  // Initial load + reload when selectedDate or patientId changes
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Also reload when screen regains focus (e.g. navigating back from edit)
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -74,13 +86,33 @@ export default function CalendarScreen() {
 
   const { days, firstDay } = getDaysInMonth(selectedDate);
 
+  const isDoseTaken = (medicationId: string) => {
+    const dateStr = selectedDate.toDateString();
+    return doseHistory.some(
+      (dose) =>
+        dose.medicationId === medicationId &&
+        dose.taken &&
+        new Date(dose.timestamp).toDateString() === dateStr
+    );
+  };
+
+  const handleTakeDose = async (medication: Medication) => {
+    try {
+      await recordDose(medication.id, true, new Date().toISOString(), patientId, 'taken');
+      await loadData();
+    } catch (error) {
+      console.error("Error recording dose:", error);
+      Alert.alert("Error", "Failed to record dose. Please try again.");
+    }
+  };
+
   const renderCalendar = () => {
     const calendar: JSX.Element[] = [];
     let week: JSX.Element[] = [];
 
     // Add empty cells
     for (let i = 0; i < firstDay; i++) {
-        week.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
+      week.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
     }
 
     // Add days
@@ -107,7 +139,7 @@ export default function CalendarScreen() {
         >
           <View style={[styles.dayInner, isSelected && styles.selectedDayInner, isToday && !isSelected && styles.todayInner]}>
             <Text style={[styles.dayText, isSelected && styles.selectedDayText, isToday && !isSelected && styles.todayText]}>
-                {day}
+              {day}
             </Text>
           </View>
           {hasDoses && <View style={[styles.eventDot, isSelected && styles.selectedEventDot]} />}
@@ -128,65 +160,125 @@ export default function CalendarScreen() {
   };
 
   const renderMedicationsForDate = () => {
-    const dateStr = selectedDate.toDateString();
-    const dayDoses = doseHistory.filter(
-      (dose) => new Date(dose.timestamp).toDateString() === dateStr
+    // Apply search filter
+    const filteredMeds = medications.filter(med =>
+      med.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     if (medications.length === 0) {
-        return (
-            <View style={styles.emptyContainer}>
-                <Ionicons name="medical-outline" size={48} color="#CBD5E1" />
-                <Text style={styles.emptyText}>No medications scheduled</Text>
-            </View>
-        );
+      return (
+        <View style={styles.emptyState}>
+          <Ionicons name="calendar-clear-outline" size={60} color="#CBD5E1" />
+          <Text style={styles.emptyStateTitle}>No Medications Scheduled</Text>
+          <Text style={styles.emptyStateSub}>Nothing scheduled for this date.</Text>
+        </View>
+      );
     }
 
-    return medications.map((medication, index) => {
-      const taken = dayDoses.some(
-        (dose) => dose.medicationId === medication.id && dose.taken
-      );
-
+    if (filteredMeds.length === 0) {
       return (
-        <Animated.View 
-            key={medication.id} 
-            style={[styles.medicationCard, { opacity: fadeAnim }]}
-        >
-          <View style={[styles.statusIndicator, { backgroundColor: medication.color }]} />
-          <View style={styles.medicationInfo}>
-            <Text style={styles.medicationName}>{medication.name}</Text>
-            <View style={styles.medicationSubRow}>
-                <Ionicons name="time-outline" size={14} color="#64748B" />
-                <Text style={styles.medicationTime}>{medication.times[0]}</Text>
-                <View style={styles.dotSeparator} />
-                <Text style={styles.medicationDosage}>{medication.dosage}</Text>
-            </View>
-          </View>
-          
-          {taken ? (
-            <View style={styles.takenBadge}>
-              <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-              <Text style={styles.takenText}>Done</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.takeDoseButton}
-              onPress={async () => {
-                await recordDose(medication.id, true, new Date().toISOString(), patientId);
-                loadData();
-              }}
-            >
-              <LinearGradient 
-                colors={[medication.color || "#1a8e2d", medication.color || "#146922"]} 
-                style={styles.takeButtonGradient}
-              >
-                <Text style={styles.takeDoseText}>Take</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
+        <View style={styles.emptyState}>
+          <Ionicons name="search-outline" size={48} color="#CBD5E1" />
+          <Text style={styles.emptyStateTitle}>
+            No medications match "{searchQuery}"
+          </Text>
+        </View>
       );
-    });
+    }
+
+    // Group medications by scheduleGroupId AND time slot (same as home screen)
+    const grouped: { key: string; meds: Medication[]; time: string }[] = [];
+    const seen = new Set<string>();
+
+    for (const med of filteredMeds) {
+      const timeStr = med.times[0] || "No time";
+      const groupingKey = med.scheduleGroupId
+        ? `${med.scheduleGroupId}_${timeStr}`
+        : `${med.id}_${timeStr}`;
+
+      if (seen.has(groupingKey)) continue;
+      seen.add(groupingKey);
+
+      grouped.push({
+        key: groupingKey,
+        time: timeStr,
+        meds: filteredMeds.filter(m => {
+          const mTime = m.times[0] || "No time";
+          if (med.scheduleGroupId) {
+            return m.scheduleGroupId === med.scheduleGroupId && mTime === timeStr;
+          }
+          return m.id === med.id && mTime === timeStr;
+        }),
+      });
+    }
+
+    return (
+      <View style={styles.timelineContainer}>
+        {grouped.map((group, index) => {
+          const allTaken = group.meds.every(m => isDoseTaken(m.id));
+          const isGroup = group.meds.length > 1;
+
+          return (
+            <View key={group.key} style={styles.timelineRow}>
+              <View style={styles.timelineTrack}>
+                <View style={[styles.timelineDot, allTaken && styles.timelineDotTaken]} />
+                {index !== grouped.length - 1 && <View style={styles.timelineLine} />}
+              </View>
+
+              <View style={[styles.premiumDoseCard, allTaken && styles.premiumDoseCardTaken]}>
+                {isGroup && (
+                  <View style={styles.groupBadge}>
+                    <Ionicons name="layers-outline" size={12} color="#059669" />
+                    <Text style={styles.groupBadgeText}>{group.meds.length} medicines • {group.time}</Text>
+                  </View>
+                )}
+
+                {group.meds.map((medication) => {
+                  const isTaken = isDoseTaken(medication.id);
+                  return (
+                    <View key={medication.id} style={[styles.groupMedRow, isGroup && styles.groupMedRowBorder]}>
+                      <View style={styles.doseInfo}>
+                        <Text style={[styles.premiumMedicineName, isTaken && styles.premiumTextTaken]}>
+                          {medication.name}
+                          {medication.addedBy === 'caregiver' && (
+                            <Text style={styles.caregiverBadgeText}> ✨</Text>
+                          )}
+                        </Text>
+                        <Text style={styles.premiumDosageInfo}>
+                          {medication.dosage}{!isGroup ? ` • ${medication.times[0]}` : ''}
+                        </Text>
+                      </View>
+                      <View style={styles.cardActions}>
+                        {isTaken ? (
+                          <View style={styles.takenBadge}>
+                            <Ionicons name="checkmark" size={16} color="#059669" />
+                            <Text style={styles.takenBadgeText}>Taken</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.premiumTakeBtn}
+                            onPress={() => handleTakeDose(medication)}
+                          >
+                            <Text style={styles.premiumTakeBtnText}>Take</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={styles.editIconBtn}
+                  onPress={() => router.push(`/medications/edit?id=${group.meds[0].id}`)}
+                >
+                  <Ionicons name="create-outline" size={18} color="#666" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
   };
 
   return (
@@ -256,17 +348,34 @@ export default function CalendarScreen() {
         </View>
 
         <View style={styles.scheduleHeader}>
-            <Text style={styles.scheduleTitle}>Daily Schedule</Text>
-            <Text style={styles.scheduleDate}>
-                {selectedDate.toLocaleDateString("default", { weekday: 'short', month: 'short', day: 'numeric' })}
-            </Text>
+          <Text style={styles.scheduleTitle}>Daily Schedule</Text>
+          <Text style={styles.scheduleDate}>
+            {selectedDate.toLocaleDateString("default", { weekday: 'short', month: 'short', day: 'numeric' })}
+          </Text>
         </View>
 
-        <ScrollView 
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scheduleList}
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search medications..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scheduleList}
         >
-            {renderMedicationsForDate()}
+          {renderMedicationsForDate()}
         </ScrollView>
       </View>
     </View>
@@ -357,10 +466,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 12,
   },
-  selectedDayBox: {
-    // No extra border needed for the box itself in this design, 
-    // but keeping it for potential future hover/selection effects
-  },
+  selectedDayBox: {},
   dayInner: {
     width: 36,
     height: 36,
@@ -408,7 +514,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   scheduleTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800",
     color: "#1E293B",
   },
@@ -420,68 +526,131 @@ const styles = StyleSheet.create({
   scheduleList: {
     paddingBottom: 40,
   },
-  medicationCard: {
+  // ── Search Bar ──
+  searchContainer: {
     flexDirection: "row",
-    backgroundColor: "white",
-    borderRadius: 24,
-    padding: 16,
-    marginBottom: 12,
     alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
     elevation: 2,
   },
-  statusIndicator: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-    marginRight: 16,
+  searchIcon: {
+    marginRight: 10,
   },
-  medicationInfo: {
+  searchInput: {
     flex: 1,
+    fontSize: 15,
+    color: "#1E293B",
+    padding: 0,
   },
-  medicationName: {
-    fontSize: 16,
+  // ── Empty States ──
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+    backgroundColor: "white",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    borderStyle: "dashed",
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#64748B",
+    marginTop: 16,
+  },
+  emptyStateSub: {
+    fontSize: 14,
+    color: "#94A3B8",
+    marginTop: 8,
+  },
+  // ── Timeline ──
+  timelineContainer: {
+    paddingTop: 16,
+  },
+  timelineRow: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  timelineTrack: {
+    width: 30,
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#CBD5E1",
+    marginTop: 24,
+    zIndex: 2,
+  },
+  timelineDotTaken: {
+    backgroundColor: "#10B981",
+  },
+  timelineLine: {
+    position: "absolute",
+    top: 36,
+    bottom: -32,
+    width: 2,
+    backgroundColor: "#E2E8F0",
+    borderStyle: "dashed",
+    zIndex: 1,
+  },
+  // ── Premium Dose Card ──
+  premiumDoseCard: {
+    flex: 1,
+    flexDirection: "column",
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
+    overflow: "hidden",
+  },
+  premiumDoseCardTaken: {
+    backgroundColor: "#F8FAFC",
+    shadowOpacity: 0.01,
+  },
+  premiumMedicineName: {
+    fontSize: 17,
     fontWeight: "700",
     color: "#1E293B",
     marginBottom: 4,
   },
-  medicationSubRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  premiumTextTaken: {
+    color: "#94A3B8",
+    textDecorationLine: "line-through",
   },
-  medicationTime: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#64748B",
-    marginLeft: 4,
-  },
-  dotSeparator: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: "#CBD5E1",
-    marginHorizontal: 8,
-  },
-  medicationDosage: {
-    fontSize: 13,
+  premiumDosageInfo: {
+    fontSize: 14,
     color: "#64748B",
   },
-  takeDoseButton: {
-    overflow: "hidden",
+  premiumTakeBtn: {
+    backgroundColor: "#065F46",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 14,
   },
-  takeButtonGradient: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: "center",
-  },
-  takeDoseText: {
+  premiumTakeBtnText: {
     color: "white",
     fontWeight: "700",
     fontSize: 14,
+  },
+  doseInfo: {
+    flex: 1,
+    justifyContent: "center",
   },
   takenBadge: {
     flexDirection: "row",
@@ -491,23 +660,59 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
   },
-  takenText: {
-    color: "#10B981",
+  takenBadgeText: {
+    color: "#059669",
     fontWeight: "700",
     fontSize: 13,
     marginLeft: 4,
   },
-  emptyContainer: {
+  cardActions: {
+    flexDirection: "row",
     alignItems: "center",
+  },
+  editIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
     justifyContent: "center",
-    paddingVertical: 40,
+    alignItems: "center",
+    alignSelf: "flex-end",
+    marginTop: 8,
   },
-  emptyText: {
-    marginTop: 12,
-    color: "#94A3B8",
-    fontSize: 15,
-    fontWeight: "500",
+  groupBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginBottom: 8,
+    alignSelf: "flex-start",
+    gap: 4,
   },
+  groupBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  groupMedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  groupMedRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  caregiverBadgeText: {
+    fontSize: 10,
+    color: '#059669',
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  // ── Patient Selector ──
   patientSelector: {
     marginBottom: 15,
   },

@@ -18,9 +18,7 @@ import AlertCard from "../../components/caregiver/AlertCard";
 import FamilyAvatarList, {
   FamilyMember,
 } from "../../components/caregiver/FamilyAvatar";
-import ScheduleTimeline, {
-  ScheduleMedication,
-} from "../../components/caregiver/ScheduleTimeline";
+
 import FloatingAddButton from "../../components/caregiver/FloatingAddButton";
 import { mockStats } from "../../components/caregiver/mockStats";
 import { 
@@ -46,115 +44,8 @@ const FAMILY_MEMBERS: FamilyMember[] = [
   { id: "4", name: "Sarah", image: "https://xsgames.co/randomusers/avatar.php?g=female&r=3", statusText: "All taken", nextMedication: "" },
 ];
 
-const SCHEDULES: Record<
-  string,
-  {
-    morning: ScheduleMedication[];
-    afternoon: ScheduleMedication[];
-    evening: ScheduleMedication[];
-  }
-> = {
-  "1": {
-    morning: [
-      {
-        id: "m1",
-        name: "Lisinopril",
-        dosage: "10mg",
-        patientName: "David",
-        category: "Heart Health",
-        status: "taken",
-      },
-      {
-        id: "m2",
-        name: "Metformin",
-        dosage: "500mg",
-        patientName: "David",
-        category: "Diabetes",
-        status: "taken",
-      },
-    ],
-    afternoon: [
-      {
-        id: "m3",
-        name: "Atorvastatin",
-        dosage: "20mg",
-        patientName: "David",
-        category: "Cholesterol",
-        status: "pending",
-      },
-    ],
-    evening: [
-      {
-        id: "m4",
-        name: "Amlodipine",
-        dosage: "5mg",
-        patientName: "David",
-        category: "Blood Pressure",
-        status: "pending",
-      },
-    ],
-  },
-  "2": {
-    morning: [
-      {
-        id: "m5",
-        name: "Blood Pressure Meds",
-        dosage: "50mg",
-        patientName: "Mary",
-        category: "Hypertension",
-        status: "missed",
-      },
-    ],
-    afternoon: [],
-    evening: [
-      {
-        id: "m6",
-        name: "Aspirin",
-        dosage: "75mg",
-        patientName: "Mary",
-        category: "Heart Health",
-        status: "pending",
-      },
-    ],
-  },
-  "3": {
-    morning: [
-      {
-        id: "m7",
-        name: "Insulin",
-        dosage: "10 units",
-        patientName: "James",
-        category: "Diabetes",
-        status: "taken",
-      },
-    ],
-    afternoon: [
-      {
-        id: "m8",
-        name: "Insulin",
-        dosage: "10 units",
-        patientName: "James",
-        category: "Diabetes",
-        status: "pending",
-      },
-    ],
-    evening: [],
-  },
-  "4": {
-    morning: [
-      {
-        id: "m9",
-        name: "Vitamin D",
-        dosage: "1000 IU",
-        patientName: "Sarah",
-        category: "Supplements",
-        status: "taken",
-      },
-    ],
-    afternoon: [],
-    evening: [],
-  },
-};
+
+
 
 // ─── component ────────────────────────────────────────────────
 export default function CaregiverDashboard() {
@@ -221,73 +112,61 @@ export default function CaregiverDashboard() {
     router.push(`/caregiver/activity?patientId=${id}`);
   };
 
-  const categorizeMedications = () => {
-    const morning: ScheduleMedication[] = [];
-    const afternoon: ScheduleMedication[] = [];
-    const evening: ScheduleMedication[] = [];
-    
+  const isDoseTaken = (medicationId: string) => {
     const today = new Date().toDateString();
-    
-    medications.forEach(med => {
-        const taken = doseHistory.some(dh => 
-            dh.medicationId === med.id && 
-            new Date(dh.timestamp).toDateString() === today && 
-            dh.taken
-        );
-        
-        const scheduleMed: ScheduleMedication = {
-            id: med.id,
-            name: med.name,
-            dosage: med.dosage,
-            patientName: managedPatients.find(p => p.id === selectedMember)?.name || "Patient",
-            category: "Health",
-            status: taken ? "taken" : "pending"
-        };
-        
-        // Basic time-based categorization
-        med.times.forEach(time => {
-            const hour = parseInt(time.split(':')[0]);
-            if (hour < 12) morning.push(scheduleMed);
-            else if (hour < 17) afternoon.push(scheduleMed);
-            else evening.push(scheduleMed);
-        });
-    });
-    
-    return { morning, afternoon, evening };
+    return doseHistory.some(
+      (dose) =>
+        dose.medicationId === medicationId &&
+        dose.taken &&
+        new Date(dose.timestamp).toDateString() === today
+    );
   };
 
-  const schedule = categorizeMedications();
-
-  const timeSlots = [
-    {
-      label: "Morning",
-      time: "8:00 AM",
-      icon: "sunny-outline" as const,
-      medications: schedule.morning,
-    },
-    {
-      label: "Afternoon",
-      time: "1:00 PM",
-      icon: "partly-sunny-outline" as const,
-      medications: schedule.afternoon,
-    },
-    {
-      label: "Evening",
-      time: "8:00 PM",
-      icon: "moon-outline" as const,
-      medications: schedule.evening,
-    },
-  ];
-
-  const handleConfirm = async (medId: string) => {
-    await recordDose(medId, true, new Date().toISOString(), selectedMember);
-    await loadData();
-    Alert.alert("Confirmed", "Medication marked as taken.");
+  const handleTakeDose = async (medication: Medication) => {
+    try {
+      await recordDose(medication.id, true, new Date().toISOString(), selectedMember, 'taken');
+      await loadData();
+    } catch (error) {
+      console.error("Error recording dose:", error);
+      Alert.alert("Error", "Failed to record dose. Please try again.");
+    }
   };
 
   const handleEdit = (medId: string) => {
     router.push(`/medications/edit?id=${medId}&patientId=${selectedMember}`);
   };
+
+  // Group medications by scheduleGroupId AND time slot (same as home screen)
+  const getGroupedMedications = () => {
+    const grouped: { key: string; meds: Medication[]; time: string }[] = [];
+    const seen = new Set<string>();
+
+    for (const med of medications) {
+      const timeStr = med.times[0] || "No time";
+      const groupingKey = med.scheduleGroupId
+        ? `${med.scheduleGroupId}_${timeStr}`
+        : `${med.id}_${timeStr}`;
+
+      if (seen.has(groupingKey)) continue;
+      seen.add(groupingKey);
+
+      grouped.push({
+        key: groupingKey,
+        time: timeStr,
+        meds: medications.filter(m => {
+          const mTime = m.times[0] || "No time";
+          if (med.scheduleGroupId) {
+            return m.scheduleGroupId === med.scheduleGroupId && mTime === timeStr;
+          }
+          return m.id === med.id && mTime === timeStr;
+        }),
+      });
+    }
+
+    return grouped;
+  };
+
+  const groupedMedications = getGroupedMedications();
 
   return (
     <View style={styles.container}>
@@ -455,11 +334,81 @@ export default function CaregiverDashboard() {
                 day: "numeric",
             })}</Text>
           </View>
-          <ScheduleTimeline
-            timeSlots={timeSlots}
-            onConfirm={handleConfirm}
-            onEdit={handleEdit}
-          />
+          <View style={{ paddingHorizontal: 20 }}>
+            {medications.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-clear-outline" size={60} color="#CBD5E1" />
+                <Text style={styles.emptyStateTitle}>No Medications</Text>
+                <Text style={styles.emptyStateSub}>No medications scheduled for this patient.</Text>
+              </View>
+            ) : (
+              <View style={styles.timelineContainer}>
+                {groupedMedications.map((group, index) => {
+                  const allTaken = group.meds.every(m => isDoseTaken(m.id));
+                  const isGroup = group.meds.length > 1;
+
+                  return (
+                    <View key={group.key} style={styles.timelineRow}>
+                      <View style={styles.timelineTrack}>
+                        <View style={[styles.timelineDot, allTaken && styles.timelineDotTaken]} />
+                        {index !== groupedMedications.length - 1 && <View style={styles.timelineLine} />}
+                      </View>
+
+                      <View style={[styles.premiumDoseCard, allTaken && styles.premiumDoseCardTaken]}>
+                        {isGroup && (
+                          <View style={styles.groupBadge}>
+                            <Ionicons name="layers-outline" size={12} color="#059669" />
+                            <Text style={styles.groupBadgeText}>{group.meds.length} medicines • {group.time}</Text>
+                          </View>
+                        )}
+
+                        {group.meds.map((medication) => {
+                          const isTaken = isDoseTaken(medication.id);
+                          return (
+                            <View key={medication.id} style={[styles.groupMedRow, isGroup && styles.groupMedRowBorder]}>
+                              <View style={styles.doseInfo}>
+                                <Text style={[styles.premiumMedicineName, isTaken && styles.premiumTextTaken]}>
+                                  {medication.name}
+                                  {medication.addedBy === 'caregiver' && (
+                                    <Text style={styles.caregiverBadgeText}> ✨</Text>
+                                  )}
+                                </Text>
+                                <Text style={styles.premiumDosageInfo}>
+                                  {medication.dosage}{!isGroup ? ` • ${medication.times[0]}` : ''}
+                                </Text>
+                              </View>
+                              <View style={styles.cardActions}>
+                                {isTaken ? (
+                                  <View style={styles.takenBadge}>
+                                    <Ionicons name="checkmark" size={16} color="#059669" />
+                                    <Text style={styles.takenBadgeText}>Taken</Text>
+                                  </View>
+                                ) : (
+                                  <TouchableOpacity
+                                    style={styles.premiumTakeBtn}
+                                    onPress={() => handleTakeDose(medication)}
+                                  >
+                                    <Text style={styles.premiumTakeBtnText}>Take</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        <TouchableOpacity
+                          style={styles.editIconBtn}
+                          onPress={() => handleEdit(group.meds[0].id)}
+                        >
+                          <Ionicons name="create-outline" size={18} color="#666" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={{ height: 120 }} />
@@ -744,5 +693,163 @@ const styles = StyleSheet.create({
     color: "#059669",
     marginTop: 2,
     fontWeight: "500",
+  },
+  // ── Timeline ──
+  timelineContainer: {
+    paddingTop: 16,
+  },
+  timelineRow: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  timelineTrack: {
+    width: 30,
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#CBD5E1",
+    marginTop: 24,
+    zIndex: 2,
+  },
+  timelineDotTaken: {
+    backgroundColor: "#10B981",
+  },
+  timelineLine: {
+    position: "absolute",
+    top: 36,
+    bottom: -32,
+    width: 2,
+    backgroundColor: "#E2E8F0",
+    borderStyle: "dashed",
+    zIndex: 1,
+  },
+  premiumDoseCard: {
+    flex: 1,
+    flexDirection: "column",
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
+    overflow: "hidden",
+  },
+  premiumDoseCardTaken: {
+    backgroundColor: "#F8FAFC",
+    shadowOpacity: 0.01,
+  },
+  premiumMedicineName: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 4,
+  },
+  premiumTextTaken: {
+    color: "#94A3B8",
+    textDecorationLine: "line-through",
+  },
+  premiumDosageInfo: {
+    fontSize: 14,
+    color: "#64748B",
+  },
+  premiumTakeBtn: {
+    backgroundColor: "#065F46",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  premiumTakeBtnText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  doseInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  takenBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  takenBadgeText: {
+    color: "#059669",
+    fontWeight: "700",
+    fontSize: 13,
+    marginLeft: 4,
+  },
+  cardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  editIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    marginTop: 8,
+  },
+  groupBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginBottom: 8,
+    alignSelf: "flex-start",
+    gap: 4,
+  },
+  groupBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  groupMedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  groupMedRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  caregiverBadgeText: {
+    fontSize: 10,
+    color: '#059669',
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+    backgroundColor: "white",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    borderStyle: "dashed",
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#64748B",
+    marginTop: 16,
+  },
+  emptyStateSub: {
+    fontSize: 14,
+    color: "#94A3B8",
+    marginTop: 8,
   },
 });

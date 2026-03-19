@@ -350,6 +350,7 @@ export default function AddMedicationScreen() {
 
   const renderFrequencyOptions = (medIndex: number | 'global') => {
     const freq = medIndex === 'global' ? schedule.frequency : medicines[medIndex].frequency;
+
     const setFreq = (label: string, times: string[]) => {
       if (medIndex === 'global') {
         setSchedule(prev => ({ ...prev, frequency: label, times }));
@@ -357,6 +358,7 @@ export default function AddMedicationScreen() {
         updateMedicine(medIndex, { frequency: label, times });
       }
     };
+
     return (
       <View style={styles.optionsGrid}>
         {FREQUENCIES.map((f) => (
@@ -1075,7 +1077,7 @@ const styles = StyleSheet.create({
   // Schedule styles
   optionsGrid: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -5 },
   optionCard: {
-    width: (width - 92) / 2, backgroundColor: "white", borderRadius: 16, padding: 15, margin: 5,
+    width: (width - 102) / 2, backgroundColor: "white", borderRadius: 16, padding: 15, margin: 5,
     alignItems: "center", borderWidth: 1, borderColor: "#e0e0e0", shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },

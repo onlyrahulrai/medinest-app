@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { getUserProfile, saveUserProfile, UserProfile } from '../../utils/storage';
 import { Image } from 'react-native';
 
@@ -24,7 +25,8 @@ export default function EditProfileScreen() {
 
     // Form states
     const [name, setName] = useState('');
-    const [age, setAge] = useState('');
+    const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
+    const [showDatePicker, setShowDatePicker] = useState(false);
     const [gender, setGender] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [emergencyName, setEmergencyName] = useState('');
@@ -44,7 +46,7 @@ export default function EditProfileScreen() {
         if (data) {
             setProfile(data);
             setName(data.name);
-            setAge(data.age);
+            setDateOfBirth(data.dateOfBirth ? new Date(data.dateOfBirth) : null);
             setGender(data.gender);
             setWeight(data.weight || '');
             setPhoneNumber(data.phoneNumber);
@@ -88,7 +90,7 @@ export default function EditProfileScreen() {
     };
 
     const handleSave = async () => {
-        if (!name.trim() || !age.trim() || !gender || !phoneNumber.trim()) {
+        if (!name.trim() || !dateOfBirth || !gender || !phoneNumber.trim()) {
             Alert.alert('Missing Fields', 'Please fill in all required fields.');
             return;
         }
@@ -100,7 +102,7 @@ export default function EditProfileScreen() {
             const updatedProfile: UserProfile = {
                 ...profile,
                 name,
-                age,
+                dateOfBirth: dateOfBirth.toISOString(),
                 gender,
                 weight,
                 phoneNumber,
@@ -175,15 +177,41 @@ export default function EditProfileScreen() {
                         placeholderTextColor="#999"
                     />
 
-                    <Text style={styles.label}>Age *</Text>
-                    <TextInput
+                    <Text style={styles.label}>Date of Birth *</Text>
+                    <TouchableOpacity
                         style={styles.input}
-                        value={age}
-                        onChangeText={setAge}
-                        keyboardType="number-pad"
-                        placeholderTextColor="#999"
-                    />
- 
+                        onPress={() => setShowDatePicker(true)}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.dobRow}>
+                            <Text style={[styles.dobText, !dateOfBirth && styles.dobPlaceholder]}>
+                                {dateOfBirth ? `${dateOfBirth.getDate().toString().padStart(2, '0')}/${(dateOfBirth.getMonth() + 1).toString().padStart(2, '0')}/${dateOfBirth.getFullYear()}` : 'DD/MM/YYYY'}
+                            </Text>
+                            {dateOfBirth && (
+                                <Text style={styles.ageHint}>{(() => {
+                                    const today = new Date();
+                                    let a = today.getFullYear() - dateOfBirth.getFullYear();
+                                    const m = today.getMonth() - dateOfBirth.getMonth();
+                                    if (m < 0 || (m === 0 && today.getDate() < dateOfBirth.getDate())) a--;
+                                    return `${a} years old`;
+                                })()}</Text>
+                            )}
+                            <Ionicons name="calendar-outline" size={20} color="#999" />
+                        </View>
+                    </TouchableOpacity>
+                    {showDatePicker && (
+                        <DateTimePicker
+                            value={dateOfBirth || new Date()}
+                            mode="date"
+                            maximumDate={new Date()}
+                            minimumDate={new Date(1920, 0, 1)}
+                            onChange={(event, date) => {
+                                setShowDatePicker(false);
+                                if (date) setDateOfBirth(date);
+                            }}
+                        />
+                    )}
+
                     <Text style={styles.label}>Weight (kg) *</Text>
                     <TextInput
                         style={styles.input}
@@ -402,6 +430,28 @@ const styles = StyleSheet.create({
         color: '#333',
         borderWidth: 1,
         borderColor: '#e0e0e0',
+    },
+    dobRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    dobText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    dobPlaceholder: {
+        color: '#999',
+    },
+    ageHint: {
+        fontSize: 13,
+        color: '#4CAF50',
+        fontWeight: '600',
+        backgroundColor: '#E8F5E9',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        overflow: 'hidden',
     },
     genderContainer: {
         flexDirection: 'row',

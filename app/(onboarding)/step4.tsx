@@ -14,7 +14,7 @@ export default function Step4Screen() {
 
     // Params from previous steps
     const name = params.name as string;
-    const age = params.age as string;
+    const dateOfBirth = params.dateOfBirth as string;
     const gender = params.gender as string;
     const weight = params.weight as string;
     const conditionsString = params.conditions as string;
@@ -35,7 +35,7 @@ export default function Step4Screen() {
 
             const profileData: UserProfile = {
                 name,
-                age,
+                dateOfBirth,
                 gender,
                 weight,
                 conditions,

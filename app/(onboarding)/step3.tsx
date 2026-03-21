@@ -13,7 +13,7 @@ export default function Step3Screen() {
 
     // Params from previous steps
     const name = params.name as string;
-    const age = params.age as string;
+    const dateOfBirth = params.dateOfBirth as string;
     const gender = params.gender as string;
     const weight = params.weight as string;
     const conditions = params.conditions as string; // JSON stringified
@@ -28,7 +28,7 @@ export default function Step3Screen() {
             pathname: '/(onboarding)/step4' as any,
             params: {
                 name,
-                age,
+                dateOfBirth,
                 gender,
                 weight,
                 conditions,

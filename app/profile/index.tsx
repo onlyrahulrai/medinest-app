@@ -134,7 +134,14 @@ export default function ProfileScreen() {
                         )}
                     </View>
                     <Text style={styles.name}>{profile.name}</Text>
-                    <Text style={styles.subText}>{profile.age} years • {profile.gender} • {profile.weight} kg</Text>
+                    <Text style={styles.subText}>{(() => {
+                        const dob = new Date(profile.dateOfBirth);
+                        const today = new Date();
+                        let age = today.getFullYear() - dob.getFullYear();
+                        const m = today.getMonth() - dob.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+                        return `${age} years`;
+                    })()} • {profile.gender} • {profile.weight} kg</Text>
                 </View>
 
                 <View style={styles.section}>

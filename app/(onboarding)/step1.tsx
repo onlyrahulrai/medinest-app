@@ -4,29 +4,48 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import '../../utils/i18n';
 
 export default function Step1Screen() {
     const router = useRouter();
     const { t } = useTranslation();
     const [name, setName] = useState('');
-    const [age, setAge] = useState('');
+    const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
     const [gender, setGender] = useState('');
     const [weight, setWeight] = useState('');
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     const phoneNumber = useLocalSearchParams().phoneNumber as string;
 
+    const formatDate = (date: Date) => {
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+    };
+
+    const getAge = (dob: Date) => {
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const monthDiff = today.getMonth() - dob.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+            age--;
+        }
+        return age;
+    };
+
     const handleNext = () => {
-        if (!name.trim() || !age.trim() || !gender) {
+        if (!name.trim() || !dateOfBirth || !gender) {
             return;
         }
         router.push({
             pathname: '/(onboarding)/step2' as any,
-            params: { name, age, gender, weight, phoneNumber }
+            params: { name, dateOfBirth: dateOfBirth.toISOString(), gender, weight, phoneNumber }
         });
     };
 
-    const isNextDisabled = !name.trim() || !age.trim() || !gender || !weight.trim();
+    const isNextDisabled = !name.trim() || !dateOfBirth || !gender || !weight.trim();
 
     return (
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -58,16 +77,35 @@ export default function Step1Screen() {
                         placeholderTextColor="#999"
                     />
 
-                    <Text style={styles.label}>{t('onboarding.step1.age')}</Text>
-                    <TextInput
+                    <Text style={styles.label}>Date of Birth</Text>
+                    <TouchableOpacity
                         style={styles.input}
-                        placeholder="e.g., 28"
-                        value={age}
-                        onChangeText={setAge}
-                        keyboardType="number-pad"
-                        placeholderTextColor="#999"
-                    />
- 
+                        onPress={() => setShowDatePicker(true)}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.dobRow}>
+                            <Text style={[styles.dobText, !dateOfBirth && styles.dobPlaceholder]}>
+                                {dateOfBirth ? formatDate(dateOfBirth) : 'DD/MM/YYYY'}
+                            </Text>
+                            {dateOfBirth && (
+                                <Text style={styles.ageHint}>{getAge(dateOfBirth)} years old</Text>
+                            )}
+                            <Ionicons name="calendar-outline" size={20} color="#999" />
+                        </View>
+                    </TouchableOpacity>
+                    {showDatePicker && (
+                        <DateTimePicker
+                            value={dateOfBirth || new Date()}
+                            mode="date"
+                            maximumDate={new Date()}
+                            minimumDate={new Date(1920, 0, 1)}
+                            onChange={(event, date) => {
+                                setShowDatePicker(false);
+                                if (date) setDateOfBirth(date);
+                            }}
+                        />
+                    )}
+
                     <Text style={styles.label}>{t('onboarding.step1.weight')}</Text>
                     <TextInput
                         style={styles.input}
@@ -111,6 +149,7 @@ export default function Step1Screen() {
         </KeyboardAvoidingView>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: {
@@ -179,6 +218,29 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#e0e0e0',
     },
+    dobRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    dobText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    dobPlaceholder: {
+        color: '#999',
+    },
+    ageHint: {
+        fontSize: 13,
+        color: '#4CAF50',
+        fontWeight: '600',
+        backgroundColor: '#E8F5E9',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+
     genderContainer: {
         flexDirection: 'row',
         gap: 12,

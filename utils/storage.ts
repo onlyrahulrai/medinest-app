@@ -22,7 +22,7 @@ export interface ManagedPatient {
 export interface UserProfile {
   id?: string; // Unique ID for the user
   name: string;
-  age: string;
+  dateOfBirth: string; // ISO date string
   gender: string;
   weight: string;
   image?: string; // Profile image URI

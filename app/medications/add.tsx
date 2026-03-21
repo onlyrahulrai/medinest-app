@@ -512,7 +512,7 @@ export default function AddMedicationScreen() {
                   <View style={styles.iconContainer}>
                     <Ionicons name="calendar-outline" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Custom Schedule</Text>
                     <Text style={styles.switchSubLabel}>Set a different start date for this medication</Text>
                   </View>
@@ -623,7 +623,7 @@ export default function AddMedicationScreen() {
                   <View style={styles.iconContainer}>
                     <Ionicons name="reload" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Refill Tracking</Text>
                     <Text style={styles.switchSubLabel}>Get notified when you need to refill</Text>
                   </View>
@@ -864,7 +864,7 @@ export default function AddMedicationScreen() {
                   <View style={styles.iconContainer}>
                     <Ionicons name="notifications" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Reminders</Text>
                     <Text style={styles.switchSubLabel}>
                       Get notified when it's time to take your medications
@@ -1102,7 +1102,7 @@ const styles = StyleSheet.create({
     alignItems: "center", marginRight: 15,
   },
   switchLabel: { fontSize: 16, fontWeight: "600", color: "#333" },
-  switchSubLabel: { fontSize: 13, color: "#666", marginTop: 2, maxWidth: 200 },
+  switchSubLabel: { fontSize: 13, color: "#666", marginTop: 2 },
   refillInputs: { marginTop: 15 },
   inputRow: { flexDirection: "row", marginTop: 15, gap: 10 },
   flex1: { flex: 1 },

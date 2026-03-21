@@ -507,7 +507,7 @@ export default function EditMedicationScreen() {
                   <View style={[styles.iconContainer, { backgroundColor: theme.lightAccent }]}>
                     <Ionicons name="calendar-outline" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Custom Schedule</Text>
                     <Text style={styles.switchSubLabel}>Set a different start date for this medication</Text>
                   </View>
@@ -601,7 +601,10 @@ export default function EditMedicationScreen() {
                   <View style={[styles.iconContainer, { backgroundColor: theme.lightAccent }]}>
                     <Ionicons name="reload" size={20} color={theme.accent} />
                   </View>
-                  <View><Text style={styles.switchLabel}>Refill Tracking</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.switchLabel}>Refill Tracking</Text>
+                    <Text style={styles.switchSubLabel}>Get notified when you need to refill</Text>
+                  </View>
                 </View>
                 <Switch value={med.refillReminder} onValueChange={(value) => updateMedicine(index, { refillReminder: value })}
                   trackColor={{ false: "#ddd", true: theme.accent }} thumbColor="white" />
@@ -753,7 +756,7 @@ export default function EditMedicationScreen() {
                   <View style={[styles.iconContainer, { backgroundColor: theme.lightAccent }]}>
                     <Ionicons name="notifications" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Reminders</Text>
                     <Text style={styles.switchSubLabel}>
                       Get notified when it's time to take your medications

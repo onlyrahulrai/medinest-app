@@ -23,7 +23,7 @@ export default function Step2Screen() {
 
   // Params from Step 1
   const name = params.name as string;
-  const age = params.age as string;
+  const dateOfBirth = params.dateOfBirth as string;
   const gender = params.gender as string;
   const weight = params.weight as string;
   const phoneNumber = params.phoneNumber as string;
@@ -53,7 +53,7 @@ export default function Step2Screen() {
       pathname: "/(onboarding)/step3" as any,
       params: {
         name,
-        age,
+        dateOfBirth,
         gender,
         weight,
         phoneNumber,

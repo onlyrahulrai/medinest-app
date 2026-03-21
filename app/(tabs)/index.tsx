@@ -17,7 +17,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
+import Svg, { Circle } from "react-native-svg";
 import {
   getMedications,
   getMedicationsForUser,
@@ -530,7 +530,7 @@ export default function HomeScreen() {
 
         {/* Quick Actions */}
         <Animated.View style={[styles.quickActionsContainer, { opacity: quickActionsAnim }]}>
-          <Text style={styles.sectionPremiumTitle}>Quick Actions</Text>
+          <Text style={[styles.sectionPremiumTitle, { paddingHorizontal: 20 }]}>Quick Actions</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActionsScroll}>
             {QUICK_ACTIONS.map((action) => (
               <Link href={action.route} key={action.label} asChild>
@@ -549,14 +549,13 @@ export default function HomeScreen() {
         <Animated.View style={{ opacity: scheduleAnim }}>
           <View style={styles.scheduleSection}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionPremiumTitle}>Today's Schedule</Text>
+              <Text style={[styles.sectionPremiumTitle, { marginBottom: 0 }]}>Today's Schedule</Text>
               <Link href="/calendar" asChild>
                 <TouchableOpacity>
                   <Text style={styles.seeAllButton}>History</Text>
                 </TouchableOpacity>
               </Link>
             </View>
-
             {/* Search Bar */}
             <View style={styles.searchContainer}>
               <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
@@ -603,14 +602,14 @@ export default function HomeScreen() {
               // Group medications by scheduleGroupId AND time slot
               const grouped: { key: string; meds: Medication[]; time: string }[] = [];
               const seen = new Set<string>();
-              
+
               for (const med of filteredMeds) {
                 // Each meditation can have multiple times, but for 'Today' we usually show them per-time slot
                 // The current app logic seems to flat-map medications by their time slots in 'todaysMedications'
                 // Let's assume 'todaysMedications' already has one entry per time slot for that med
-                
+
                 const timeStr = med.times[0] || "No time";
-                const groupingKey = med.scheduleGroupId 
+                const groupingKey = med.scheduleGroupId
                   ? `${med.scheduleGroupId}_${timeStr}`
                   : `${med.id}_${timeStr}`;
 
@@ -780,7 +779,7 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingHorizontal: 20,
-    paddingBottom: 60,
+    paddingBottom: 0,
   },
   headerTop: {
     flexDirection: "row",
@@ -858,7 +857,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#1E293B",
     marginBottom: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
   },
   quickActionsScroll: {
     paddingHorizontal: 20,
@@ -1306,6 +1305,7 @@ const styles = StyleSheet.create({
   },
   // ── Streak Section ──
   streakSection: {
+    paddingTop: 32,
     paddingHorizontal: 20,
     marginBottom: 28,
   },

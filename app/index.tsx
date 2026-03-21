@@ -61,7 +61,7 @@ export default function SplashScreen() {
           },
         ]}
       >
-        <Ionicons name="medical" size={100} color="white" />
+        <Ionicons name="medical" size={100} color="#4CAF50" />
         <Text style={styles.appName}>MedRemind</Text>
       </Animated.View>
     </View>
@@ -71,7 +71,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   appName: {
-    color: "white",
+    color: "#4CAF50",
     fontSize: 32,
     fontWeight: "bold",
     marginTop: 20,

@@ -10,14 +10,16 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.onlyrahulrai.medinest"
+      "bundleIdentifier": "com.onlyrahulrai.medinest",
+      "backgroundColor": "#ffffff"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.onlyrahulrai.medinest"
+      "package": "com.onlyrahulrai.medinest",
+      "backgroundColor": "#ffffff"
     },
     "web": {
       "bundler": "metro",

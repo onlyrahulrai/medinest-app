@@ -302,10 +302,10 @@ export default function AddMedicationScreen() {
           totalSupply: med.currentSupply ? Number(med.currentSupply) : 0,
           refillAt: med.refillAt ? Number(med.refillAt) : 0,
           // Use per-medicine or global schedule
-          frequency: useCustom ? med.frequency : schedule.frequency,
-          times: useCustom ? med.times : schedule.times,
-          duration: useCustom ? med.duration : schedule.duration,
-          startDate: (useCustom ? med.startDate : schedule.startDate).toISOString(),
+          frequency: med.customSchedule ? med.frequency : schedule.frequency,
+          times: med.customSchedule ? med.times : schedule.times,
+          duration: med.customSchedule ? med.duration : schedule.duration,
+          startDate: (med.customSchedule ? med.startDate : schedule.startDate).toISOString(),
           reminderEnabled: schedule.reminderEnabled,
           ownerId: schedule.ownerId,
           addedBy: (schedule.ownerId === "self" ? 'patient' : 'caregiver') as 'patient' | 'caregiver',
@@ -364,7 +364,7 @@ export default function AddMedicationScreen() {
         {FREQUENCIES.map((f) => (
           <TouchableOpacity
             key={f.id}
-            style={[styles.optionCard, freq === f.label && styles.selectedOptionCard]}
+            style={[styles.optionCard, { width: (medIndex === 'global' ? width - 56 : width - 88) / 2 }, freq === f.label && styles.selectedOptionCard]}
             onPress={() => setFreq(f.label, f.times)}
           >
             <View style={[styles.optionIcon, freq === f.label && styles.selectedOptionIcon]}>
@@ -393,7 +393,7 @@ export default function AddMedicationScreen() {
         {DURATIONS.map((d) => (
           <TouchableOpacity
             key={d.id}
-            style={[styles.optionCard, dur === d.label && styles.selectedOptionCard]}
+            style={[styles.optionCard, { width: (medIndex === 'global' ? width - 56 : width - 88) / 2 }, dur === d.label && styles.selectedOptionCard]}
             onPress={() => setDur(d.label)}
           >
             <Text style={[styles.durationNumber, dur === d.label && styles.selectedDurationNumber]}>
@@ -512,9 +512,9 @@ export default function AddMedicationScreen() {
                   <View style={styles.iconContainer}>
                     <Ionicons name="calendar-outline" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Custom Schedule</Text>
-                    <Text style={styles.switchSubLabel}>Override global schedule for this medicine</Text>
+                    <Text style={styles.switchSubLabel}>Set a different start date for this medication</Text>
                   </View>
                 </View>
                 <Switch
@@ -527,11 +527,11 @@ export default function AddMedicationScreen() {
 
               {med.customSchedule && (
                 <View style={{ marginTop: 15 }}>
-                  <Text style={styles.sectionTitle}>How often?</Text>
+                  <Text style={styles.sectionTitle}>Frequency</Text>
                   {errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
                   {renderFrequencyOptions(index)}
 
-                  <Text style={styles.sectionTitle}>For how long?</Text>
+                  <Text style={styles.sectionTitle}>For How Long?</Text>
                   {errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
                   {renderDurationOptions(index)}
 
@@ -549,30 +549,6 @@ export default function AddMedicationScreen() {
                     <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
                     <Ionicons name="chevron-forward" size={20} color="#666" />
                   </TouchableOpacity>
-
-                  {med.frequency && med.frequency !== "As needed" && (
-                    <View style={styles.timesContainer}>
-                      <Text style={styles.timesTitle}>Medication Times</Text>
-                      {med.times.map((time, tIndex) => (
-                        <TouchableOpacity
-                          key={tIndex}
-                          style={styles.timeButton}
-                          onPress={() => {
-                            setActivePickerIndex(index);
-                            setActivePickerIsGlobal(false);
-                            setActiveTimeIndex(tIndex);
-                            setShowTimePicker(true);
-                          }}
-                        >
-                          <View style={styles.timeIconContainer}>
-                            <Ionicons name="time-outline" size={20} color={theme.accent} />
-                          </View>
-                          <Text style={styles.timeButtonText}>{time}</Text>
-                          <Ionicons name="chevron-forward" size={20} color="#666" />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
                 </View>
               )}
             </View>
@@ -647,7 +623,7 @@ export default function AddMedicationScreen() {
                   <View style={styles.iconContainer}>
                     <Ionicons name="reload" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Refill Tracking</Text>
                     <Text style={styles.switchSubLabel}>Get notified when you need to refill</Text>
                   </View>
@@ -830,11 +806,11 @@ export default function AddMedicationScreen() {
               Schedule
             </Text>
 
-            <Text style={styles.sectionTitle}>How often?</Text>
+            <Text style={styles.sectionTitle}>Frequency</Text>
             {errors['global_frequency'] && <Text style={styles.errorText}>{errors['global_frequency']}</Text>}
             {renderFrequencyOptions('global')}
 
-            <Text style={styles.sectionTitle}>For how long?</Text>
+            <Text style={styles.sectionTitle}>For How Long?</Text>
             {errors['global_duration'] && <Text style={styles.errorText}>{errors['global_duration']}</Text>}
             {renderDurationOptions('global')}
 
@@ -888,7 +864,7 @@ export default function AddMedicationScreen() {
                   <View style={styles.iconContainer}>
                     <Ionicons name="notifications" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Reminders</Text>
                     <Text style={styles.switchSubLabel}>
                       Get notified when it's time to take your medications
@@ -1075,9 +1051,9 @@ const styles = StyleSheet.create({
   mealChipText: { fontSize: 12, fontWeight: "600", color: "#333", textAlign: "center" },
 
   // Schedule styles
-  optionsGrid: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -5 },
+  optionsGrid: { flexDirection: "row", justifyContent: "space-between", flexWrap: "wrap", marginHorizontal: -5 },
   optionCard: {
-    width: (width - 102) / 2, backgroundColor: "white", borderRadius: 16, padding: 15, margin: 5,
+    backgroundColor: "white", borderRadius: 16, padding: 15, margin: 5,
     alignItems: "center", borderWidth: 1, borderColor: "#e0e0e0", shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
@@ -1126,7 +1102,7 @@ const styles = StyleSheet.create({
     alignItems: "center", marginRight: 15,
   },
   switchLabel: { fontSize: 16, fontWeight: "600", color: "#333" },
-  switchSubLabel: { fontSize: 13, color: "#666", marginTop: 2, maxWidth: 200 },
+  switchSubLabel: { fontSize: 13, color: "#666", marginTop: 2 },
   refillInputs: { marginTop: 15 },
   inputRow: { flexDirection: "row", marginTop: 15, gap: 10 },
   flex1: { flex: 1 },

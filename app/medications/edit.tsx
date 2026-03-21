@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
-import { 
+import {
   getMedications,
   updateMedication,
   deleteMedication,
@@ -277,7 +277,7 @@ export default function EditMedicationScreen() {
         {FREQUENCIES.map((f) => (
           <TouchableOpacity
             key={f.id}
-            style={[styles.optionCard, freq === f.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+            style={[styles.optionCard, { width: (medIndex === 'global' ? width - 56 : width - 88) / 2 }, freq === f.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
             onPress={() => setFreq(f.label, f.times)}
           >
             <View style={[styles.optionIcon, freq === f.label && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
@@ -304,7 +304,7 @@ export default function EditMedicationScreen() {
         {DURATIONS.map((d) => (
           <TouchableOpacity
             key={d.id}
-            style={[styles.optionCard, dur === d.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+            style={[styles.optionCard, { width: (medIndex === 'global' ? width - 56 : width - 88) / 2 }, dur === d.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
             onPress={() => setDur(d.label)}
           >
             <Text style={[styles.durationNumber, dur === d.label && { color: "white" }]}>
@@ -381,10 +381,10 @@ export default function EditMedicationScreen() {
           currentSupply: Number(med.currentSupply) || 0,
           totalSupply: Number(med.currentSupply) || 0,
           refillAt: Number(med.refillAt) || 0,
-          frequency: useCustom ? med.frequency : schedule.frequency,
-          times: useCustom ? med.times : schedule.times,
-          duration: useCustom ? med.duration : schedule.duration,
-          startDate: (useCustom ? med.startDate : schedule.startDate).toISOString(),
+          frequency: med.customSchedule ? med.frequency : schedule.frequency,
+          times: med.customSchedule ? med.times : schedule.times,
+          duration: med.customSchedule ? med.duration : schedule.duration,
+          startDate: (med.customSchedule ? med.startDate : schedule.startDate).toISOString(),
           reminderEnabled: schedule.reminderEnabled,
           ownerId: schedule.ownerId,
           addedBy: schedule.addedBy,
@@ -507,9 +507,9 @@ export default function EditMedicationScreen() {
                   <View style={[styles.iconContainer, { backgroundColor: theme.lightAccent }]}>
                     <Ionicons name="calendar-outline" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Custom Schedule</Text>
-                    <Text style={styles.switchSubLabel}>Override global schedule</Text>
+                    <Text style={styles.switchSubLabel}>Set a different start date for this medication</Text>
                   </View>
                 </View>
                 <Switch
@@ -522,11 +522,11 @@ export default function EditMedicationScreen() {
 
               {med.customSchedule && (
                 <View style={{ marginTop: 15 }}>
-                  <Text style={styles.innerSectionTitle}>How often?</Text>
+                  <Text style={styles.innerSectionTitle}>Frequency</Text>
                   {errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
                   {renderFrequencyOptions(index)}
 
-                  <Text style={styles.innerSectionTitle}>For how long?</Text>
+                  <Text style={styles.innerSectionTitle}>For How Long?</Text>
                   {errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
                   {renderDurationOptions(index)}
 
@@ -545,29 +545,6 @@ export default function EditMedicationScreen() {
                     <Ionicons name="chevron-forward" size={20} color="#666" />
                   </TouchableOpacity>
 
-                  {med.frequency && med.frequency !== "As needed" && (
-                    <View style={styles.timesContainer}>
-                      <Text style={styles.timesTitle}>Medication Times</Text>
-                      {med.times.map((time, tIndex) => (
-                        <TouchableOpacity
-                          key={tIndex}
-                          style={styles.timeButton}
-                          onPress={() => {
-                            setActivePickerIndex(index);
-                            setActivePickerIsGlobal(false);
-                            setActiveTimeIndex(tIndex);
-                            setShowTimePicker(true);
-                          }}
-                        >
-                          <View style={[styles.timeIconContainer, { backgroundColor: theme.lightAccent }]}>
-                            <Ionicons name="time-outline" size={20} color={theme.accent} />
-                          </View>
-                          <Text style={styles.timeButtonText}>{time}</Text>
-                          <Ionicons name="chevron-forward" size={20} color="#666" />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
                 </View>
               )}
             </View>
@@ -624,7 +601,10 @@ export default function EditMedicationScreen() {
                   <View style={[styles.iconContainer, { backgroundColor: theme.lightAccent }]}>
                     <Ionicons name="reload" size={20} color={theme.accent} />
                   </View>
-                  <View><Text style={styles.switchLabel}>Refill Tracking</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.switchLabel}>Refill Tracking</Text>
+                    <Text style={styles.switchSubLabel}>Get notified when you need to refill</Text>
+                  </View>
                 </View>
                 <Switch value={med.refillReminder} onValueChange={(value) => updateMedicine(index, { refillReminder: value })}
                   trackColor={{ false: "#ddd", true: theme.accent }} thumbColor="white" />
@@ -717,11 +697,11 @@ export default function EditMedicationScreen() {
               Schedule
             </Text>
 
-            <Text style={styles.sectionTitle}>How often?</Text>
+            <Text style={styles.sectionTitle}>Frequency</Text>
             {errors['global_frequency'] && <Text style={styles.errorText}>{errors['global_frequency']}</Text>}
             {renderFrequencyOptions('global')}
 
-            <Text style={styles.sectionTitle}>For how long?</Text>
+            <Text style={styles.sectionTitle}>For How Long?</Text>
             {errors['global_duration'] && <Text style={styles.errorText}>{errors['global_duration']}</Text>}
             {renderDurationOptions('global')}
 
@@ -776,7 +756,7 @@ export default function EditMedicationScreen() {
                   <View style={[styles.iconContainer, { backgroundColor: theme.lightAccent }]}>
                     <Ionicons name="notifications" size={20} color={theme.accent} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Reminders</Text>
                     <Text style={styles.switchSubLabel}>
                       Get notified when it's time to take your medications
@@ -897,8 +877,8 @@ const styles = StyleSheet.create({
   addAnotherText: { fontSize: 15, fontWeight: "700" },
 
   // Options
-  optionsGrid: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -5 },
-  optionCard: { width: (width - 82) / 2, backgroundColor: "white", borderRadius: 16, padding: 15, margin: 5, alignItems: "center", borderWidth: 1, borderColor: "#e0e0e0", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  optionsGrid: { flexDirection: "row", justifyContent: "space-between", flexWrap: "wrap", marginHorizontal: -5 },
+  optionCard: { backgroundColor: "white", borderRadius: 16, padding: 15, margin: 5, alignItems: "center", borderWidth: 1, borderColor: "#e0e0e0", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   selectedOptionCard: { backgroundColor: "#059669", borderColor: "#059669" },
   optionIcon: { width: 50, height: 50, borderRadius: 25, backgroundColor: "#f5f5f5", justifyContent: "center", alignItems: "center", marginBottom: 10 },
   optionLabel: { fontSize: 14, fontWeight: "600", color: "#333", textAlign: "center" },
@@ -937,7 +917,7 @@ const styles = StyleSheet.create({
   unitChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, backgroundColor: "white", marginRight: 8, borderWidth: 1, borderColor: "#e0e0e0" },
   unitChipText: { fontSize: 14, fontWeight: "600", color: "#666" },
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  typeChip: { width: (width - 96) / 4, alignItems: "center", paddingVertical: 12, borderRadius: 14, backgroundColor: "white", borderWidth: 1, borderColor: "#e0e0e0" },
+  typeChip: { width: (width - 102) / 4, alignItems: "center", paddingVertical: 12, borderRadius: 14, backgroundColor: "white", borderWidth: 1, borderColor: "#e0e0e0" },
   typeIconContainer: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#D1FAE5", justifyContent: "center", alignItems: "center", marginBottom: 6 },
   typeChipLabel: { fontSize: 11, fontWeight: "600", color: "#333", textAlign: "center" },
   colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },

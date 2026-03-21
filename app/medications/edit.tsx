@@ -381,10 +381,10 @@ export default function EditMedicationScreen() {
           currentSupply: Number(med.currentSupply) || 0,
           totalSupply: Number(med.currentSupply) || 0,
           refillAt: Number(med.refillAt) || 0,
-          frequency: useCustom ? med.frequency : schedule.frequency,
-          times: useCustom ? med.times : schedule.times,
-          duration: useCustom ? med.duration : schedule.duration,
-          startDate: (useCustom ? med.startDate : schedule.startDate).toISOString(),
+          frequency: med.customSchedule ? med.frequency : schedule.frequency,
+          times: med.customSchedule ? med.times : schedule.times,
+          duration: med.customSchedule ? med.duration : schedule.duration,
+          startDate: (med.customSchedule ? med.startDate : schedule.startDate).toISOString(),
           reminderEnabled: schedule.reminderEnabled,
           ownerId: schedule.ownerId,
           addedBy: schedule.addedBy,
@@ -509,7 +509,7 @@ export default function EditMedicationScreen() {
                   </View>
                   <View>
                     <Text style={styles.switchLabel}>Custom Schedule</Text>
-                    <Text style={styles.switchSubLabel}>Override global schedule</Text>
+                    <Text style={styles.switchSubLabel}>Set a different start date for this medication</Text>
                   </View>
                 </View>
                 <Switch
@@ -522,11 +522,11 @@ export default function EditMedicationScreen() {
 
               {med.customSchedule && (
                 <View style={{ marginTop: 15 }}>
-                  <Text style={styles.innerSectionTitle}>How often?</Text>
+                  <Text style={styles.innerSectionTitle}>Frequency</Text>
                   {errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
                   {renderFrequencyOptions(index)}
 
-                  <Text style={styles.innerSectionTitle}>For how long?</Text>
+                  <Text style={styles.innerSectionTitle}>For How Long?</Text>
                   {errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
                   {renderDurationOptions(index)}
 
@@ -694,11 +694,11 @@ export default function EditMedicationScreen() {
               Schedule
             </Text>
 
-            <Text style={styles.sectionTitle}>How often?</Text>
+            <Text style={styles.sectionTitle}>Frequency</Text>
             {errors['global_frequency'] && <Text style={styles.errorText}>{errors['global_frequency']}</Text>}
             {renderFrequencyOptions('global')}
 
-            <Text style={styles.sectionTitle}>For how long?</Text>
+            <Text style={styles.sectionTitle}>For How Long?</Text>
             {errors['global_duration'] && <Text style={styles.errorText}>{errors['global_duration']}</Text>}
             {renderDurationOptions('global')}
 

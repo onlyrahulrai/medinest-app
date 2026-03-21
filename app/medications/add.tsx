@@ -549,30 +549,6 @@ export default function AddMedicationScreen() {
                     <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
                     <Ionicons name="chevron-forward" size={20} color="#666" />
                   </TouchableOpacity>
-
-                  {med.frequency && med.frequency !== "As needed" && (
-                    <View style={styles.timesContainer}>
-                      <Text style={styles.timesTitle}>Medication Times</Text>
-                      {med.times.map((time, tIndex) => (
-                        <TouchableOpacity
-                          key={tIndex}
-                          style={styles.timeButton}
-                          onPress={() => {
-                            setActivePickerIndex(index);
-                            setActivePickerIsGlobal(false);
-                            setActiveTimeIndex(tIndex);
-                            setShowTimePicker(true);
-                          }}
-                        >
-                          <View style={styles.timeIconContainer}>
-                            <Ionicons name="time-outline" size={20} color={theme.accent} />
-                          </View>
-                          <Text style={styles.timeButtonText}>{time}</Text>
-                          <Ionicons name="chevron-forward" size={20} color="#666" />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
                 </View>
               )}
             </View>

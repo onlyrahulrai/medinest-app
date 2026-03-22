@@ -1,10 +1,24 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import '../../utils/i18n';
+
+const PHONE_REGEX = /^[6-9]\d{9}$/;
+
+// Simulate looking up a caregiver by phone number
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+async function lookupCaregiverByPhone(phone: string): Promise<{ found: boolean; name?: string }> {
+    await delay(1000);
+    // Mock: treat numbers ending in 0 as "not found" for demo
+    // In production, replace with a real API call
+    if (phone.endsWith('0')) {
+        return { found: false };
+    }
+    return { found: true, name: 'Verified User' };
+}
 
 export default function Step3Screen() {
     const router = useRouter();
@@ -23,7 +37,61 @@ export default function Step3Screen() {
     const [emergencyPhone, setEmergencyPhone] = useState('');
     const [emergencyRelation, setEmergencyRelation] = useState('');
 
+    // Phone validation & lookup state
+    const [phoneError, setPhoneError] = useState('');
+    const [lookupStatus, setLookupStatus] = useState<'idle' | 'checking' | 'found' | 'not-found'>('idle');
+    const [isLookingUp, setIsLookingUp] = useState(false);
+
+    const validateAndLookup = useCallback(async (phone: string) => {
+        setEmergencyPhone(phone);
+        setPhoneError('');
+        setLookupStatus('idle');
+
+        // Only digits
+        const digits = phone.replace(/\D/g, '');
+
+        if (digits.length === 0) {
+            return;
+        }
+
+        if (digits.length < 10) {
+            setPhoneError(t('onboarding.step3.validation.tooShort'));
+            return;
+        }
+
+        if (digits.length > 10) {
+            setPhoneError(t('onboarding.step3.validation.tooLong'));
+            return;
+        }
+
+        if (!PHONE_REGEX.test(digits)) {
+            setPhoneError(t('onboarding.step3.validation.invalidFormat'));
+            return;
+        }
+
+        if (digits === phoneNumber) {
+            setPhoneError(t('onboarding.step3.validation.sameAsUser'));
+            return;
+        }
+
+        // Valid format — look up in system
+        setIsLookingUp(true);
+        setLookupStatus('checking');
+        try {
+            const result = await lookupCaregiverByPhone(digits);
+            setLookupStatus(result.found ? 'found' : 'not-found');
+        } catch {
+            setLookupStatus('not-found');
+        } finally {
+            setIsLookingUp(false);
+        }
+    }, [phoneNumber, t]);
+
     const handleNext = () => {
+        // Block if phone is entered but invalid
+        if (emergencyPhone.trim().length > 0 && phoneError) {
+            return;
+        }
         router.push({
             pathname: '/(onboarding)/step4' as any,
             params: {
@@ -35,12 +103,14 @@ export default function Step3Screen() {
                 phoneNumber,
                 emergencyName,
                 emergencyPhone,
-                emergencyRelation
+                emergencyRelation,
+                caregiverVerified: lookupStatus === 'found' ? 'true' : 'false'
             }
         });
     };
 
     const hasCaregiverData = emergencyName.trim().length > 0 || emergencyPhone.trim().length > 0;
+    const hasPhoneError = emergencyPhone.trim().length > 0 && phoneError.length > 0;
 
     return (
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -83,17 +153,57 @@ export default function Step3Screen() {
                     </View>
 
                     <Text style={styles.label}>{t('onboarding.step3.form.phone')}</Text>
-                    <View style={styles.inputContainer}>
+                    <View style={[
+                        styles.inputContainer,
+                        phoneError ? styles.inputContainerError : null,
+                        lookupStatus === 'found' ? styles.inputContainerSuccess : null,
+                        lookupStatus === 'not-found' ? styles.inputContainerWarning : null,
+                    ]}>
                         <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
                         <TextInput
                             style={styles.input}
                             placeholder="e.g. 9876543211"
                             value={emergencyPhone}
-                            onChangeText={setEmergencyPhone}
+                            onChangeText={validateAndLookup}
                             keyboardType="phone-pad"
+                            maxLength={10}
                             placeholderTextColor="#999"
                         />
+                        {isLookingUp && <ActivityIndicator size="small" color="#4CAF50" />}
+                        {lookupStatus === 'found' && !isLookingUp && (
+                            <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+                        )}
+                        {lookupStatus === 'not-found' && !isLookingUp && (
+                            <Ionicons name="alert-circle" size={22} color="#F9A825" />
+                        )}
                     </View>
+
+                    {/* Phone validation error */}
+                    {phoneError ? (
+                        <View style={styles.feedbackRow}>
+                            <Ionicons name="close-circle" size={16} color="#D32F2F" />
+                            <Text style={styles.errorText}>{phoneError}</Text>
+                        </View>
+                    ) : null}
+
+                    {/* Caregiver found */}
+                    {lookupStatus === 'found' && !isLookingUp ? (
+                        <View style={styles.feedbackRow}>
+                            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                            <Text style={styles.successText}>{t('onboarding.step3.validation.found')}</Text>
+                        </View>
+                    ) : null}
+
+                    {/* Caregiver not found — show warning + invite */}
+                    {lookupStatus === 'not-found' && !isLookingUp ? (
+                        <View style={styles.notFoundCard}>
+                            <View style={styles.feedbackRow}>
+                                <Ionicons name="alert-circle" size={16} color="#F57F17" />
+                                <Text style={styles.warningText}>{t('onboarding.step3.validation.notFound')}</Text>
+                            </View>
+                            <Text style={styles.notFoundHint}>{t('onboarding.step3.validation.notFoundHint')}</Text>
+                        </View>
+                    ) : null}
 
                     <Text style={styles.label}>{t('onboarding.step3.form.relation')}</Text>
                     <View style={styles.inputContainer}>
@@ -111,8 +221,9 @@ export default function Step3Screen() {
 
             <View style={styles.footer}>
                 <TouchableOpacity
-                    style={styles.nextButton}
+                    style={[styles.nextButton, hasPhoneError && styles.nextButtonDisabled]}
                     onPress={handleNext}
+                    disabled={hasPhoneError || isLookingUp}
                 >
                     <LinearGradient
                         colors={['#4CAF50', '#2E7D32']}
@@ -227,11 +338,57 @@ const styles = StyleSheet.create({
     inputIcon: {
         marginRight: 10,
     },
+    inputContainerError: {
+        borderColor: '#D32F2F',
+        borderWidth: 1.5,
+    },
+    inputContainerSuccess: {
+        borderColor: '#4CAF50',
+        borderWidth: 1.5,
+    },
+    inputContainerWarning: {
+        borderColor: '#F9A825',
+        borderWidth: 1.5,
+    },
     input: {
         flex: 1,
         paddingVertical: 16,
         fontSize: 16,
         color: '#333',
+    },
+    feedbackRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 6,
+    },
+    errorText: {
+        fontSize: 13,
+        color: '#D32F2F',
+    },
+    successText: {
+        fontSize: 13,
+        color: '#4CAF50',
+        fontWeight: '500',
+    },
+    warningText: {
+        fontSize: 13,
+        color: '#F57F17',
+        fontWeight: '500',
+    },
+    notFoundCard: {
+        backgroundColor: '#FFF8E1',
+        borderRadius: 10,
+        padding: 12,
+        marginTop: 8,
+        borderWidth: 1,
+        borderColor: '#FFE082',
+    },
+    notFoundHint: {
+        fontSize: 12,
+        color: '#795548',
+        marginTop: 6,
+        lineHeight: 18,
     },
     footer: {
         padding: 24,

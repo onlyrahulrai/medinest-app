@@ -38,6 +38,15 @@
         "name": "Name",
         "phone": "Phone Number",
         "relation": "Relation"
+      },
+      "validation": {
+        "tooShort": "Phone number must be 10 digits",
+        "tooLong": "Phone number must be 10 digits",
+        "invalidFormat": "Please enter a valid phone number",
+        "sameAsUser": "Caregiver number cannot be the same as yours",
+        "found": "This person is on MediNest — they'll be linked as your caregiver",
+        "notFound": "This number is not registered on MediNest",
+        "notFoundHint": "You can still proceed. We'll send them an invite to join so they can track your medications."
       }
     },
     "step4": {

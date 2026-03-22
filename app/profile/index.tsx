@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Alert, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -51,19 +50,19 @@ export default function ProfileScreen() {
 
     const handleAddCaregiver = async () => {
         if (!newCaregiverName || !newCaregiverPhone || !profile) return;
-        
+
         const newCaregiver = {
             id: Math.random().toString(36).substr(2, 9),
             name: newCaregiverName,
             phoneNumber: newCaregiverPhone,
             relation: newCaregiverRelation || "Other"
         };
-        
+
         const updatedProfile = {
             ...profile,
             caregivers: [...(profile.caregivers || []), newCaregiver]
         };
-        
+
         await saveUserProfile(updatedProfile);
         setProfile(updatedProfile);
         setShowAddCaregiver(false);
@@ -91,7 +90,7 @@ export default function ProfileScreen() {
                     <Ionicons name="person-circle-outline" size={80} color="#ccc" />
                     <Text style={{ fontSize: 18, fontWeight: '600', color: '#666', marginTop: 16 }}>No Profile Found</Text>
                     <Text style={{ textAlign: 'center', color: '#999', marginTop: 8 }}>Please complete your setup to view your profile.</Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={{ marginTop: 24, backgroundColor: '#065F46', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
                         onPress={() => router.push('/(onboarding)/step1')}
                     >
@@ -119,9 +118,9 @@ export default function ProfileScreen() {
                 </View>
             </LinearGradient>
 
-            <ScrollView 
+            <ScrollView
                 style={styles.scrollView}
-                showsVerticalScrollIndicator={true} 
+                showsVerticalScrollIndicator={true}
                 contentContainerStyle={styles.scrollContent}
                 bounces={true}
             >
@@ -174,15 +173,15 @@ export default function ProfileScreen() {
                                     <View style={styles.rowContent}>
                                         <View style={styles.emergencyHeader}>
                                             <Text style={styles.rowText}>{caregiver.name}</Text>
-                                            <TouchableOpacity 
+                                            <TouchableOpacity
                                                 onPress={() => {
                                                     Alert.alert(
                                                         "Remove Caregiver",
                                                         `Are you sure you want to remove ${caregiver.name}? they will no longer be able to manage your medications.`,
                                                         [
                                                             { text: "Cancel", style: "cancel" },
-                                                            { 
-                                                                text: "Remove", 
+                                                            {
+                                                                text: "Remove",
                                                                 style: "destructive",
                                                                 onPress: async () => {
                                                                     const updatedCaregivers = profile.caregivers.filter(c => c.id !== caregiver.id);
@@ -250,16 +249,16 @@ export default function ProfileScreen() {
                                 <Ionicons name="close" size={24} color="#333" />
                             </TouchableOpacity>
                         </View>
-                        
+
                         <Text style={styles.inputLabel}>Name</Text>
                         <TextInput style={styles.modalInput} placeholder="e.g. Jane Doe" value={newCaregiverName} onChangeText={setNewCaregiverName} placeholderTextColor="#999" />
-                        
+
                         <Text style={styles.inputLabel}>Phone Number</Text>
                         <TextInput style={styles.modalInput} placeholder="e.g. 9876543210" value={newCaregiverPhone} onChangeText={setNewCaregiverPhone} keyboardType="phone-pad" placeholderTextColor="#999" />
-                        
+
                         <Text style={styles.inputLabel}>Relation</Text>
                         <TextInput style={styles.modalInput} placeholder="e.g. Spouse" value={newCaregiverRelation} onChangeText={setNewCaregiverRelation} placeholderTextColor="#999" />
-                        
+
                         <TouchableOpacity style={styles.saveBtn} onPress={handleAddCaregiver}>
                             <Text style={styles.saveBtnText}>Save Caregiver</Text>
                         </TouchableOpacity>

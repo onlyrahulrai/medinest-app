@@ -40,6 +40,7 @@ export interface UserProfile {
   vibrationEnabled: boolean;
   shareActivityWithCaregiver: boolean;
   isOnboardingCompleted: boolean;
+  onboardingStep?: number;
   workoutPlan?: WorkoutPlan;
 }
 

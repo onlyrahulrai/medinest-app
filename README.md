@@ -16,6 +16,18 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
     npx expo start
    ```
 
+3. Configure the API base URL if you want to use a real backend instead of the built-in mock fallback
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+   Then set:
+
+   ```bash
+   EXPO_PUBLIC_API_BASE_URL=http://localhost:5020/api
+   ```
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
@@ -24,6 +36,22 @@ In the output, you'll find options to open the app in a
 - [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+
+## API integration
+
+The app now has a shared API layer under `services/api/`.
+
+- `services/api/client.ts` centralizes the base URL, auth header, and error handling
+- `services/api/auth.ts` handles OTP request and OTP verification
+- `services/api/caregivers.ts` handles caregiver lookup by phone number
+
+If `EXPO_PUBLIC_API_BASE_URL` is not set, the app falls back to the current mock behavior so local development still works.
+
+Current expected endpoints:
+
+- `POST /auth/request-otp`
+- `POST /auth/verify-otp`
+- `GET /caregivers/lookup?phoneNumber=...`
 
 ## Get a fresh project
 

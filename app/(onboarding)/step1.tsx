@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { saveOnboardingProfile, fetchCurrentUserProfile } from '../../services/api/profile';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import '../../utils/i18n';
 
@@ -17,6 +19,16 @@ export default function Step1Screen() {
     const [showDatePicker, setShowDatePicker] = useState(false);
 
     const phoneNumber = useLocalSearchParams().phoneNumber as string;
+
+    // Pre-fill from saved profile
+    useEffect(() => {
+        fetchCurrentUserProfile().then((profile) => {
+            if (profile?.name) setName(profile.name);
+            if (profile?.dateOfBirth) setDateOfBirth(new Date(profile.dateOfBirth));
+            if (profile?.gender) setGender(profile.gender);
+            if (profile?.weight != null) setWeight(String(profile.weight));
+        }).catch(() => {});
+    }, []);
 
     const formatDate = (date: Date) => {
         const day = date.getDate().toString().padStart(2, '0');
@@ -35,10 +47,25 @@ export default function Step1Screen() {
         return age;
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
         if (!name.trim() || !dateOfBirth || !gender) {
             return;
         }
+        // Save progress to backend
+        const lang = await AsyncStorage.getItem('user-language');
+
+        await saveOnboardingProfile({
+            name,
+            dateOfBirth: dateOfBirth.toISOString(),
+            gender,
+            weight,
+            conditions: [],
+            caregivers: [],
+            preferences: { reminderTimes: [], soundEnabled: true, vibrationEnabled: true, shareActivityWithCaregiver: true },
+            isOnboardingCompleted: false,
+            onboardingStep: 1,
+            languages: lang ? [lang] : [],
+        });
         router.push({
             pathname: '/(onboarding)/step2' as any,
             params: { name, dateOfBirth: dateOfBirth.toISOString(), gender, weight, phoneNumber }

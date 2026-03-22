@@ -14,6 +14,7 @@ export const authStorage = {
   
   async saveToken(token: string): Promise<void> {
     try {
+      // Always store as a plain string
       await SecureStore.setItemAsync(TOKEN_KEY, token);
     } catch (error) {
       console.error('Error saving token:', error);

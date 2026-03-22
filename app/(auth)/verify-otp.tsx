@@ -13,7 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { OTPInput } from '../../components/auth/OTPInput';
 import { Button } from '../../components/auth/Button';
 import { useAuth } from '../../hooks/useAuth';
-import { getUserProfile } from '../../utils/storage';
+import { saveUserProfile } from '../../utils/storage';
+import { fetchCurrentUserProfile, mapRemoteProfileToLocalProfile } from '../../services/api/profile';
 
 const RESEND_TIMER = 30;
 
@@ -24,7 +25,7 @@ export default function VerifyOTPScreen() {
     const params = useLocalSearchParams();
     const phoneNumber = params.phoneNumber as string || '';
 
-    const { verifyOTP, requestOTP, isLoading, error } = useAuth();
+    const { verifyOTP, getUserProfile, requestOTP, isLoading, error } = useAuth();
 
     // Handle countdown timer
     useEffect(() => {
@@ -41,13 +42,27 @@ export default function VerifyOTPScreen() {
             return; // Ensure full 6 digits
         }
 
-        const success = await verifyOTP(phoneNumber, otp);
+        const result: any = await verifyOTP(phoneNumber, otp);
 
-        if (success) {
-            const profile = await getUserProfile();
-            if (profile?.isOnboardingCompleted) {
-                router.replace('/(tabs)');
-            } else {
+        if (result.success) {
+            try {
+                const profile = await fetchCurrentUserProfile();
+                console.log('Fetched user profile after OTP verification:', profile);
+
+                if (profile?.isOnboardingCompleted) {
+                    if (profile) {
+                        await saveUserProfile(mapRemoteProfileToLocalProfile(profile));
+                    }
+                    router.replace('/(tabs)');
+                } else {
+                    const step = profile?.onboardingStep || 1;
+                    router.replace({
+                        pathname: `/(onboarding)/step${step}` as any,
+                        params: { phoneNumber }
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to fetch profile after OTP:', e);
                 router.replace({
                     pathname: '/(onboarding)/step1',
                     params: { phoneNumber }
@@ -60,6 +75,7 @@ export default function VerifyOTPScreen() {
         if (timer > 0) return;
 
         const success = await requestOTP(phoneNumber);
+
         if (success) {
             setTimer(RESEND_TIMER);
             setOtp('');

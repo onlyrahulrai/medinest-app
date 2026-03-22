@@ -4,6 +4,8 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { authStorage } from "../utils/authStorage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { fetchCurrentUserProfile } from "../services/api/profile";
+import { ApiError } from "../services/api/client";
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -38,7 +40,27 @@ export default function SplashScreen() {
 
         const token = await authStorage.getToken();
         if (token) {
-          router.replace("/(tabs)");
+          try {
+            // Token found — validate by calling user details API
+            const profile = await fetchCurrentUserProfile();
+            if (profile?.isOnboardingCompleted) {
+              router.replace("/(tabs)");
+            } else {
+              const step = profile?.onboardingStep || 1;
+              router.replace({
+                pathname: `/(onboarding)/step${step}` as any,
+              });
+            }
+          } catch (e) {
+            // Token is invalid/expired (401) — clear it and go to login
+            if (e instanceof ApiError && e.status === 401) {
+              await authStorage.deleteToken();
+              router.replace("/(auth)/login");
+            } else {
+              // Network or other error — go to login as safe fallback
+              router.replace("/(auth)/login");
+            }
+          }
         } else {
           router.replace("/(onboarding)/language");
         }

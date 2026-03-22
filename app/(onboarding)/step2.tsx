@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { saveOnboardingProfile, fetchCurrentUserProfile } from '../../services/api/profile';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import '../../utils/i18n';
 
 const PREDEFINED_CONDITIONS = [
@@ -22,14 +24,28 @@ export default function Step2Screen() {
   const params = useLocalSearchParams();
 
   // Params from Step 1
-  const name = params.name as string;
-  const dateOfBirth = params.dateOfBirth as string;
-  const gender = params.gender as string;
-  const weight = params.weight as string;
-  const phoneNumber = params.phoneNumber as string;
+  const [name, setName] = useState(params.name as string || '');
+  const [dateOfBirth, setDateOfBirth] = useState(params.dateOfBirth as string || '');
+  const [gender, setGender] = useState(params.gender as string || '');
+  const [weight, setWeight] = useState(params.weight as string || '');
+  const [phoneNumber, setPhoneNumber] = useState(params.phoneNumber as string || '');
 
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [otherCondition, setOtherCondition] = useState("");
+
+  // Pre-fill from saved profile if params are missing (e.g., app resumed)
+  useEffect(() => {
+    if (!name && !dateOfBirth) {
+      fetchCurrentUserProfile().then((profile) => {
+        if (profile?.name) setName(profile.name);
+        if (profile?.dateOfBirth) setDateOfBirth(new Date(profile.dateOfBirth).toISOString());
+        if (profile?.gender) setGender(profile.gender);
+        if (profile?.weight != null) setWeight(String(profile.weight));
+        if (profile?.phone) setPhoneNumber(profile.phone);
+        if (profile?.conditions?.length) setSelectedConditions(profile.conditions);
+      }).catch(() => {});
+    }
+  }, []);
   const toggleCondition = (condition: string) => {
     if (condition === "None") {
       setSelectedConditions(["None"]);
@@ -46,8 +62,23 @@ export default function Step2Screen() {
     });
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (selectedConditions.length === 0) return;
+
+    // Save progress to backend
+    const lang = await AsyncStorage.getItem('user-language');
+    await saveOnboardingProfile({
+      name,
+      dateOfBirth,
+      gender,
+      weight,
+      conditions: selectedConditions,
+      caregivers: [],
+      preferences: { reminderTimes: [], soundEnabled: true, vibrationEnabled: true, shareActivityWithCaregiver: true },
+      isOnboardingCompleted: false,
+      onboardingStep: 2,
+      languages: lang ? [lang] : [],
+    });
 
     router.push({
       pathname: "/(onboarding)/step3" as any,

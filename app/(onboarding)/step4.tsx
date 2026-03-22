@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Switch } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { saveUserProfile, UserProfile } from '../../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { mapRemoteProfileToLocalProfile, saveOnboardingProfile, fetchCurrentUserProfile } from '../../services/api/profile';
 import '../../utils/i18n';
 
 export default function Step4Screen() {
@@ -13,20 +15,41 @@ export default function Step4Screen() {
     const params = useLocalSearchParams();
 
     // Params from previous steps
-    const name = params.name as string;
-    const dateOfBirth = params.dateOfBirth as string;
-    const gender = params.gender as string;
-    const weight = params.weight as string;
-    const conditionsString = params.conditions as string;
-    const phoneNumber = params.phoneNumber as string;
-    const emergencyName = params.emergencyName as string;
-    const emergencyPhone = params.emergencyPhone as string;
-    const emergencyRelation = params.emergencyRelation as string;
+    const [name, setName] = useState(params.name as string || '');
+    const [dateOfBirth, setDateOfBirth] = useState(params.dateOfBirth as string || '');
+    const [gender, setGender] = useState(params.gender as string || '');
+    const [weight, setWeight] = useState(params.weight as string || '');
+    const [conditionsString, setConditionsString] = useState(params.conditions as string || '');
+    const [phoneNumber, setPhoneNumber] = useState(params.phoneNumber as string || '');
+    const [emergencyName, setEmergencyName] = useState(params.emergencyName as string || '');
+    const [emergencyPhone, setEmergencyPhone] = useState(params.emergencyPhone as string || '');
+    const [emergencyRelation, setEmergencyRelation] = useState(params.emergencyRelation as string || '');
 
     const [soundEnabled, setSoundEnabled] = useState(true);
     const [vibrationEnabled, setVibrationEnabled] = useState(true);
     const [shareActivity, setShareActivity] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Pre-fill from saved profile if params are missing
+    useEffect(() => {
+      if (!name && !dateOfBirth) {
+        fetchCurrentUserProfile().then((profile) => {
+          if (profile?.name) setName(profile.name);
+          if (profile?.dateOfBirth) setDateOfBirth(new Date(profile.dateOfBirth).toISOString());
+          if (profile?.gender) setGender(profile.gender);
+          if (profile?.weight != null) setWeight(String(profile.weight));
+          if (profile?.phone) setPhoneNumber(profile.phone);
+          if (profile?.conditions?.length) setConditionsString(JSON.stringify(profile.conditions));
+          const caregiver = profile?.caregiverContacts?.[0];
+          if (caregiver?.name) setEmergencyName(caregiver.name);
+          if (caregiver?.phoneNumber) setEmergencyPhone(caregiver.phoneNumber);
+          if (caregiver?.relation) setEmergencyRelation(caregiver.relation);
+          if (profile?.preferences?.soundEnabled !== undefined) setSoundEnabled(profile.preferences.soundEnabled);
+          if (profile?.preferences?.vibrationEnabled !== undefined) setVibrationEnabled(profile.preferences.vibrationEnabled);
+          if (profile?.preferences?.shareActivityWithCaregiver !== undefined) setShareActivity(profile.preferences.shareActivityWithCaregiver);
+        }).catch(() => {});
+      }
+    }, []);
 
     const handleComplete = async () => {
         setIsSaving(true);
@@ -54,7 +77,30 @@ export default function Step4Screen() {
                 isOnboardingCompleted: true,
             };
 
-            await saveUserProfile(profileData);
+            const lang = await AsyncStorage.getItem('user-language');
+            const remoteProfile = await saveOnboardingProfile({
+                name,
+                dateOfBirth,
+                gender,
+                weight,
+                conditions,
+                caregivers: emergencyName ? [{
+                    name: emergencyName,
+                    phoneNumber: emergencyPhone,
+                    relation: emergencyRelation,
+                }] : [],
+                preferences: {
+                    reminderTimes: ['08:00', '20:00'],
+                    soundEnabled,
+                    vibrationEnabled,
+                    shareActivityWithCaregiver: shareActivity,
+                },
+                isOnboardingCompleted: true,
+                onboardingStep: 4,
+                languages: lang ? [lang] : [],
+            });
+
+            await saveUserProfile(remoteProfile ? mapRemoteProfileToLocalProfile(remoteProfile) : profileData);
 
             // Redirect to Home
             router.replace('/(tabs)');

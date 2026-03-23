@@ -35,8 +35,10 @@ import {
   scheduleMedicationReminder,
   scheduleRefillReminder,
 } from "../../utils/notifications";
+import { createMedicine, type CreateMedicineInput } from "../../services/api/medicines";
+import { globalScheduleService } from "../../services/api/globalSchedule";
 
-const { width } = Dimensions.get("window");
+// Top-level width calculation moved into the component for better reliability with Expo Go/Bridgeless mode.
 
 const MEDICATION_TYPES = [
   { id: "tablet", label: "Tablet", icon: "tablet-portrait-outline" as const },
@@ -124,6 +126,7 @@ const createEmptyMedicine = (): MedicineEntry => ({
 });
 
 export default function AddMedicationScreen() {
+  const { width } = Dimensions.get("window");
   const router = useRouter();
 
   // Common group-level fields (including global schedule)
@@ -131,10 +134,12 @@ export default function AddMedicationScreen() {
     reminderEnabled: true,
     ownerId: "self",
     frequency: "Once daily",
-    times: ["09:00"] as string[],
+    times: ["09:00", "21:00"] as string[],
     duration: "30 days",
     startDate: new Date(),
   });
+
+  const [globalTimings, setGlobalTimings] = useState<string[]>(["09:00", "21:00"]);
 
   // Per-medicine fields
   const [medicines, setMedicines] = useState<MedicineEntry[]>([createEmptyMedicine()]);
@@ -177,15 +182,20 @@ export default function AddMedicationScreen() {
   };
 
   useEffect(() => {
-    const loadPatients = async () => {
-      const profile = await getUserProfile();
-      setUserProfile(profile);
+    const loadInitialData = async () => {
+      const [profile, gSched] = await Promise.all([
+        getUserProfile(),
+        globalScheduleService.getGlobalSchedule().catch(() => ({ times: ["09:00", "21:00"] }))
+      ]);
+      setUserProfile(profile as any);
       setManagedPatients(profile?.managedPatients || []);
+      setGlobalTimings(gSched.times);
+      setSchedule(prev => ({ ...prev, times: gSched.times }));
       if (patientId) {
         setSchedule(prev => ({ ...prev, ownerId: patientId }));
       }
     };
-    loadPatients();
+    loadInitialData();
   }, [patientId]);
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -283,14 +293,37 @@ export default function AddMedicationScreen() {
       if (isSubmitting) return;
       setIsSubmitting(true);
 
-      const medicationDataList: Medication[] = medicines.map(med => {
+      const groupId = medicines.length > 1 ? Math.random().toString(36).substr(2, 9) : undefined;
+
+      for (const med of medicines) {
         const useCustom = med.customSchedule;
-        return {
-          id: Math.random().toString(36).substr(2, 9),
+        const useGlobalTiming = !useCustom;
+
+        const freqLabel = useCustom ? med.frequency : schedule.frequency;
+        const times = useGlobalTiming ? globalTimings : (useCustom ? med.times : schedule.times);
+        const durLabel = useCustom ? med.duration : schedule.duration;
+        const startDate = useCustom ? med.startDate : schedule.startDate;
+
+        // Map frequency
+        let frequency: 'daily' | 'weekly' | 'custom' | 'as_needed' = 'daily';
+        if (freqLabel.includes("Weekly")) frequency = 'weekly';
+        if (freqLabel === "As needed") frequency = 'as_needed';
+        if (freqLabel === "Custom") frequency = 'custom';
+
+        // Calculate end date based on duration label
+        let endDate: string | undefined = undefined;
+        const durationValue = DURATIONS.find(d => d.label === durLabel)?.value;
+        if (durationValue && durationValue > 0) {
+          const end = new Date(startDate);
+          end.setDate(end.getDate() + durationValue);
+          endDate = end.toISOString();
+        }
+
+        const payload: CreateMedicineInput = {
           name: med.name,
+          type: med.type,
           dosage: med.dosage,
           dosageUnit: med.dosageUnit,
-          type: med.type,
           mealTiming: med.mealTiming,
           prescribedBy: med.prescribedBy,
           purpose: med.purpose,
@@ -298,39 +331,48 @@ export default function AddMedicationScreen() {
           notes: med.notes,
           imageUrl: med.imageUri || undefined,
           refillReminder: med.refillReminder,
-          currentSupply: med.currentSupply ? Number(med.currentSupply) : 0,
-          totalSupply: med.currentSupply ? Number(med.currentSupply) : 0,
-          refillAt: med.refillAt ? Number(med.refillAt) : 0,
-          // Use per-medicine or global schedule
-          frequency: med.customSchedule ? med.frequency : schedule.frequency,
-          times: med.customSchedule ? med.times : schedule.times,
-          duration: med.customSchedule ? med.duration : schedule.duration,
-          startDate: (med.customSchedule ? med.startDate : schedule.startDate).toISOString(),
+          currentSupply: Number(med.currentSupply) || 0,
+          totalSupply: Number(med.currentSupply) || 0,
+          refillAt: Number(med.refillAt) || 0,
           reminderEnabled: schedule.reminderEnabled,
-          ownerId: schedule.ownerId,
-          addedBy: (schedule.ownerId === "self" ? 'patient' : 'caregiver') as 'patient' | 'caregiver',
+          scheduleGroupId: groupId,
+          patientId: schedule.ownerId === "self" ? undefined : schedule.ownerId,
+          useGlobal: useGlobalTiming,
+          schedule: {
+            times,
+            frequency,
+          },
+          duration: {
+            startDate: startDate.toISOString(),
+            endDate,
+          }
         };
-      });
 
-      if (medicationDataList.length > 1) {
-        await addMedicationGroup(medicationDataList);
-      } else {
-        await addMedication(medicationDataList[0]);
+        const savedMedicine = await createMedicine(payload);
+
+        // Schedule local reminders for the newly created medicine
+        if (payload.reminderEnabled) {
+          await scheduleMedicationReminder({
+            ...payload,
+            id: savedMedicine._id, // Use backend ID
+            ownerId: schedule.ownerId,
+            startDate: payload.duration.startDate,
+            frequency: freqLabel,
+            times: payload.schedule.times,
+            duration: durLabel,
+          } as any);
+        }
+
+        if (payload.refillReminder) {
+          await scheduleRefillReminder({
+            ...payload,
+            id: savedMedicine._id,
+          } as any);
+        }
       }
 
-      // Schedule reminders — consolidate group names for a single notification
-      const allMedNames = medicationDataList.map(m => m.name);
-      for (const medicationData of medicationDataList) {
-        if (medicationData.reminderEnabled) {
-          await scheduleMedicationReminder(
-            medicationData,
-            medicationDataList.length > 1 ? allMedNames : undefined
-          );
-        }
-        if (medicationData.refillReminder) {
-          await scheduleRefillReminder(medicationData);
-        }
-      }
+      // Also sync to local storage for offline support/caching if needed
+      // (Optional, but let's stick to API first as requested)
 
       Alert.alert(
         "Success",
@@ -340,9 +382,9 @@ export default function AddMedicationScreen() {
         [{ text: "OK", onPress: () => router.back() }],
         { cancelable: false }
       );
-    } catch (error) {
-      console.error("Save error:", error);
-      Alert.alert("Error", "Failed to save medication. Please try again.", [{ text: "OK" }], { cancelable: false });
+    } catch (error: any) {
+      console.error("Save error details:", error.response?.data || error.message);
+      Alert.alert("Error", error.response?.data?.message || error.message || "Failed to save medication. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -506,7 +548,7 @@ export default function AddMedicationScreen() {
 
             {/* Schedule Section */}
             <View style={styles.innerSection}>
-              {/* Customize Schedule Toggle */}
+              {/* Custom Schedule Toggle */}
               <View style={styles.switchRow}>
                 <View style={styles.switchLabelContainer}>
                   <View style={styles.iconContainer}>
@@ -514,7 +556,7 @@ export default function AddMedicationScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Custom Schedule</Text>
-                    <Text style={styles.switchSubLabel}>Set a different start date for this medication</Text>
+                    <Text style={styles.switchSubLabel}>Set unique times, frequency or duration</Text>
                   </View>
                 </View>
                 <Switch
@@ -525,8 +567,36 @@ export default function AddMedicationScreen() {
                 />
               </View>
 
-              {med.customSchedule && (
+              {!med.customSchedule ? (
+                <View style={{ marginTop: 10, padding: 12, backgroundColor: "#f8f9fa", borderRadius: 10 }}>
+                  <Text style={{ fontSize: 13, color: "#666", fontStyle: 'italic' }}>
+                    <Ionicons name="information-circle-outline" size={14} color={theme.accent} /> This medicine will follow your default daily schedule.
+                  </Text>
+                </View>
+              ) : (
                 <View style={{ marginTop: 15 }}>
+                  <Text style={styles.sectionTitle}>Custom Medication Times</Text>
+                  <View style={styles.timesContainer}>
+                    {med.times.map((time, tIndex) => (
+                      <TouchableOpacity
+                        key={tIndex}
+                        style={styles.timeButton}
+                        onPress={() => {
+                          setActivePickerIndex(index);
+                          setActivePickerIsGlobal(false);
+                          setActiveTimeIndex(tIndex);
+                          setShowTimePicker(true);
+                        }}
+                      >
+                        <View style={styles.timeIconContainer}>
+                          <Ionicons name="time-outline" size={20} color={theme.accent} />
+                        </View>
+                        <Text style={styles.timeButtonText}>{time}</Text>
+                        <Ionicons name="chevron-forward" size={20} color="#666" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
                   <Text style={styles.sectionTitle}>Frequency</Text>
                   {errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
                   {renderFrequencyOptions(index)}
@@ -1020,7 +1090,7 @@ const styles = StyleSheet.create({
   // Type Grid
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   typeChip: {
-    width: (width - 104) / 4, alignItems: "center", paddingVertical: 12, borderRadius: 14, backgroundColor: "white",
+    width: (Dimensions.get("window").width - 104) / 4, alignItems: "center", paddingVertical: 12, borderRadius: 14, backgroundColor: "white",
     borderWidth: 1, borderColor: "#e0e0e0", shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },

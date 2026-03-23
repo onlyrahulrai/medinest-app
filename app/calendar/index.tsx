@@ -15,14 +15,11 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  getMedicationsForUser,
-  getDoseHistory,
-  recordDose,
-  getUserProfile,
   Medication,
-  DoseHistory,
   ManagedPatient,
 } from "../../utils/storage";
+import { profileService, mapRemoteProfileToLocalProfile } from "../../services/api/profile";
+import { medicineService, Medicine as ApiMedicine } from "../../services/api/medicines";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
 
@@ -35,21 +32,35 @@ export default function CalendarScreen() {
   const [patientId, setPatientId] = useState<string>((params.patientId as string) || 'self');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [medications, setMedications] = useState<Medication[]>([]);
-  const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
   const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadData = useCallback(async () => {
     try {
-      const [meds, history, profile] = await Promise.all([
-        getMedicationsForUser(patientId),
-        getDoseHistory(),
-        getUserProfile(),
+      const dateStr = selectedDate.toISOString();
+      const [remoteProfile, allMeds] = await Promise.all([
+        profileService.fetchCurrentUserProfile(),
+        medicineService.getAllMedicines('active', dateStr, patientId || undefined)
       ]);
-      setMedications(meds);
-      setDoseHistory(history.filter(h => h.patientId === patientId || (patientId === 'self' && h.patientId === undefined)));
+
+      const profile = mapRemoteProfileToLocalProfile(remoteProfile);
       setManagedPatients(profile?.managedPatients || []);
+
+      // Filter meds by patient if needed (if backend returns all, currently scoped to self)
+      // For now, patientId 'self' is the only one fully supported by the standard getAllMedicines
+      
+      const mapped: Medication[] = allMeds.map(m => ({
+        id: m._id!,
+        name: m.name,
+        dosage: m.dosage,
+        times: m.schedule.times,
+        color: m.color || "#059669",
+        logs: m.logs as any,
+        addedBy: m.userId !== remoteProfile._id ? 'caregiver' : 'patient'
+      } as any));
+
+      setMedications(mapped);
 
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -84,18 +95,25 @@ export default function CalendarScreen() {
   const { days, firstDay } = getDaysInMonth(selectedDate);
 
   const isDoseTaken = (medicationId: string) => {
+    const med = medications.find(m => m.id === medicationId);
+    if (!med) return false;
+    
     const dateStr = selectedDate.toDateString();
-    return doseHistory.some(
-      (dose) =>
-        dose.medicationId === medicationId &&
-        dose.taken &&
-        new Date(dose.timestamp).toDateString() === dateStr
+    const logs = (med as any).logs || [];
+    
+    return logs.some((log: any) => 
+      log.status === 'taken' && 
+      new Date(log.takenAt).toDateString() === dateStr
     );
   };
 
   const handleTakeDose = async (medication: Medication) => {
     try {
-      await recordDose(medication.id, true, new Date().toISOString(), patientId, 'taken');
+      await medicineService.logIntake(medication.id, {
+        takenAt: new Date().toISOString(),
+        status: 'taken',
+        loggedBy: 'self'
+      });
       await loadData();
     } catch (error) {
       console.error("Error recording dose:", error);
@@ -121,8 +139,10 @@ export default function CalendarScreen() {
       );
       const isToday = new Date().toDateString() === date.toDateString();
       const isSelected = selectedDate.toDateString() === date.toDateString();
-      const hasDoses = doseHistory.some(
-        (dose) => new Date(dose.timestamp).toDateString() === date.toDateString()
+      const hasDoses = medications.some(med => 
+        (med as any).logs?.some((log: any) => 
+          new Date(log.takenAt).toDateString() === date.toDateString()
+        )
       );
 
       week.push(

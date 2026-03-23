@@ -18,19 +18,23 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import {
-  getMedications,
-  updateMedication,
-  deleteMedication,
-  addMedication,
   getUserProfile,
-  getMedicationsByGroupId,
   ManagedPatient,
-  Medication,
   UserProfile
 } from "../../utils/storage";
 import { scheduleMedicationReminder } from "../../utils/notifications";
+import { 
+  getMedicineById as apiGetMedicineById, 
+  updateMedicine as apiUpdateMedicine, 
+  deleteMedicine as apiDeleteMedicine, 
+  createMedicine as apiCreateMedicine, 
+  getAllMedicines as apiGetAllMedicines,
+  type UpdateMedicineInput,
+  type CreateMedicineInput
+} from "../../services/api/medicines";
+import { globalScheduleService } from "../../services/api/globalSchedule";
 
-const { width } = Dimensions.get("window");
+// Top-level width calculation moved into the component for better reliability.
 
 const MEDICATION_TYPES = [
   { id: "tablet", label: "Tablet", icon: "tablet-portrait-outline" as const },
@@ -99,6 +103,7 @@ interface MedicineEntry {
 }
 
 export default function EditMedicationScreen() {
+  const { width } = Dimensions.get("window");
   const router = useRouter();
   const params = useLocalSearchParams();
   const id = params.id as string;
@@ -133,6 +138,7 @@ export default function EditMedicationScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [globalTimings, setGlobalTimings] = useState<string[]>(["09:00", "21:00"]);
 
   const getPatientName = () => {
     if (schedule.ownerId === "self") return userProfile?.name || "Me";
@@ -169,55 +175,69 @@ export default function EditMedicationScreen() {
   }, []);
 
   useEffect(() => {
-    const loadMedication = async () => {
-      const medications = await getMedications();
-      const med = medications.find(m => m.id === id);
-      if (!med) return;
+    const loadMedicationData = async () => {
+      try {
+        const med = await apiGetMedicineById(id);
+        if (!med) return;
 
-      // Load common group-level fields
-      setSchedule({
-        reminderEnabled: med.reminderEnabled,
-        ownerId: med.ownerId || "self",
-        scheduleGroupId: med.scheduleGroupId,
-        addedBy: med.addedBy,
-        frequency: med.frequency || "Once daily",
-        times: med.times || ["09:00"],
-        duration: med.duration || "30 days",
-        startDate: med.startDate ? new Date(med.startDate) : new Date(),
-      });
+        // Map backend medicine to frontend structure
+        const mapToEntry = (m: any) => ({
+          _id: m._id, // Store backend _id
+          id: m._id,
+          name: m.name,
+          dosage: m.dosage,
+          dosageUnit: m.dosageUnit || "mg",
+          type: m.type || "",
+          mealTiming: m.mealTiming || [],
+          prescribedBy: m.prescribedBy || "",
+          purpose: m.purpose || "",
+          color: m.color || "#4CAF50",
+          notes: m.notes || "",
+          refillReminder: m.refillReminder,
+          currentSupply: m.currentSupply?.toString() || "",
+          refillAt: m.refillAt?.toString() || "",
+          imageUrl: m.imageUrl,
+          useGlobal: m.useGlobal || false,
+          customSchedule: false,
+          frequency: m.schedule?.frequency === 'as_needed' ? 'As needed' : (m.schedule?.times?.length === 4 ? 'Four times daily' : (m.schedule?.times?.length === 3 ? 'Three times daily' : (m.schedule?.times?.length === 2 ? 'Twice daily' : 'Once daily'))),
+          times: m.schedule?.times || ["09:00"],
+          duration: "30 days", // Fallback, could be calculated
+          startDate: m.duration?.startDate ? new Date(m.duration.startDate) : new Date(),
+        });
 
-      // Check if part of a group
-      let medsToEdit: Medication[] = [med];
-      if (med.scheduleGroupId) {
-        const groupMeds = await getMedicationsByGroupId(med.scheduleGroupId);
-        if (groupMeds.length > 0) medsToEdit = groupMeds;
+        // Fetch user profile and global schedule in parallel
+        const [profile, gSched] = await Promise.all([
+          getUserProfile(),
+          globalScheduleService.getGlobalSchedule().catch(() => ({ times: ["09:00", "21:00"] }))
+        ]);
+        
+        setUserProfile(profile as any);
+        setGlobalTimings(gSched.times);
+
+        setSchedule({
+          reminderEnabled: med.reminderEnabled || true,
+          ownerId: "self",
+          scheduleGroupId: med.scheduleGroupId,
+          addedBy: "patient",
+          frequency: mapToEntry(med).frequency,
+          times: med.schedule?.times || ["09:00"],
+          duration: "30 days",
+          startDate: mapToEntry(med).startDate,
+        });
+
+        let medsToEdit = [med];
+        if (med.scheduleGroupId) {
+          const allMeds = await apiGetAllMedicines();
+          const groupMeds = allMeds.filter((m: any) => m.scheduleGroupId === med.scheduleGroupId);
+          if (groupMeds.length > 0) medsToEdit = groupMeds;
+        }
+
+        setMedicines(medsToEdit.map(mapToEntry));
+      } catch (error) {
+        console.error("Load error:", error);
       }
-
-      setMedicines(medsToEdit.map(m => ({
-        id: m.id,
-        name: m.name,
-        dosage: m.dosage,
-        dosageUnit: m.dosageUnit || "mg",
-        type: m.type || "",
-        mealTiming: Array.isArray(m.mealTiming) ? m.mealTiming : (m.mealTiming ? [m.mealTiming] : []),
-        prescribedBy: m.prescribedBy || "",
-        purpose: m.purpose || "",
-        color: m.color || "#4CAF50",
-        notes: (m as any).notes || "",
-        refillReminder: m.refillReminder,
-        currentSupply: m.currentSupply?.toString() || "",
-        refillAt: m.refillAt?.toString() || "",
-        imageUrl: m.imageUrl,
-        customSchedule: false,
-        frequency: m.frequency || "Once daily",
-        times: m.times || ["09:00"],
-        duration: m.duration || "30 days",
-        startDate: m.startDate ? new Date(m.startDate) : new Date(),
-      })));
-      setSelectedFrequency(med.frequency || "Once daily");
-      setSelectedDuration(med.duration || "30 days");
     };
-    if (id) loadMedication();
+    if (id) loadMedicationData();
   }, [id]);
 
   const updateMedicine = (index: number, updates: Partial<MedicineEntry>) => {
@@ -230,8 +250,9 @@ export default function EditMedicationScreen() {
       name: "", dosage: "", dosageUnit: "mg", type: "", mealTiming: [],
       prescribedBy: "", purpose: "", color: "#4CAF50", notes: "",
       refillReminder: false, currentSupply: "", refillAt: "", isNew: true,
+      useGlobal: true,
       customSchedule: false,
-      frequency: "Once daily", times: ["09:00"], duration: "30 days", startDate: new Date(),
+      frequency: "Once daily", times: globalTimings, duration: "30 days", startDate: new Date(),
     }]);
     setExpandedMedicine(medicines.length);
   };
@@ -350,7 +371,7 @@ export default function EditMedicationScreen() {
     try {
       // Delete removed medicines
       for (const removedId of removedMedIds) {
-        await deleteMedication(removedId);
+        await apiDeleteMedicine(removedId);
       }
 
       // Determine group ID
@@ -364,13 +385,33 @@ export default function EditMedicationScreen() {
 
       for (const med of medicines) {
         const useCustom = med.customSchedule;
-        const medicationData: Medication = {
-          id: med.id,
-          scheduleGroupId: groupId,
+        const useGlobalTiming = !useCustom;
+
+        const freqLabel = useCustom ? med.frequency : schedule.frequency;
+        const times = useGlobalTiming ? globalTimings : (useCustom ? med.times : schedule.times);
+        const durLabel = useCustom ? med.duration : schedule.duration;
+        const startDate = useCustom ? med.startDate : schedule.startDate;
+
+        // Map frequency
+        let frequency: 'daily' | 'weekly' | 'custom' | 'as_needed' = 'daily';
+        if (freqLabel.includes("Weekly")) frequency = 'weekly';
+        if (freqLabel === "As needed") frequency = 'as_needed';
+        if (freqLabel === "Custom") frequency = 'custom';
+
+        // Calculate end date based on duration label
+        let endDate: string | undefined = undefined;
+        const durationValue = DURATIONS.find(d => d.label === durLabel)?.value;
+        if (durationValue && durationValue > 0) {
+          const end = new Date(startDate);
+          end.setDate(end.getDate() + durationValue);
+          endDate = end.toISOString();
+        }
+
+        const payload: CreateMedicineInput = {
           name: med.name,
+          type: med.type,
           dosage: med.dosage,
           dosageUnit: med.dosageUnit,
-          type: med.type,
           mealTiming: med.mealTiming,
           prescribedBy: med.prescribedBy,
           purpose: med.purpose,
@@ -381,24 +422,39 @@ export default function EditMedicationScreen() {
           currentSupply: Number(med.currentSupply) || 0,
           totalSupply: Number(med.currentSupply) || 0,
           refillAt: Number(med.refillAt) || 0,
-          frequency: med.customSchedule ? med.frequency : schedule.frequency,
-          times: med.customSchedule ? med.times : schedule.times,
-          duration: med.customSchedule ? med.duration : schedule.duration,
-          startDate: (med.customSchedule ? med.startDate : schedule.startDate).toISOString(),
           reminderEnabled: schedule.reminderEnabled,
-          ownerId: schedule.ownerId,
-          addedBy: schedule.addedBy,
+          scheduleGroupId: groupId,
+          patientId: schedule.ownerId === "self" ? undefined : schedule.ownerId,
+          useGlobal: useGlobalTiming,
+          schedule: {
+            times,
+            frequency,
+          },
+          duration: {
+            startDate: startDate.toISOString(),
+            endDate,
+          }
         };
 
+        let savedMedicineId = med.isNew ? "" : med.id;
         if (med.isNew) {
-          await addMedication(medicationData);
+          const res = await apiCreateMedicine(payload);
+          savedMedicineId = res._id;
         } else {
-          await updateMedication(medicationData);
+          await apiUpdateMedicine(med.id, payload as UpdateMedicineInput);
         }
 
-        // Reschedule reminders for updated medication
-        if (medicationData.reminderEnabled) {
-          await scheduleMedicationReminder(medicationData);
+        // Reschedule reminders
+        if (payload.reminderEnabled) {
+          await scheduleMedicationReminder({
+            ...payload,
+            id: savedMedicineId,
+            ownerId: schedule.ownerId,
+            startDate: payload.duration.startDate,
+            frequency: freqLabel,
+            times: payload.schedule.times,
+            duration: durLabel,
+          } as any);
         }
       }
 
@@ -406,10 +462,10 @@ export default function EditMedicationScreen() {
       Alert.alert("Success", "Medications updated successfully", [
         { text: "OK", onPress: () => router.back() }
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Update error:", error);
       setIsSubmitting(false);
-      Alert.alert("Error", "Failed to update medications");
+      Alert.alert("Error", error.message || "Failed to update medications");
     }
   };
 
@@ -426,7 +482,7 @@ export default function EditMedicationScreen() {
           onPress: async () => {
             try {
               for (const med of medicines) {
-                if (!med.isNew) await deleteMedication(med.id);
+                if (!med.isNew) await apiDeleteMedicine(med.id);
               }
               router.back();
             } catch (error) {
@@ -497,11 +553,9 @@ export default function EditMedicationScreen() {
                   <Text style={[styles.unitChipText, med.dosageUnit === unit && { color: "white" }]}>{unit}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
-
-            {/* Schedule Section */}
+            </ScrollView>            {/* Schedule Section */}
             <View style={styles.innerSection}>
-              {/* Customize Schedule Toggle */}
+              {/* Custom Schedule Toggle */}
               <View style={styles.switchRow}>
                 <View style={styles.switchLabelContainer}>
                   <View style={[styles.iconContainer, { backgroundColor: theme.lightAccent }]}>
@@ -509,7 +563,7 @@ export default function EditMedicationScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Custom Schedule</Text>
-                    <Text style={styles.switchSubLabel}>Set a different start date for this medication</Text>
+                    <Text style={styles.switchSubLabel}>Set unique times, frequency or duration</Text>
                   </View>
                 </View>
                 <Switch
@@ -520,8 +574,35 @@ export default function EditMedicationScreen() {
                 />
               </View>
 
-              {med.customSchedule && (
+              {!med.customSchedule ? (
+                <View style={{ marginTop: 10, padding: 12, backgroundColor: "#f8f9fa", borderRadius: 10 }}>
+                  <Text style={{ fontSize: 13, color: "#666", fontStyle: 'italic' }}>
+                    <Ionicons name="information-circle-outline" size={14} color={theme.accent} /> This medicine will follow your default daily schedule.
+                  </Text>
+                </View>
+              ) : (
                 <View style={{ marginTop: 15 }}>
+                  <Text style={styles.innerSectionTitle}>Custom Medication Times</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                    {med.times.map((time, tIndex) => (
+                      <TouchableOpacity
+                        key={tIndex}
+                        style={[styles.timeButton, { minWidth: 100 }]}
+                        onPress={() => {
+                          setActivePickerIndex(index);
+                          setActivePickerIsGlobal(false);
+                          setActiveTimeIndex(tIndex);
+                          setShowTimePicker(true);
+                        }}
+                      >
+                        <View style={[styles.timeIconContainer, { backgroundColor: theme.lightAccent }]}>
+                          <Ionicons name="time-outline" size={20} color={theme.accent} />
+                        </View>
+                        <Text style={styles.timeButtonText}>{time}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
                   <Text style={styles.innerSectionTitle}>Frequency</Text>
                   {errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
                   {renderFrequencyOptions(index)}
@@ -544,7 +625,6 @@ export default function EditMedicationScreen() {
                     <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
                     <Ionicons name="chevron-forward" size={20} color="#666" />
                   </TouchableOpacity>
-
                 </View>
               )}
             </View>
@@ -917,7 +997,7 @@ const styles = StyleSheet.create({
   unitChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, backgroundColor: "white", marginRight: 8, borderWidth: 1, borderColor: "#e0e0e0" },
   unitChipText: { fontSize: 14, fontWeight: "600", color: "#666" },
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  typeChip: { width: (width - 102) / 4, alignItems: "center", paddingVertical: 12, borderRadius: 14, backgroundColor: "white", borderWidth: 1, borderColor: "#e0e0e0" },
+  typeChip: { width: (Dimensions.get("window").width - 102) / 4, alignItems: "center", paddingVertical: 12, borderRadius: 14, backgroundColor: "white", borderWidth: 1, borderColor: "#e0e0e0" },
   typeIconContainer: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#D1FAE5", justifyContent: "center", alignItems: "center", marginBottom: 6 },
   typeChipLabel: { fontSize: 11, fontWeight: "600", color: "#333", textAlign: "center" },
   colorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },

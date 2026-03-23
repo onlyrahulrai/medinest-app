@@ -13,10 +13,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import {
-  getMedications,
   Medication,
-  updateMedication,
 } from "../../utils/storage";
+import { medicineService } from "../../services/api/medicines";
 import { scheduleRefillReminder } from "../../utils/notifications";
 
 export default function RefillTrackerScreen() {
@@ -25,8 +24,20 @@ export default function RefillTrackerScreen() {
 
   const loadMedications = useCallback(async () => {
     try {
-      const allMedications = await getMedications();
-      setMedications(allMedications);
+      const allMeds = await medicineService.getAllMedicines();
+      // Map to local format
+      const mapped = allMeds.map(m => ({
+        id: m._id!,
+        name: m.name,
+        dosage: m.dosage,
+        color: m.color || "#059669",
+        currentSupply: m.currentSupply || 0,
+        totalSupply: m.totalSupply || 0,
+        refillAt: m.refillAt || 0,
+        refillReminder: m.refillReminder || false,
+        lastRefillDate: m.updatedAt,
+      } as any));
+      setMedications(mapped);
     } catch (error) {
       console.error("Error loading medications:", error);
     }
@@ -40,13 +51,9 @@ export default function RefillTrackerScreen() {
 
   const handleRefill = async (medication: Medication) => {
     try {
-      const updatedMedication = {
-        ...medication,
+      await medicineService.updateMedicine(medication.id, {
         currentSupply: medication.totalSupply,
-        lastRefillDate: new Date().toISOString(),
-      };
-
-      await updateMedication(updatedMedication);
+      });
       await loadMedications();
 
       Alert.alert(

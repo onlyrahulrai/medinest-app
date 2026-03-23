@@ -112,7 +112,7 @@ export default function Step3Screen() {
             caregivers: emergencyName ? [{ name: emergencyName, phoneNumber: emergencyPhone, relation: emergencyRelation }] : [],
             preferences: { reminderTimes: [], soundEnabled: true, vibrationEnabled: true, shareActivityWithCaregiver: true },
             isOnboardingCompleted: false,
-            onboardingStep: 3,
+            onboardingStep: 4,
             languages: lang ? [lang] : [],
         });
         router.push({

@@ -43,14 +43,14 @@ export function useAuth() {
         }
     }, []);
 
-    const verifyOTP = useCallback(async (phoneNumber: string, otp: string) => {
+    const loginWithOtp = useCallback(async (phoneNumber: string, otp: string) => {
         setIsLoading(true);
 
         setError(null);
 
         try {
             // The API returns a token or user data, adjust as needed
-            const result = await authService.verifyOtp(phoneNumber, otp);
+            const result = await authService.loginWithOtp(phoneNumber, otp);
             // If result contains a token, save it
             if (result && result.access) {
                 // Store the token as a plain string
@@ -95,7 +95,7 @@ export function useAuth() {
         isLoading,
         error,
         requestOTP,
-        verifyOTP,
+        loginWithOtp,
         getUserProfile,
         logout,
     };

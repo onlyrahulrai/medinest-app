@@ -1,8 +1,8 @@
 import axiosInstance from "./base";
 
 export const authService = {
-    verifyOtp: async (phone: string, otp: string) => {
-        const response = await axiosInstance.post('/auth/verify-phone-otp', { phone, otp });
+    loginWithOtp: async (phone: string, otp: string) => {
+        const response = await axiosInstance.post('/auth/login-with-otp', { phone, otp });
 
         return response.data;
     },

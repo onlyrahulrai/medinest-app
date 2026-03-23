@@ -76,7 +76,7 @@ export default function Step2Screen() {
       caregivers: [],
       preferences: { reminderTimes: [], soundEnabled: true, vibrationEnabled: true, shareActivityWithCaregiver: true },
       isOnboardingCompleted: false,
-      onboardingStep: 2,
+      onboardingStep: 3,
       languages: lang ? [lang] : [],
     });
 

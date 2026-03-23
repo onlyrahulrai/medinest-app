@@ -1,9 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Alert, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getUserProfile, UserProfile, saveUserProfile } from '../../utils/storage';
+import { UserProfile } from '../../utils/storage';
+import { fetchCurrentUserProfile, mapRemoteProfileToLocalProfile } from '../../services/api/profile';
+import { upsertInvitation, removeCaregiver as removeCaregiverApi, lookupCaregiverByPhone, getInvitations, respondToInvitation } from '../../services/api/caregivers';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -14,18 +16,143 @@ export default function ProfileScreen() {
     const [newCaregiverRelation, setNewCaregiverRelation] = useState("");
 
     const [isLoading, setIsLoading] = useState(true);
+    const [isActionLoading, setIsActionLoading] = useState(false);
+    const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
 
     useFocusEffect(
         useCallback(() => {
             loadProfile();
+            loadInvitations();
         }, [])
     );
 
+    const loadInvitations = async () => {
+        try {
+            const data = await getInvitations(profile?.phoneNumber || "");
+            setPendingInvitations(data);
+        } catch (error) {
+            console.error("Failed to load invitations", error);
+        }
+    };
+
     const loadProfile = async () => {
         setIsLoading(true);
-        const data = await getUserProfile();
-        setProfile(data);
-        setIsLoading(false);
+        try {
+            const remoteProfile = await fetchCurrentUserProfile();
+            const localProfile = mapRemoteProfileToLocalProfile(remoteProfile);
+            setProfile(localProfile);
+            
+            // Also load invitations once we have the phone number
+            if (localProfile.phoneNumber) {
+                const invs = await getInvitations(localProfile.phoneNumber);
+                setPendingInvitations(invs);
+            }
+        } catch (error) {
+            console.error("Failed to load profile", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAcceptInvitation = async (invitationId: string) => {
+        setIsActionLoading(true);
+        try {
+            await respondToInvitation(invitationId, 'accepted');
+            Alert.alert("Success", "Invitation accepted.");
+            loadProfile();
+            loadInvitations();
+        } catch (error: any) {
+            Alert.alert("Error", error?.message || "Failed to accept");
+        } finally {
+            setIsActionLoading(true);
+        }
+    };
+
+    const handleRejectInvitation = async (invitationId: string) => {
+        Alert.alert(
+            "Decline Request",
+            "Are you sure you want to decline this request?",
+            [
+                { text: "Cancel", style: 'cancel' },
+                {
+                    text: "Decline",
+                    style: 'destructive',
+                    onPress: async () => {
+                        setIsActionLoading(true);
+                        try {
+                            await respondToInvitation(invitationId, 'rejected');
+                            loadInvitations();
+                        } catch (error: any) {
+                            Alert.alert("Error", error?.message || "Failed to decline");
+                        } finally {
+                            setIsActionLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleAddCaregiver = async () => {
+        if (!newCaregiverPhone || !profile) return;
+        
+        setIsActionLoading(true);
+        try {
+            // First lookup to see if they exist
+            const lookup = await lookupCaregiverByPhone(newCaregiverPhone);
+            
+            await upsertInvitation({
+                name: newCaregiverName || lookup.name,
+                phoneNumber: newCaregiverPhone,
+                relation: newCaregiverRelation || "Other"
+            });
+            
+            Alert.alert("Success", "Caregiver invitation has been sent/updated.");
+            setShowAddCaregiver(false);
+            setNewCaregiverName("");
+            setNewCaregiverPhone("");
+            setNewCaregiverRelation("");
+            loadProfile();
+        } catch (error: any) {
+            Alert.alert("Error", error?.message || "Failed to add caregiver");
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    const handleRemoveCaregiver = (name: string, phoneNumber: string) => {
+        Alert.alert(
+            "Remove Caregiver",
+            `Are you sure you want to remove ${name}? they will no longer be able to manage your medications.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Remove",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await removeCaregiverApi(phoneNumber);
+                            loadProfile();
+                        } catch (error: any) {
+                            Alert.alert("Error", error?.message || "Failed to remove caregiver");
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleResendInvitation = async (caregiver: any) => {
+        try {
+            await upsertInvitation({
+                name: caregiver.name,
+                phoneNumber: caregiver.phoneNumber,
+                relation: caregiver.relation
+            });
+            Alert.alert("Success", "Invitation resent successfully.");
+        } catch (error: any) {
+            Alert.alert("Error", error?.message || "Failed to resend invitation");
+        }
     };
 
     if (isLoading) {
@@ -42,34 +169,12 @@ export default function ProfileScreen() {
                     </View>
                 </LinearGradient>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text style={{ color: '#666' }}>Loading profile...</Text>
+                    <ActivityIndicator size="large" color="#065F46" />
+                    <Text style={{ color: '#666', marginTop: 12 }}>Loading profile...</Text>
                 </View>
             </View>
         );
     }
-
-    const handleAddCaregiver = async () => {
-        if (!newCaregiverName || !newCaregiverPhone || !profile) return;
-
-        const newCaregiver = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: newCaregiverName,
-            phoneNumber: newCaregiverPhone,
-            relation: newCaregiverRelation || "Other"
-        };
-
-        const updatedProfile = {
-            ...profile,
-            caregivers: [...(profile.caregivers || []), newCaregiver]
-        };
-
-        await saveUserProfile(updatedProfile);
-        setProfile(updatedProfile);
-        setShowAddCaregiver(false);
-        setNewCaregiverName("");
-        setNewCaregiverPhone("");
-        setNewCaregiverRelation("");
-    };
 
     if (!profile) {
         return (
@@ -158,9 +263,9 @@ export default function ProfileScreen() {
 
                 <View style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionTitle}>Caregivers</Text>
+                        <Text style={styles.sectionTitle}>Caregiver Status</Text>
                         <TouchableOpacity onPress={() => setShowAddCaregiver(true)}>
-                            <Text style={styles.addCaregiverBtn}>+ Add</Text>
+                            <Text style={styles.addCaregiverBtn}>+ Invite New</Text>
                         </TouchableOpacity>
                     </View>
                     <View style={styles.card}>
@@ -168,53 +273,122 @@ export default function ProfileScreen() {
                             profile.caregivers.map((caregiver, index) => (
                                 <View key={caregiver.id || index} style={[styles.row, index > 0 && styles.rowBorder]}>
                                     <View style={[styles.icon, { justifyContent: 'center', alignItems: 'center' }]}>
-                                        <Ionicons name="people-outline" size={22} color="#f44336" />
+                                        <Ionicons name="person-outline" size={22} color="#666" />
                                     </View>
                                     <View style={styles.rowContent}>
                                         <View style={styles.emergencyHeader}>
                                             <Text style={styles.rowText}>{caregiver.name}</Text>
-                                            <TouchableOpacity
-                                                onPress={() => {
-                                                    Alert.alert(
-                                                        "Remove Caregiver",
-                                                        `Are you sure you want to remove ${caregiver.name}? they will no longer be able to manage your medications.`,
-                                                        [
-                                                            { text: "Cancel", style: "cancel" },
-                                                            {
-                                                                text: "Remove",
-                                                                style: "destructive",
-                                                                onPress: async () => {
-                                                                    const updatedCaregivers = profile.caregivers.filter(c => c.id !== caregiver.id);
-                                                                    const updatedProfile = { ...profile, caregivers: updatedCaregivers };
-                                                                    await saveUserProfile(updatedProfile);
-                                                                    setProfile(updatedProfile);
-                                                                }
-                                                            }
-                                                        ]
-                                                    );
-                                                }}
-                                                style={styles.removeBtn}
-                                            >
-                                                <Ionicons name="trash-outline" size={18} color="#f44336" />
-                                            </TouchableOpacity>
-                                        </View>
-                                        <View style={styles.emergencyHeader}>
-                                            <View style={styles.relationChip}>
-                                                <Text style={styles.relationText}>{caregiver.relation}</Text>
+                                            <View style={styles.actionButtons}>
+                                                {caregiver.inviteStatus !== 'accepted' && (
+                                                    <TouchableOpacity
+                                                        onPress={() => handleResendInvitation(caregiver)}
+                                                        style={styles.resendBtn}
+                                                    >
+                                                        <Ionicons name="refresh-outline" size={18} color="#4CAF50" />
+                                                    </TouchableOpacity>
+                                                )}
+                                                <TouchableOpacity
+                                                    onPress={() => handleRemoveCaregiver(caregiver.name, caregiver.phoneNumber)}
+                                                    style={styles.removeBtn}
+                                                >
+                                                    <Ionicons name="trash-outline" size={18} color="#f44336" />
+                                                </TouchableOpacity>
                                             </View>
-                                            <Text style={styles.rowSubText}>{caregiver.phoneNumber}</Text>
+                                        </View>
+                                        <View style={styles.caregiverMeta}>
+                                            <Text style={styles.rowSubText}>{caregiver.phoneNumber} • {caregiver.relation}</Text>
+                                            <View style={[
+                                                styles.statusBadge,
+                                                caregiver.inviteStatus === 'accepted' ? styles.statusAccepted :
+                                                caregiver.inviteStatus === 'rejected' ? styles.statusRejected :
+                                                styles.statusPending
+                                            ]}>
+                                                <Text style={[
+                                                    styles.statusText,
+                                                    caregiver.inviteStatus === 'accepted' ? styles.statusTextAccepted :
+                                                    caregiver.inviteStatus === 'rejected' ? styles.statusTextRejected :
+                                                    styles.statusTextPending
+                                                ]}>
+                                                    {caregiver.inviteStatus === 'accepted' ? "Caregiver Connected" :
+                                                     caregiver.inviteStatus === 'rejected' ? "Request Declined" :
+                                                     "Invitation Sent"}
+                                                </Text>
+                                            </View>
                                         </View>
                                     </View>
                                 </View>
                             ))
                         ) : (
-                            <Text style={styles.emptyText}>No caregivers added.</Text>
+                            <View style={styles.emptyState}>
+                                <Ionicons name="people-outline" size={40} color="#ccc" />
+                                <Text style={styles.emptyText}>No caregivers added yet.</Text>
+                            </View>
                         )}
                     </View>
                 </View>
+                {/* Pending Caregiver Requests */}
+                {pendingInvitations.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Pending Caregiver Requests</Text>
+                        {pendingInvitations.map((inv) => (
+                            <View key={inv._id} style={styles.caregiverCard}>
+                                <View style={styles.caregiverInfo}>
+                                    <View style={styles.avatarPlaceholder}>
+                                        <Text style={styles.avatarText}>{inv.senderName?.charAt(0)}</Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.caregiverName}>{inv.senderName}</Text>
+                                        <Text style={styles.caregiverRelation}>{inv.senderPhone}</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.invitationActions}>
+                                    <TouchableOpacity 
+                                        style={[styles.smallActionBtn, styles.declineBtn]}
+                                        onPress={() => handleRejectInvitation(inv._id)}
+                                    >
+                                        <Text style={styles.declineBtnText}>Decline</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity 
+                                        style={[styles.smallActionBtn, styles.acceptBtn]}
+                                        onPress={() => handleAcceptInvitation(inv._id)}
+                                    >
+                                        <Text style={styles.acceptBtnText}>Accept</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
 
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Health Conditions</Text>
+                {/* People I Care For */}
+                {(profile?.managedPatients?.length ?? 0) > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>People I Care For</Text>
+                        {profile?.managedPatients.map((patient) => (
+                            <View key={patient.id} style={styles.caregiverCard}>
+                                <View style={styles.caregiverInfo}>
+                                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#E0F2FE' }]}>
+                                        <Text style={[styles.avatarText, { color: '#0369A1' }]}>{patient.name.charAt(0)}</Text>
+                                    </View>
+                                    <View>
+                                        <Text style={styles.caregiverName}>{patient.name}</Text>
+                                        <Text style={styles.caregiverRelation}>{patient.phoneNumber}</Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity 
+                                    style={styles.manageBtn}
+                                    onPress={() => router.push({ pathname: '/caregiver/activity', params: { patientId: patient.id, name: patient.name } })}
+                                >
+                                    <Text style={styles.manageBtnText}>View Activity</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* App Settings */}
+                <View style={[styles.section, { marginBottom: 40 }]}>
+                    <Text style={styles.sectionTitle}>App Settings</Text>
                     <View style={styles.card}>
                         {profile.conditions && profile.conditions.length > 0 ? (
                             <View style={styles.conditionsGrid}>
@@ -259,8 +433,12 @@ export default function ProfileScreen() {
                         <Text style={styles.inputLabel}>Relation</Text>
                         <TextInput style={styles.modalInput} placeholder="e.g. Spouse" value={newCaregiverRelation} onChangeText={setNewCaregiverRelation} placeholderTextColor="#999" />
 
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleAddCaregiver}>
-                            <Text style={styles.saveBtnText}>Save Caregiver</Text>
+                        <TouchableOpacity 
+                            style={[styles.saveBtn, (!newCaregiverPhone || isActionLoading) && styles.saveBtnDisabled]} 
+                            onPress={handleAddCaregiver}
+                            disabled={!newCaregiverPhone || isActionLoading}
+                        >
+                            {isActionLoading ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>Save Caregiver</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -524,5 +702,123 @@ const styles = StyleSheet.create({
     },
     removeBtn: {
         padding: 4,
+    },
+    removeBtnText: {
+        color: '#DC2626',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    caregiverCard: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    caregiverInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    caregiverName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111827',
+    },
+    caregiverRelation: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginTop: 2,
+    },
+    invitationActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    smallActionBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    declineBtn: {
+        backgroundColor: '#FEE2E2',
+    },
+    acceptBtn: {
+        backgroundColor: '#065F46',
+    },
+    declineBtnText: {
+        color: '#DC2626',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    acceptBtnText: {
+        color: 'white',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    manageBtn: {
+        backgroundColor: '#F0F9FF',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#BAE6FD',
+    },
+    manageBtnText: {
+        color: '#0369A1',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    actionButtons: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    resendBtn: {
+        padding: 4,
+    },
+    caregiverMeta: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    statusBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 8,
+    },
+    statusPending: {
+        backgroundColor: '#FFF8E1',
+    },
+    statusAccepted: {
+        backgroundColor: '#E8F5E9',
+    },
+    statusRejected: {
+        backgroundColor: '#FFEBEE',
+    },
+    statusText: {
+        fontSize: 11,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+    },
+    statusTextPending: {
+        color: '#F57F17',
+    },
+    statusTextAccepted: {
+        color: '#2E7D32',
+    },
+    statusTextRejected: {
+        color: '#D32F2F',
+    },
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 20,
+    },
+    saveBtnDisabled: {
+        backgroundColor: '#ccc',
     }
 });

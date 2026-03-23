@@ -1,11 +1,13 @@
 import React from 'react';
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import CaregiverInvitationModal from '../components/CaregiverInvitationModal';
 
 export default function Layout() {
   return (
     <>
       <StatusBar style="light" />
+      <CaregiverInvitationModal />
       <Stack
         screenOptions={{
           headerShown: false,

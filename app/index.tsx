@@ -46,10 +46,9 @@ export default function SplashScreen() {
             if (profile?.isOnboardingCompleted) {
               router.replace("/(tabs)");
             } else {
-              const step = profile?.onboardingStep || 1;
-              router.replace({
-                pathname: `/(onboarding)/step${step}` as any,
-              });
+              const step = profile?.onboardingStep ?? 1;
+              const route = step <= 1 ? "/(onboarding)/step1" : `/(onboarding)/step${step}`;
+              router.replace(route as any);
             }
           } catch (e) {
             // Token is invalid/expired (401) — clear it and go to login

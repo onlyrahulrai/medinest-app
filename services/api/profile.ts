@@ -1,4 +1,4 @@
-import { apiRequest, isApiConfigured } from './client';
+import axiosInstance from './base';
 import { UserProfile } from '../../utils/storage';
 
 type RemoteCaregiver = {
@@ -19,7 +19,7 @@ type RemoteUserProfile = {
   gender?: 'Male' | 'Female' | 'Other';
   conditions?: string[];
   isOnboardingCompleted?: boolean;
-  onboardingStep?: number;
+  languages?: string[];
   preferences?: {
     reminderTimes?: string[];
     soundEnabled?: boolean;
@@ -27,6 +27,11 @@ type RemoteUserProfile = {
     shareActivityWithCaregiver?: boolean;
   };
   caregiverContacts?: RemoteCaregiver[];
+  managedPatients?: Array<{
+    _id: string;
+    name: string;
+    phone: string;
+  }>;
 };
 
 export type SaveOnboardingProfilePayload = {
@@ -65,26 +70,40 @@ export function mapRemoteProfileToLocalProfile(remote: RemoteUserProfile): UserP
       name: caregiver.name ?? '',
       phoneNumber: caregiver.phoneNumber ?? '',
       relation: caregiver.relation ?? '',
+      inviteStatus: caregiver.inviteStatus as any,
+      verificationStatus: caregiver.verificationStatus as any,
     })),
-    managedPatients: [],
+    managedPatients: (remote.managedPatients ?? []).map(p => ({
+      id: p._id,
+      name: p.name ?? '',
+      phoneNumber: p.phone ?? '',
+    })),
     reminderTimes: remote.preferences?.reminderTimes ?? ['08:00', '20:00'],
     soundEnabled: remote.preferences?.soundEnabled ?? true,
     vibrationEnabled: remote.preferences?.vibrationEnabled ?? true,
     shareActivityWithCaregiver: remote.preferences?.shareActivityWithCaregiver ?? true,
     isOnboardingCompleted: remote.isOnboardingCompleted ?? false,
-    onboardingStep: remote.onboardingStep,
   };
 }
 
+export const profileService = {
+  fetchCurrentUserProfile: async (): Promise<RemoteUserProfile> => {
+    const response = await axiosInstance.get<RemoteUserProfile>('/auth/user-details');
+
+    return response.data;
+  },
+
+  saveOnboardingProfile: async (payload: SaveOnboardingProfilePayload): Promise<RemoteUserProfile> => {
+    const response = await axiosInstance.put<RemoteUserProfile>('/auth/onboarding-profile', payload);
+
+    return response.data;
+  },
+};
+
 export async function fetchCurrentUserProfile() {
-  return apiRequest<RemoteUserProfile>('/auth/user-details');
+  return profileService.fetchCurrentUserProfile();
 }
 
 export async function saveOnboardingProfile(payload: SaveOnboardingProfilePayload) {
-  console.log('Saving onboarding profile with payload:', payload);
-
-  return apiRequest<RemoteUserProfile>('/auth/onboarding-profile', {
-    method: 'PUT',
-    body: payload,
-  });
+  return profileService.saveOnboardingProfile(payload);
 }

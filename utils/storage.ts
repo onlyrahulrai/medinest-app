@@ -15,7 +15,8 @@ export interface ManagedPatient {
   id: string;
   name: string;
   image?: string;
-  phoneNumber?: string;
+  phoneNumber: string;
+  relation?: string;
   nextMedication?: string;
 }
 
@@ -33,8 +34,10 @@ export interface UserProfile {
     name: string;
     phoneNumber: string;
     relation: string;
+    inviteStatus?: "not_required" | "pending_invite" | "invite_sent" | "accepted" | "expired" | "rejected";
+    verificationStatus?: "verified_user" | "unregistered_contact" | "verification_pending";
   }>;
-  managedPatients: ManagedPatient[]; // People this user cares for
+  managedPatients: ManagedPatient[];
   reminderTimes: string[];
   soundEnabled: boolean;
   vibrationEnabled: boolean;

@@ -25,7 +25,7 @@ export default function VerifyOTPScreen() {
     const params = useLocalSearchParams();
     const phoneNumber = params.phoneNumber as string || '';
 
-    const { verifyOTP, getUserProfile, requestOTP, isLoading, error } = useAuth();
+    const { loginWithOtp, requestOTP, isLoading, error } = useAuth();
 
     // Handle countdown timer
     useEffect(() => {
@@ -42,7 +42,7 @@ export default function VerifyOTPScreen() {
             return; // Ensure full 6 digits
         }
 
-        const result: any = await verifyOTP(phoneNumber, otp);
+        const result: any = await loginWithOtp(phoneNumber, otp);
 
         if (result.success) {
             try {
@@ -55,9 +55,8 @@ export default function VerifyOTPScreen() {
                     }
                     router.replace('/(tabs)');
                 } else {
-                    const step = profile?.onboardingStep || 1;
                     router.replace({
-                        pathname: `/(onboarding)/step${step}` as any,
+                        pathname: '/(onboarding)/step1',
                         params: { phoneNumber }
                     });
                 }

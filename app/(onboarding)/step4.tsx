@@ -96,7 +96,6 @@ export default function Step4Screen() {
                     shareActivityWithCaregiver: shareActivity,
                 },
                 isOnboardingCompleted: true,
-                onboardingStep: 4,
                 languages: lang ? [lang] : [],
             });
 

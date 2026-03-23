@@ -63,7 +63,7 @@ export default function Step1Screen() {
             caregivers: [],
             preferences: { reminderTimes: [], soundEnabled: true, vibrationEnabled: true, shareActivityWithCaregiver: true },
             isOnboardingCompleted: false,
-            onboardingStep: 1,
+            onboardingStep: 2,
             languages: lang ? [lang] : [],
         });
         router.push({

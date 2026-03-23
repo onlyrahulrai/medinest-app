@@ -1,6 +1,4 @@
-import { apiRequest, isApiConfigured } from './client';
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+import axiosInstance from './base';
 
 export type CaregiverLookupResult = {
   found: boolean;
@@ -8,24 +6,55 @@ export type CaregiverLookupResult = {
   userId?: string;
 };
 
-async function mockLookupCaregiverByPhone(phoneNumber: string): Promise<CaregiverLookupResult> {
-  await delay(1000);
+export const caregiverService = {
+  lookupCaregiverByPhone: async (phoneNumber: string): Promise<CaregiverLookupResult> => {
+    const response = await axiosInstance.get<CaregiverLookupResult>('/auth/caregiver-lookup', {
+      params: { phoneNumber },
+    });
 
-  if (phoneNumber.endsWith('0')) {
-    return { found: false };
+    return response.data;
+  },
+  upsertInvitation: async (caregiver: { name?: string; phoneNumber: string; relation?: string }): Promise<any> => {
+    const response = await axiosInstance.post('/caregivers/upsert-invitation', caregiver);
+    return response.data;
+  },
+  removeCaregiver: async (phoneNumber: string): Promise<any> => {
+    const response = await axiosInstance.delete('/caregivers/remove', {
+      params: { phoneNumber },
+    });
+    return response.data;
+  },
+  getInvitations: async (phone?: string): Promise<any[]> => {
+    const response = await axiosInstance.get('/caregivers/invitations', {
+      params: { phone }
+    });
+    return response.data;
+  },
+  respondToInvitation: async (invitationId: string, status: 'accepted' | 'rejected'): Promise<any> => {
+    const response = await axiosInstance.post('/caregivers/invitation-response', {
+      invitationId,
+      status
+    });
+    return response.data;
   }
+};
 
-  return {
-    found: true,
-    name: 'Verified User',
-    userId: `user_${phoneNumber}`,
-  };
+export async function upsertInvitation(caregiver: { name?: string; phoneNumber: string; relation?: string }) {
+  return caregiverService.upsertInvitation(caregiver);
+}
+
+export async function removeCaregiver(phoneNumber: string) {
+  return caregiverService.removeCaregiver(phoneNumber);
+}
+
+export async function getInvitations(phone?: string) {
+  return caregiverService.getInvitations(phone);
+}
+
+export async function respondToInvitation(invitationId: string, status: 'accepted' | 'rejected') {
+  return caregiverService.respondToInvitation(invitationId, status);
 }
 
 export async function lookupCaregiverByPhone(phoneNumber: string): Promise<CaregiverLookupResult> {
-  if (!isApiConfigured()) {
-    return mockLookupCaregiverByPhone(phoneNumber);
-  }
-
-  return apiRequest<CaregiverLookupResult>(`/caregivers/lookup?phoneNumber=${encodeURIComponent(phoneNumber)}`);
+  return caregiverService.lookupCaregiverByPhone(phoneNumber);
 }

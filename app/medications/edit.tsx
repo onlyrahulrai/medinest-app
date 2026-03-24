@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import moment from "moment";
 import {
   View,
   Text,
@@ -184,7 +185,7 @@ export default function EditMedicationScreen() {
           getUserProfile(),
           getRoutines().catch(() => [])
         ]);
- 
+
         setUserProfile(profile as any);
         setRoutines(fetchedRoutines);
 
@@ -619,7 +620,7 @@ export default function EditMedicationScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              
+
               <Text style={[styles.subSectionLabel, { marginTop: 12 }]}>Amount per intake</Text>
               <View style={[styles.inputContainer, { width: 100 }]}>
                 <TextInput
@@ -638,13 +639,13 @@ export default function EditMedicationScreen() {
 
               {/* Schedule Type Selector */}
               <View style={styles.scheduleTypeContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.scheduleTypeBtn, !med.customSchedule && { backgroundColor: theme.accent }]}
                   onPress={() => updateMedicine(index, { customSchedule: false })}
                 >
                   <Text style={[styles.scheduleTypeBtnText, !med.customSchedule && { color: 'white' }]}>Routines</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.scheduleTypeBtn, med.customSchedule && { backgroundColor: theme.accent }]}
                   onPress={() => updateMedicine(index, { customSchedule: true })}
                 >
@@ -660,7 +661,7 @@ export default function EditMedicationScreen() {
                       <Text style={{ fontSize: 13, color: theme.accent, fontWeight: '600' }}>Manage Routines</Text>
                     </TouchableOpacity>
                   </View>
-                  
+
                   {routines.length > 0 ? (
                     <View style={styles.routinesGrid}>
                       {routines.map((r) => {
@@ -668,26 +669,43 @@ export default function EditMedicationScreen() {
                         return (
                           <TouchableOpacity
                             key={r._id}
-                            style={[styles.routineChipLarge, isSelected && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                            style={[
+                              styles.routineChipLarge,
+                              isSelected && { borderColor: theme.accent, borderWidth: 2, backgroundColor: '#F0FDF4' }
+                            ]}
                             onPress={() => {
-                              const newIds = isSelected 
+                              const newIds = isSelected
                                 ? med.routineIds.filter(id => id !== r._id)
                                 : [...med.routineIds, r._id];
                               updateMedicine(index, { routineIds: newIds });
                             }}
                           >
-                            <Ionicons name="time-outline" size={18} color={isSelected ? "white" : "#666"} />
-                            <View style={{ marginLeft: 8 }}>
-                              <Text style={[styles.routineChipTitle, isSelected && { color: 'white' }]}>{r.name}</Text>
-                              <Text style={[styles.routineChipTime, isSelected && { color: 'rgba(255,255,255,0.8)' }]}>{r.time}</Text>
+                            <View style={styles.routineChipHeader}>
+                              <Text style={styles.routineChipTitle}>{r.name}</Text>
+                              {isSelected ? (
+                                <Ionicons name="checkmark-circle" size={22} color={theme.accent} />
+                              ) : (
+                                <View style={styles.selectionCircle} />
+                              )}
+                            </View>
+                            <View style={styles.routineChipTimeContainer}>
+                              <Ionicons name="time" size={22} color={theme.accent} />
+                              <Text style={styles.routineChipTime}>
+                                {moment(r.time, 'HH:mm').format('hh:mm A')}
+                              </Text>
+                            </View>
+                            <View style={[styles.selectionBadge, isSelected && { backgroundColor: theme.accent }]}>
+                              <Text style={[styles.selectionBadgeText, isSelected && { color: 'white' }]}>
+                                {isSelected ? 'Selected' : 'Tap to select'}
+                              </Text>
                             </View>
                           </TouchableOpacity>
                         );
                       })}
                     </View>
                   ) : (
-                    <TouchableOpacity style={styles.emptyRoutinesBtn} onPress={() => {/* Setup routines */}}>
-                       <Text style={styles.emptyRoutinesText}>Setup your daily routines first</Text>
+                    <TouchableOpacity style={styles.emptyRoutinesBtn} onPress={() => {/* Setup routines */ }}>
+                      <Text style={styles.emptyRoutinesText}>Setup your daily routines first</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1026,7 +1044,7 @@ export default function EditMedicationScreen() {
         </View>
       </View>
       {/* Manage Routines Bottom Sheet */}
-      <ManageRoutinesBottomSheet 
+      <ManageRoutinesBottomSheet
         visible={showManageRoutines}
         onClose={async (updated) => {
           setShowManageRoutines(false);
@@ -1148,19 +1166,62 @@ const styles = StyleSheet.create({
   scheduleTypeContainer: { flexDirection: 'row', backgroundColor: '#f0f0f0', borderRadius: 12, padding: 4, marginBottom: 15 },
   scheduleTypeBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
   scheduleTypeBtnText: { fontSize: 14, fontWeight: '600', color: '#666' },
-  routinesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  routinesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, justifyContent: 'space-between' },
   routineChipLarge: {
-    width: (Dimensions.get("window").width - 80) / 2,
+    width: (Dimensions.get("window").width - 88) / 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: '#f0f0f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  routineChipHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  routineChipTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1e293b',
+    flex: 1,
+  },
+  selectionCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+  },
+  routineChipTimeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    backgroundColor: 'white',
+    gap: 8,
+    marginBottom: 14,
   },
-  routineChipTitle: { fontSize: 14, fontWeight: '700', color: '#333' },
-  routineChipTime: { fontSize: 12, color: '#666', marginTop: 2 },
+  routineChipTime: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#334155',
+  },
+  selectionBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  selectionBadgeText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '700',
+  },
   emptyRoutinesBtn: { padding: 20, alignItems: 'center', borderWidth: 1, borderStyle: 'dashed', borderColor: '#ccc', borderRadius: 16 },
   emptyRoutinesText: { color: '#666', fontSize: 14 },
 });

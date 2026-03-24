@@ -13,7 +13,7 @@ const DEFAULT_ROUTINES = [
     { name: 'Night', time: '21:00' },
 ];
 
-export default function Step5Screen() {
+export default function Step4Screen() {
     const router = useRouter();
     const params = useLocalSearchParams();
     const [routines, setRoutines] = useState(DEFAULT_ROUTINES);
@@ -55,15 +55,20 @@ export default function Step5Screen() {
         }
     };
 
-    const handleComplete = async () => {
+    const handleNext = async () => {
         setIsSaving(true);
         try {
             await setupOnboardingRoutines(routines);
-            router.replace('/(tabs)');
+            router.push({
+                pathname: '/(onboarding)/step5',
+                params: { ...params }
+            });
         } catch (error) {
             console.error('Failed to setup routines', error);
-            // Even if it fails, we move forward to not block the user
-            router.replace('/(tabs)');
+            router.push({
+                pathname: '/(onboarding)/step5',
+                params: { ...params }
+            });
         } finally {
             setIsSaving(false);
         }
@@ -79,9 +84,8 @@ export default function Step5Screen() {
                     <View style={styles.progressDot} />
                     <View style={styles.progressDot} />
                     <View style={styles.progressDot} />
-                    <View style={styles.progressDot} />
-                    <View style={styles.progressDot} />
                     <View style={[styles.progressDot, styles.progressDotActive]} />
+                    <View style={styles.progressDot} />
                 </View>
                 <View style={{ width: 40 }} />
             </View>
@@ -90,30 +94,34 @@ export default function Step5Screen() {
                 <Text style={styles.title}>Daily Routine</Text>
                 <Text style={styles.subtitle}>When do you usually take medicines? This helps us group your reminders.</Text>
 
-                <View style={styles.routinesList}>
+                <View style={styles.gridContainer}>
                     {routines.map((routine, index) => (
-                        <View key={index} style={styles.routineCard}>
-                            <View style={styles.routineInfo}>
-                                <Ionicons name="time-outline" size={24} color="#4CAF50" />
-                                <View style={{ marginLeft: 12 }}>
-                                    <Text style={styles.routineName}>{routine.name}</Text>
-                                    <Text style={styles.routineTime}>{moment(routine.time, 'HH:mm').format('hh:mm A')}</Text>
-                                </View>
-                            </View>
-                            <View style={styles.routineActions}>
-                                <TouchableOpacity onPress={() => openTimePicker(index)} style={styles.actionButton}>
-                                    <Ionicons name="pencil" size={20} color="#666" />
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => deleteRoutine(index)} style={styles.actionButton}>
-                                    <Ionicons name="trash-outline" size={20} color="#FF5252" />
+                        <TouchableOpacity 
+                            key={index} 
+                            style={styles.routineGridCard}
+                            onPress={() => openTimePicker(index)}
+                        >
+                            <View style={styles.routineCardHeader}>
+                                <Text style={styles.routineName}>{routine.name}</Text>
+                                <TouchableOpacity onPress={() => deleteRoutine(index)}>
+                                    <Ionicons name="close-circle" size={20} color="#FF5252" />
                                 </TouchableOpacity>
                             </View>
-                        </View>
+                            <View style={styles.routineTimeContainer}>
+                                <Ionicons name="time" size={22} color="#4CAF50" />
+                                <Text style={styles.routineTimeText}>
+                                    {moment(routine.time, 'HH:mm').format('hh:mm A')}
+                                </Text>
+                            </View>
+                            <View style={styles.editBadge}>
+                                <Text style={styles.editBadgeText}>Tap to edit</Text>
+                            </View>
+                        </TouchableOpacity>
                     ))}
 
-                    <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
-                        <Ionicons name="add-circle-outline" size={24} color="#4CAF50" />
-                        <Text style={styles.addButtonText}>Add New Routine</Text>
+                    <TouchableOpacity style={styles.addGridCard} onPress={() => setShowAddModal(true)}>
+                        <Ionicons name="add" size={32} color="#4CAF50" />
+                        <Text style={styles.addGridText}>Add New</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -122,13 +130,12 @@ export default function Step5Screen() {
                 <DateTimePicker
                     value={moment(routines[activeRoutineIndex!]?.time || '09:00', 'HH:mm').toDate()}
                     mode="time"
-                    is24Hour={false}
-                    display="default"
+                    is24Hour={true}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                     onChange={handleTimeChange}
                 />
             )}
 
-            {/* Add Routine Modal */}
             <Modal visible={showAddModal} transparent animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -140,9 +147,8 @@ export default function Step5Screen() {
                             onChangeText={setNewRoutineName}
                             autoFocus
                         />
-
-                        <TouchableOpacity style={styles.timeSelectBtn} onPress={() => {/* In a real app, nested pickers are tricky on Android */ }}>
-                            <Text style={styles.timeSelectText}>Default time will be 08:00 PM</Text>
+                        <TouchableOpacity style={styles.timeSelectBtn} onPress={() => {/* Android time picker integration */ }}>
+                            <Text style={styles.timeSelectText}>Set routine time</Text>
                         </TouchableOpacity>
 
                         <View style={styles.modalFooter}>
@@ -160,7 +166,7 @@ export default function Step5Screen() {
             <View style={styles.footer}>
                 <TouchableOpacity
                     style={[styles.nextButton, isSaving && styles.nextButtonDisabled]}
-                    onPress={handleComplete}
+                    onPress={handleNext}
                     disabled={isSaving}
                 >
                     <LinearGradient
@@ -168,7 +174,7 @@ export default function Step5Screen() {
                         style={styles.nextButtonGradient}
                     >
                         <Text style={styles.nextButtonText}>
-                            {isSaving ? 'Saving...' : 'Finish Setup'}
+                            Next Step
                         </Text>
                         {!isSaving && <Ionicons name="arrow-forward" size={24} color="white" />}
                     </LinearGradient>
@@ -195,61 +201,62 @@ const styles = StyleSheet.create({
     scrollContent: { padding: 24, paddingBottom: 40 },
     title: { fontSize: 28, fontWeight: 'bold', color: '#1a1a1a', marginBottom: 10 },
     subtitle: { fontSize: 16, color: '#666', marginBottom: 30, lineHeight: 24 },
-    routinesList: { gap: 16 },
-    routineCard: {
+    gridContainer: {
         flexDirection: 'row',
-        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 16,
         justifyContent: 'space-between',
-        backgroundColor: '#f9f9f9',
-        padding: 16,
-        borderRadius: 16,
+    },
+    routineGridCard: {
+        width: '47%',
+        backgroundColor: '#ffffff',
+        borderRadius: 24,
+        padding: 18,
         borderWidth: 1,
         borderColor: '#f0f0f0',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 3,
     },
-    routineInfo: { flexDirection: 'row', alignItems: 'center' },
-    routineName: { fontSize: 16, fontWeight: '600', color: '#333' },
-    routineTime: { fontSize: 14, color: '#666', marginTop: 2 },
-    routineActions: { flexDirection: 'row', gap: 12 },
-    actionButton: { padding: 8 },
-    addButton: {
+    routineCardHeader: {
         flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-        borderWidth: 1,
-        borderStyle: 'dashed',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 14,
+    },
+    routineName: { fontSize: 17, fontWeight: '800', color: '#1E293B', flex: 1 },
+    routineTimeContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+    routineTimeText: { fontSize: 19, fontWeight: '900', color: '#334155' },
+    editBadge: { backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, alignSelf: 'flex-start' },
+    editBadgeText: { fontSize: 11, color: '#64748B', fontWeight: '700' },
+    addGridCard: {
+        width: '47%',
+        height: 140,
+        borderRadius: 24,
+        borderWidth: 2,
         borderColor: '#4CAF50',
-        borderRadius: 16,
-        marginTop: 10,
-        gap: 8,
+        borderStyle: 'dashed',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F0FDF4',
     },
-    addButtonText: { color: '#4CAF50', fontSize: 16, fontWeight: '600' },
-    footer: {
-        padding: 24,
-        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-        borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
-        backgroundColor: 'white',
-    },
+    addGridText: { color: '#4CAF50', fontSize: 15, fontWeight: '800', marginTop: 6 },
+    footer: { padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24, borderTopWidth: 1, borderTopColor: '#f0f0f0', backgroundColor: 'white' },
     nextButton: { width: '100%', height: 56, borderRadius: 16, overflow: 'hidden' },
     nextButtonDisabled: { opacity: 0.7 },
     nextButtonGradient: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
     nextButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-    modalContent: { backgroundColor: 'white', borderRadius: 20, padding: 24 },
-    modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
-    input: {
-        backgroundColor: '#f5f5f5',
-        padding: 12,
-        borderRadius: 10,
-        fontSize: 16,
-        marginBottom: 16,
-    },
-    timeSelectBtn: { marginBottom: 20 },
-    timeSelectText: { color: '#666', fontSize: 14 },
-    modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
-    cancelBtn: { padding: 12 },
-    cancelText: { color: '#666', fontWeight: '600' },
-    saveBtn: { backgroundColor: '#4CAF50', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10 },
-    saveText: { color: 'white', fontWeight: '600' },
+    modalContent: { backgroundColor: 'white', borderRadius: 28, padding: 28, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 25, elevation: 15 },
+    modalTitle: { fontSize: 24, fontWeight: '900', marginBottom: 22, color: '#1E293B' },
+    input: { backgroundColor: '#F8FAFC', padding: 18, borderRadius: 14, fontSize: 17, marginBottom: 22, borderWidth: 1, borderColor: '#E2E8F0', color: '#1E293B' },
+    timeSelectBtn: { backgroundColor: '#F0FDF4', padding: 18, borderRadius: 14, marginBottom: 26, borderWidth: 1.5, borderColor: '#4CAF50', alignItems: 'center' },
+    timeSelectText: { color: '#059669', fontSize: 16, fontWeight: '800' },
+    modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14 },
+    cancelBtn: { padding: 14 },
+    cancelText: { color: '#64748B', fontWeight: '800' },
+    saveBtn: { backgroundColor: '#4CAF50', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 14, shadowColor: '#4CAF50', shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 },
+    saveText: { color: 'white', fontWeight: '900', fontSize: 17 },
 });

@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mapRemoteProfileToLocalProfile, saveOnboardingProfile, fetchCurrentUserProfile } from '../../services/api/profile';
 import '../../utils/i18n';
 
-export default function Step4Screen() {
+export default function Step5Screen() {
   const router = useRouter();
   const { t } = useTranslation();
   const params = useLocalSearchParams();
@@ -95,24 +95,15 @@ export default function Step4Screen() {
           vibrationEnabled,
           shareActivityWithCaregiver: shareActivity,
         },
-        isOnboardingCompleted: true,
+        isOnboardingCompleted: true, // FINISH
         languages: lang ? [lang] : [],
       });
 
       await saveUserProfile(remoteProfile ? mapRemoteProfileToLocalProfile(remoteProfile) : profileData);
-
-      // Navigate to Step 5 (Routines)
-      router.push({
-        pathname: '/(onboarding)/step5',
-        params: {
-          ...params,
-          soundEnabled: String(soundEnabled),
-          vibrationEnabled: String(vibrationEnabled),
-          shareActivity: String(shareActivity)
-        }
-      });
+      router.replace('/(tabs)');
     } catch (error) {
       console.error('Failed to save profile', error);
+      router.replace('/(tabs)');
     } finally {
       setIsSaving(false);
     }
@@ -127,24 +118,24 @@ export default function Step4Screen() {
         <View style={styles.progressContainer}>
           <View style={styles.progressDot} />
           <View style={styles.progressDot} />
+          <View style={styles.progressDot} />
+          <View style={styles.progressDot} />
           <View style={[styles.progressDot, styles.progressDotActive]} />
-          <View style={styles.progressDot} />
-          <View style={styles.progressDot} />
         </View>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>{t('onboarding.step4.title')}</Text>
-        <Text style={styles.subtitle}>{t('onboarding.step4.subtitle')}</Text>
+        <Text style={styles.title}>{t('onboarding.step4.title', 'Final Settings')}</Text>
+        <Text style={styles.subtitle}>{t('onboarding.step4.subtitle', 'Configure how you want to receive alerts.')}</Text>
 
         <View style={styles.formSection}>
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
               <Ionicons name="volume-high-outline" size={24} color="#4CAF50" style={styles.settingIcon} />
               <View>
-                <Text style={styles.settingTitle}>{t('onboarding.step4.sound.title')}</Text>
-                <Text style={styles.settingDescription}>{t('onboarding.step4.sound.description')}</Text>
+                <Text style={styles.settingTitle}>{t('onboarding.step4.sound.title', 'Sound Alerts')}</Text>
+                <Text style={styles.settingDescription}>{t('onboarding.step4.sound.description', 'Get audible reminders for medication.')}</Text>
               </View>
             </View>
             <Switch
@@ -159,8 +150,8 @@ export default function Step4Screen() {
             <View style={styles.settingInfo}>
               <Ionicons name="phone-portrait-outline" size={24} color="#4CAF50" style={styles.settingIcon} />
               <View>
-                <Text style={styles.settingTitle}>{t('onboarding.step4.vibration.title')}</Text>
-                <Text style={styles.settingDescription}>{t('onboarding.step4.vibration.description')}</Text>
+                <Text style={styles.settingTitle}>{t('onboarding.step4.vibration.title', 'Vibration')}</Text>
+                <Text style={styles.settingDescription}>{t('onboarding.step4.vibration.description', 'Vibrate for reminder notifications.')}</Text>
               </View>
             </View>
             <Switch
@@ -175,8 +166,8 @@ export default function Step4Screen() {
             <View style={styles.settingInfo}>
               <Ionicons name="share-social-outline" size={24} color="#4CAF50" style={styles.settingIcon} />
               <View>
-                <Text style={styles.settingTitle}>{t('onboarding.step4.shareActivity.title')}</Text>
-                <Text style={styles.settingDescription}>{t('onboarding.step4.shareActivity.description')}</Text>
+                <Text style={styles.settingTitle}>{t('onboarding.step4.shareActivity.title', 'Share Activity')}</Text>
+                <Text style={styles.settingDescription}>{t('onboarding.step4.shareActivity.description', 'Keep caregivers informed of your progress.')}</Text>
               </View>
             </View>
             <Switch
@@ -200,9 +191,9 @@ export default function Step4Screen() {
             style={styles.nextButtonGradient}
           >
             <Text style={[styles.nextButtonText, isSaving && styles.nextButtonTextDisabled]}>
-              {isSaving ? t('onboarding.step4.saving') : t('common.next')}
+              {isSaving ? t('onboarding.step4.saving', 'Saving...') : t('common.finish', 'Finish Setup')}
             </Text>
-            {!isSaving && <Ionicons name="arrow-forward" size={24} color="white" />}
+            {!isSaving && <Ionicons name="checkmark-circle" size={24} color="white" />}
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -211,10 +202,7 @@ export default function Step4Screen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
+  container: { flex: 1, backgroundColor: '#ffffff' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,45 +211,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 10,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E0E0E0',
-  },
-  progressDotActive: {
-    width: 24,
-    backgroundColor: '#4CAF50',
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 40,
-    lineHeight: 24,
-  },
-  formSection: {
-    gap: 24,
-  },
+  backButton: { width: 40, height: 40, justifyContent: 'center' },
+  progressContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E0E0E0' },
+  progressDotActive: { width: 24, backgroundColor: '#4CAF50' },
+  scrollContent: { padding: 24, paddingBottom: 40 },
+  title: { fontSize: 32, fontWeight: 'bold', color: '#1a1a1a', marginBottom: 10 },
+  subtitle: { fontSize: 16, color: '#666', marginBottom: 40, lineHeight: 24 },
+  formSection: { gap: 24 },
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -272,53 +229,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f0f0f0',
   },
-  settingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingIcon: {
-    marginRight: 16,
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  settingDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-  footer: {
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    backgroundColor: 'white',
-  },
-  nextButton: {
-    width: '100%',
-    height: 56,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  nextButtonDisabled: {
-    opacity: 0.7,
-  },
-  nextButtonGradient: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  nextButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  nextButtonTextDisabled: {
-    color: '#999',
-  }
+  settingInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  settingIcon: { marginRight: 16 },
+  settingTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 4 },
+  settingDescription: { fontSize: 14, color: '#666' },
+  footer: { padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24, borderTopWidth: 1, borderTopColor: '#f0f0f0', backgroundColor: 'white' },
+  nextButton: { width: '100%', height: 56, borderRadius: 16, overflow: 'hidden' },
+  nextButtonDisabled: { opacity: 0.7 },
+  nextButtonGradient: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
+  nextButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
+  nextButtonTextDisabled: { color: '#999' }
 });

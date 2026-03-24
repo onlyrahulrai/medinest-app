@@ -19,38 +19,43 @@ export default function Step4Screen() {
     const [routines, setRoutines] = useState(DEFAULT_ROUTINES);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Time Picker State
-    const [showTimePicker, setShowTimePicker] = useState(false);
-    const [activeRoutineIndex, setActiveRoutineIndex] = useState<number | null>(null);
-
-    // Custom Routine Modal
+    // Modal & Picker State
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
     const [newRoutineName, setNewRoutineName] = useState('');
     const [newRoutineTime, setNewRoutineTime] = useState(new Date());
+    const [editIndex, setEditIndex] = useState<number | null>(null);
 
     const handleTimeChange = (event: any, selectedDate?: Date) => {
         setShowTimePicker(false);
-        if (selectedDate && activeRoutineIndex !== null) {
-            const newRoutines = [...routines];
-            newRoutines[activeRoutineIndex].time = moment(selectedDate).format('HH:mm');
-            setRoutines(newRoutines);
+        if (selectedDate) {
+            setNewRoutineTime(selectedDate);
         }
-        setActiveRoutineIndex(null);
     };
 
-    const openTimePicker = (index: number) => {
-        setActiveRoutineIndex(index);
-        setShowTimePicker(true);
+    const openEditModal = (index: number) => {
+        setEditIndex(index);
+        setNewRoutineName(routines[index].name);
+        setNewRoutineTime(moment(routines[index].time, 'HH:mm').toDate());
+        setShowAddModal(true);
     };
 
     const deleteRoutine = (index: number) => {
         setRoutines(routines.filter((_, i) => i !== index));
     };
 
-    const handleAddRoutine = () => {
+    const handleSaveRoutine = () => {
         if (newRoutineName.trim()) {
-            setRoutines([...routines, { name: newRoutineName, time: moment(newRoutineTime).format('HH:mm') }]);
+            const timeStr = moment(newRoutineTime).format('HH:mm');
+            if (editIndex !== null) {
+                const updatedRoutines = [...routines];
+                updatedRoutines[editIndex] = { name: newRoutineName, time: timeStr };
+                setRoutines(updatedRoutines);
+            } else {
+                setRoutines([...routines, { name: newRoutineName, time: timeStr }]);
+            }
             setNewRoutineName('');
+            setEditIndex(null);
             setShowAddModal(false);
         }
     };
@@ -99,7 +104,7 @@ export default function Step4Screen() {
                         <TouchableOpacity 
                             key={index} 
                             style={styles.routineGridCard}
-                            onPress={() => openTimePicker(index)}
+                            onPress={() => openEditModal(index)}
                         >
                             <View style={styles.routineCardHeader}>
                                 <Text style={styles.routineName}>{routine.name}</Text>
@@ -119,7 +124,15 @@ export default function Step4Screen() {
                         </TouchableOpacity>
                     ))}
 
-                    <TouchableOpacity style={styles.addGridCard} onPress={() => setShowAddModal(true)}>
+                    <TouchableOpacity 
+                        style={styles.addGridCard} 
+                        onPress={() => {
+                            setEditIndex(null);
+                            setNewRoutineName('');
+                            setNewRoutineTime(moment('08:00', 'HH:mm').toDate());
+                            setShowAddModal(true);
+                        }}
+                    >
                         <Ionicons name="add" size={32} color="#4CAF50" />
                         <Text style={styles.addGridText}>Add New</Text>
                     </TouchableOpacity>
@@ -128,7 +141,7 @@ export default function Step4Screen() {
 
             {showTimePicker && (
                 <DateTimePicker
-                    value={moment(routines[activeRoutineIndex!]?.time || '09:00', 'HH:mm').toDate()}
+                    value={newRoutineTime}
                     mode="time"
                     is24Hour={true}
                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
@@ -136,27 +149,43 @@ export default function Step4Screen() {
                 />
             )}
 
-            <Modal visible={showAddModal} transparent animationType="slide">
+            <Modal visible={showAddModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>New Routine</Text>
+                        <Text style={styles.modalTitle}>
+                            {editIndex !== null ? 'Edit Routine' : 'New Routine'}
+                        </Text>
+                        
+                        <Text style={styles.modalLabel}>Routine Name</Text>
                         <TextInput
                             style={styles.input}
                             placeholder="e.g. Evening, Bedtime"
                             value={newRoutineName}
                             onChangeText={setNewRoutineName}
-                            autoFocus
                         />
-                        <TouchableOpacity style={styles.timeSelectBtn} onPress={() => {/* Android time picker integration */ }}>
-                            <Text style={styles.timeSelectText}>Set routine time</Text>
+
+                        <Text style={styles.modalLabel}>Occurrence Time</Text>
+                        <TouchableOpacity style={styles.timeSelectBtn} onPress={() => setShowTimePicker(true)}>
+                            <Ionicons name="time-outline" size={20} color="#4CAF50" />
+                            <Text style={styles.timeSelectText}>
+                                {moment(newRoutineTime).format('hh:mm A')}
+                            </Text>
                         </TouchableOpacity>
 
                         <View style={styles.modalFooter}>
-                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddModal(false)}>
+                            <TouchableOpacity 
+                                style={styles.cancelBtn} 
+                                onPress={() => {
+                                    setShowAddModal(false);
+                                    setEditIndex(null);
+                                }}
+                            >
                                 <Text style={styles.cancelText}>Cancel</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.saveBtn} onPress={handleAddRoutine}>
-                                <Text style={styles.saveText}>Add</Text>
+                            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveRoutine}>
+                                <Text style={styles.saveText}>
+                                    {editIndex !== null ? 'Update' : 'Add Routine'}
+                                </Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -251,9 +280,20 @@ const styles = StyleSheet.create({
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
     modalContent: { backgroundColor: 'white', borderRadius: 28, padding: 28, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 25, elevation: 15 },
     modalTitle: { fontSize: 24, fontWeight: '900', marginBottom: 22, color: '#1E293B' },
-    input: { backgroundColor: '#F8FAFC', padding: 18, borderRadius: 14, fontSize: 17, marginBottom: 22, borderWidth: 1, borderColor: '#E2E8F0', color: '#1E293B' },
-    timeSelectBtn: { backgroundColor: '#F0FDF4', padding: 18, borderRadius: 14, marginBottom: 26, borderWidth: 1.5, borderColor: '#4CAF50', alignItems: 'center' },
-    timeSelectText: { color: '#059669', fontSize: 16, fontWeight: '800' },
+    modalLabel: { fontSize: 14, fontWeight: '700', color: '#64748B', marginBottom: 8, marginLeft: 4 },
+    input: { backgroundColor: '#F8FAFC', padding: 18, borderRadius: 14, fontSize: 17, marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0', color: '#1E293B' },
+    timeSelectBtn: { 
+        backgroundColor: '#F0FDF4',
+        padding: 18,
+        borderRadius: 14,
+        marginBottom: 26,
+        borderWidth: 1.5,
+        borderColor: '#4CAF50',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    timeSelectText: { color: '#059669', fontSize: 18, fontWeight: '800' },
     modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: 14 },
     cancelBtn: { padding: 14 },
     cancelText: { color: '#64748B', fontWeight: '800' },

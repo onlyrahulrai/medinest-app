@@ -101,8 +101,16 @@ export default function Step4Screen() {
 
             await saveUserProfile(remoteProfile ? mapRemoteProfileToLocalProfile(remoteProfile) : profileData);
 
-            // Redirect to Home
-            router.replace('/(tabs)');
+            // Navigate to Step 5 (Routines)
+            router.push({
+              pathname: '/(onboarding)/step5',
+              params: {
+                ...params,
+                soundEnabled: String(soundEnabled),
+                vibrationEnabled: String(vibrationEnabled),
+                shareActivity: String(shareActivity)
+              }
+            });
         } catch (error) {
             console.error('Failed to save profile', error);
         } finally {
@@ -119,9 +127,9 @@ export default function Step4Screen() {
                 <View style={styles.progressContainer}>
                     <View style={styles.progressDot} />
                     <View style={styles.progressDot} />
-                    <View style={styles.progressDot} />
-                    <View style={styles.progressDot} />
                     <View style={[styles.progressDot, styles.progressDotActive]} />
+                    <View style={styles.progressDot} />
+                    <View style={styles.progressDot} />
                 </View>
                 <View style={{ width: 40 }} />
             </View>
@@ -192,9 +200,9 @@ export default function Step4Screen() {
                         style={styles.nextButtonGradient}
                     >
                         <Text style={[styles.nextButtonText, isSaving && styles.nextButtonTextDisabled]}>
-                            {isSaving ? t('onboarding.step4.saving') : t('onboarding.step4.complete')}
+                            {isSaving ? t('onboarding.step4.saving') : t('common.next')}
                         </Text>
-                        {!isSaving && <Ionicons name="checkmark-circle-outline" size={24} color="white" />}
+                        {!isSaving && <Ionicons name="arrow-forward" size={24} color="white" />}
                     </LinearGradient>
                 </TouchableOpacity>
             </View>

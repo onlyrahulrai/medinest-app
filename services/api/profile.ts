@@ -19,6 +19,7 @@ type RemoteUserProfile = {
   gender?: 'Male' | 'Female' | 'Other';
   conditions?: string[];
   isOnboardingCompleted?: boolean;
+  routinesEnabled?: boolean;
   languages?: string[];
   preferences?: {
     reminderTimes?: string[];

@@ -19,6 +19,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
+import ManageRoutinesBottomSheet from "../../components/medications/ManageRoutinesBottomSheet";
 import {
   getUserProfile,
   ManagedPatient,
@@ -31,7 +32,7 @@ import {
   scheduleRefillReminder,
 } from "../../utils/notifications";
 import { createMedicine, type CreateMedicineInput } from "../../services/api/medicines";
-import { globalScheduleService } from "../../services/api/globalSchedule";
+import { getRoutines, createRoutine, Routine } from "../../services/api/routines";
 
 // Top-level width calculation moved into the component for better reliability with Expo Go/Bridgeless mode.
 
@@ -91,8 +92,10 @@ interface MedicineEntry {
   currentSupply: string;
   refillAt: string;
   imageUri: string;
+  perIntake: string;
   // Per-medicine schedule override
   customSchedule: boolean;
+  routineIds: string[];
   frequency: string;
   times: string[];
   duration: string;
@@ -113,7 +116,9 @@ const createEmptyMedicine = (): MedicineEntry => ({
   currentSupply: "",
   refillAt: "",
   imageUri: "",
+  perIntake: "1",
   customSchedule: false,
+  routineIds: [],
   frequency: "Once daily",
   times: ["09:00"],
   duration: "30 days",
@@ -130,7 +135,7 @@ export default function AddMedicationScreen() {
     ownerId: "self",
   });
 
-  const [globalTimings, setGlobalTimings] = useState<string[]>(["09:00", "21:00"]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
 
   // Per-medicine fields
   const [medicines, setMedicines] = useState<MedicineEntry[]>([createEmptyMedicine()]);
@@ -173,13 +178,13 @@ export default function AddMedicationScreen() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      const [profile, gSched] = await Promise.all([
+      const [profile, fetchedRoutines] = await Promise.all([
         getUserProfile(),
-        globalScheduleService.getGlobalSchedule().catch(() => ({ times: ["09:00", "21:00"] }))
+        getRoutines().catch(() => [])
       ]);
       setUserProfile(profile as any);
       setManagedPatients(profile?.managedPatients || []);
-      setGlobalTimings(gSched.times);
+      setRoutines(fetchedRoutines);
       if (patientId) {
         setSchedule(prev => ({ ...prev, ownerId: patientId }));
       }
@@ -193,6 +198,7 @@ export default function AddMedicationScreen() {
   const [selectedFrequency, setSelectedFrequency] = useState("");
   const [selectedDuration, setSelectedDuration] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showManageRoutines, setShowManageRoutines] = useState(false);
 
   const updateMedicine = (index: number, updates: Partial<MedicineEntry>) => {
     setMedicines(prev => prev.map((med, i) => i === index ? { ...med, ...updates } : med));
@@ -298,25 +304,18 @@ export default function AddMedicationScreen() {
 
       for (const med of medicines) {
         const useCustom = med.customSchedule;
-        const useGlobalTiming = !useCustom;
-
-        // Use individual schedule if custom, otherwise use global/default
-        const freqLabel = useCustom ? med.frequency : "Once daily"; // Default to once daily if using global and no group frequency
-        const times = useGlobalTiming ? globalTimings : med.times;
-        const durLabel = useCustom ? med.duration : "Ongoing";
-        const startDate = useCustom ? med.startDate : new Date();
 
         // Map frequency
         let frequency: 'daily' | 'weekly' | 'custom' | 'as_needed' = 'daily';
-        if (freqLabel.includes("Weekly")) frequency = 'weekly';
-        if (freqLabel === "As needed") frequency = 'as_needed';
-        if (freqLabel === "Custom") frequency = 'custom';
+        if (med.frequency.includes("Weekly")) frequency = 'weekly';
+        if (med.frequency === "As needed") frequency = 'as_needed';
+        if (med.frequency === "Custom") frequency = 'custom';
 
         // Calculate end date based on duration label
         let endDate: string | undefined = undefined;
-        const durationValue = DURATIONS.find(d => d.label === durLabel)?.value;
+        const durationValue = DURATIONS.find(d => d.label === med.duration)?.value;
         if (durationValue && durationValue > 0) {
-          const end = new Date(startDate);
+          const end = new Date(med.startDate);
           end.setDate(end.getDate() + durationValue);
           endDate = end.toISOString();
         }
@@ -324,30 +323,37 @@ export default function AddMedicationScreen() {
         const payload: CreateMedicineInput = {
           name: med.name,
           type: med.type,
-          dosage: med.dosage,
-          dosageUnit: med.dosageUnit,
-          mealTiming: med.mealTiming,
-          prescribedBy: med.prescribedBy,
-          purpose: med.purpose,
-          color: med.color,
-          notes: med.notes,
-          imageUrl: med.imageUri || undefined,
-          refillReminder: med.refillReminder,
-          currentSupply: Number(med.currentSupply) || 0,
-          totalSupply: Number(med.currentSupply) || 0,
-          refillAt: Number(med.refillAt) || 0,
-          reminderEnabled: schedule.reminderEnabled,
-          scheduleGroupId: groupId,
-          patientId: schedule.ownerId === "self" ? undefined : schedule.ownerId,
-          useGlobal: useGlobalTiming,
-          schedule: {
-            times,
-            frequency,
+          dosage: {
+            amount: med.dosage,
+            unit: med.dosageUnit,
+            perIntake: Number(med.perIntake) || 1
+          },
+          routineIds: useCustom ? [] : med.routineIds,
+          customSchedule: {
+            enabled: useCustom,
+            times: useCustom ? med.times : [],
+            frequency: frequency,
           },
           duration: {
-            startDate: startDate.toISOString(),
+            startDate: med.startDate.toISOString(),
             endDate,
-          }
+          },
+          mealTiming: med.mealTiming,
+          prescription: {
+            prescribedBy: med.prescribedBy,
+            purpose: med.purpose,
+          },
+          notes: med.notes,
+          imageUrl: med.imageUri || undefined,
+          color: med.color,
+          refill: {
+            refillReminder: med.refillReminder,
+            remainingQuantity: Number(med.currentSupply) || 0,
+            totalQuantity: Number(med.currentSupply) || 0,
+            refillAt: Number(med.refillAt) || 0,
+          },
+          reminderEnabled: schedule.reminderEnabled,
+          patientId: schedule.ownerId === "self" ? undefined : schedule.ownerId,
         };
 
         const savedMedicine = await createMedicine(payload);
@@ -359,13 +365,13 @@ export default function AddMedicationScreen() {
             id: savedMedicine._id, // Use backend ID
             ownerId: schedule.ownerId,
             startDate: payload.duration.startDate,
-            frequency: freqLabel,
-            times: payload.schedule.times,
-            duration: durLabel,
+            frequency: med.frequency,
+            times: useCustom ? payload.customSchedule.times : routines.filter(r => payload.routineIds?.includes(r._id)).map(r => r.time),
+            duration: med.duration,
           } as any);
         }
 
-        if (payload.refillReminder) {
+        if (payload.refill.refillReminder) {
           await scheduleRefillReminder({
             ...payload,
             id: savedMedicine._id,
@@ -547,33 +553,81 @@ export default function AddMedicationScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+              
+              <Text style={[styles.subSectionLabel, { marginTop: 12 }]}>Amount per intake</Text>
+              <View style={[styles.inputContainer, { width: 100 }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="1"
+                  value={med.perIntake}
+                  onChangeText={(text) => updateMedicine(index, { perIntake: text })}
+                  keyboardType="numeric"
+                />
+              </View>
             </View>
 
             {/* 4. Schedule Configuration */}
             <View style={styles.innerSection}>
               <Text style={styles.innerSectionTitle}>4. Schedule Configuration</Text>
 
-              <View style={styles.switchRow}>
-                <View style={styles.switchLabelContainer}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons name="calendar-outline" size={20} color={theme.accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.switchLabel}>Custom Schedule</Text>
-                    <Text style={styles.switchSubLabel}>Override global timings</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={med.customSchedule}
-                  onValueChange={(value) => updateMedicine(index, { customSchedule: value })}
-                  trackColor={{ false: "#ddd", true: theme.accent }}
-                  thumbColor="white"
-                />
+              {/* Schedule Type Selector */}
+              <View style={styles.scheduleTypeContainer}>
+                <TouchableOpacity 
+                  style={[styles.scheduleTypeBtn, !med.customSchedule && { backgroundColor: theme.accent }]}
+                  onPress={() => updateMedicine(index, { customSchedule: false })}
+                >
+                  <Text style={[styles.scheduleTypeBtnText, !med.customSchedule && { color: 'white' }]}>Routines</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.scheduleTypeBtn, med.customSchedule && { backgroundColor: theme.accent }]}
+                  onPress={() => updateMedicine(index, { customSchedule: true })}
+                >
+                  <Text style={[styles.scheduleTypeBtnText, med.customSchedule && { color: 'white' }]}>Custom</Text>
+                </TouchableOpacity>
               </View>
 
-              {med.customSchedule ? (
+              {!med.customSchedule ? (
                 <View style={{ marginTop: 15 }}>
-                  <Text style={styles.subSectionLabel}>4.1 Medication Time</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={styles.subSectionLabel}>Select Routines</Text>
+                    <TouchableOpacity onPress={() => setShowManageRoutines(true)}>
+                      <Text style={{ fontSize: 13, color: theme.accent, fontWeight: '600' }}>Manage Routines</Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {routines.length > 0 ? (
+                    <View style={styles.routinesGrid}>
+                      {routines.map((r) => {
+                        const isSelected = med.routineIds.includes(r._id);
+                        return (
+                          <TouchableOpacity
+                            key={r._id}
+                            style={[styles.routineChipLarge, isSelected && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                            onPress={() => {
+                              const newIds = isSelected 
+                                ? med.routineIds.filter(id => id !== r._id)
+                                : [...med.routineIds, r._id];
+                              updateMedicine(index, { routineIds: newIds });
+                            }}
+                          >
+                            <Ionicons name="time-outline" size={18} color={isSelected ? "white" : "#666"} />
+                            <View style={{ marginLeft: 8 }}>
+                              <Text style={[styles.routineChipTitle, isSelected && { color: 'white' }]}>{r.name}</Text>
+                              <Text style={[styles.routineChipTime, isSelected && { color: 'rgba(255,255,255,0.8)' }]}>{r.time}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <TouchableOpacity style={styles.emptyRoutinesBtn} onPress={() => {/* Setup routines */}}>
+                       <Text style={styles.emptyRoutinesText}>Setup your daily routines first</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <View style={{ marginTop: 15 }}>
+                  <Text style={styles.subSectionLabel}>Medication Time</Text>
                   <View style={styles.timesContainer}>
                     {med.times.map((time, tIndex) => (
                       <TouchableOpacity
@@ -594,15 +648,9 @@ export default function AddMedicationScreen() {
                     ))}
                   </View>
 
-                  <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>4.2 Frequency</Text>
+                  <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>Frequency</Text>
                   {!!errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
                   {renderFrequencyOptions(index)}
-                </View>
-              ) : (
-                <View style={{ marginTop: 10, padding: 12, backgroundColor: theme.lightAccent, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 13, color: theme.accent, fontStyle: 'italic' }}>
-                    <Ionicons name="information-circle-outline" size={14} color={theme.accent} /> Follows your default profile schedule ({globalTimings.join(", ")})
-                  </Text>
                 </View>
               )}
 
@@ -968,6 +1016,17 @@ export default function AddMedicationScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      {/* Manage Routines Bottom Sheet */}
+      <ManageRoutinesBottomSheet 
+        visible={showManageRoutines}
+        onClose={async (updated) => {
+          setShowManageRoutines(false);
+          if (updated) {
+            const fetchedRoutines = await getRoutines().catch(() => []);
+            setRoutines(fetchedRoutines);
+          }
+        }}
+      />
     </View>
   );
 }
@@ -1184,4 +1243,22 @@ const styles = StyleSheet.create({
   },
   patientAvatarMiniText: { fontSize: 10, fontWeight: "700", color: "#666" },
   subSectionLabel: { fontSize: 13, fontWeight: "600", color: "#666", marginBottom: 8, marginTop: 4 },
+  scheduleTypeContainer: { flexDirection: 'row', backgroundColor: '#f0f0f0', borderRadius: 12, padding: 4, marginBottom: 15 },
+  scheduleTypeBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
+  scheduleTypeBtnText: { fontSize: 14, fontWeight: '600', color: '#666' },
+  routinesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  routineChipLarge: {
+    width: (Dimensions.get("window").width - 80) / 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: 'white',
+  },
+  routineChipTitle: { fontSize: 14, fontWeight: '700', color: '#333' },
+  routineChipTime: { fontSize: 12, color: '#666', marginTop: 2 },
+  emptyRoutinesBtn: { padding: 20, alignItems: 'center', borderWidth: 1, borderStyle: 'dashed', borderColor: '#ccc', borderRadius: 16 },
+  emptyRoutinesText: { color: '#666', fontSize: 14 },
 });

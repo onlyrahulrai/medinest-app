@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -29,6 +29,8 @@ import {
   registerForPushNotificationsAsync,
   scheduleMedicationReminder,
 } from "../../utils/notifications";
+import { getTodaysLogs, updateLogStatus, type MedicineLog } from "../../services/api/medicineLogs";
+import { getRoutines, type Routine } from "../../services/api/routines";
 
 const { width } = Dimensions.get("window");
 
@@ -187,8 +189,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
   const [medications, setMedications] = useState<Medication[]>([]);
-  const [todaysMedications, setTodaysMedications] = useState<Medication[]>([]);
-  const [completedDoses, setCompletedDoses] = useState(0);
+  const [todaysLogs, setTodaysLogs] = useState<MedicineLog[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
   const [userName, setUserName] = useState<string>("User");
   const [searchQuery, setSearchQuery] = useState("");
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
@@ -251,9 +253,11 @@ export default function HomeScreen() {
 
   const loadMedications = useCallback(async () => {
     try {
-      const [remoteProfile, allMeds] = await Promise.all([
+      const [remoteProfile, allMeds, logs, fetchedRoutines] = await Promise.all([
         profileService.fetchCurrentUserProfile(),
-        medicineService.getAllMedicines('active', new Date().toISOString(), activePatientId || undefined)
+        medicineService.getAllMedicines('active', undefined, activePatientId || undefined),
+        getTodaysLogs(activePatientId || undefined),
+        getRoutines().catch(() => [])
       ]);
 
       const profile = mapRemoteProfileToLocalProfile(remoteProfile);
@@ -262,49 +266,13 @@ export default function HomeScreen() {
         setManagedPatients(remoteProfile.managedPatients || []);
       }
 
-      // Map backend medicine to local Medication type
-      const mappedMeds: Medication[] = allMeds.map(m => ({
-        id: m._id!,
-        name: m.name,
-        dosage: m.dosage,
-        dosageUnit: m.dosageUnit,
-        type: m.type,
-        mealTiming: m.mealTiming,
-        prescribedBy: m.prescribedBy,
-        purpose: m.purpose,
-        times: m.schedule.times,
-        startDate: m.duration.startDate,
-        duration: m.duration.endDate ? `${Math.ceil((new Date(m.duration.endDate).getTime() - new Date(m.duration.startDate).getTime()) / (1000 * 60 * 60 * 24))} days` : "Ongoing",
-        color: m.color || "#059669",
-        reminderEnabled: m.reminderEnabled || false,
-        currentSupply: m.currentSupply || 0,
-        totalSupply: m.totalSupply || 0,
-        refillAt: m.refillAt || 0,
-        refillReminder: m.refillReminder || false,
-        imageUrl: m.imageUrl,
-        notes: m.notes,
-        scheduleGroupId: m.scheduleGroupId,
-        ownerId: m.userId,
-        logs: m.logs as any // Store logs for isDoseTaken check
-      } as any));
-
-      setMedications(mappedMeds);
-      setTodaysMedications(mappedMeds); // allMeds from backend was already filtered by date
-
-      // Calculate completed doses
-      let completed = 0;
-      const todayStr = new Date().toISOString().split('T')[0];
-      mappedMeds.forEach(med => {
-        const todayLogs = (med as any).logs?.filter((l: any) => 
-          l.status === 'taken' && l.takenAt.startsWith(todayStr)
-        ) || [];
-        completed += todayLogs.length;
-      });
-      setCompletedDoses(completed);
+      setMedications(allMeds.map(m => ({ ...m, id: m._id }) as any));
+      setTodaysLogs(logs);
+      setRoutines(fetchedRoutines);
     } catch (error) {
-      console.error("Error loading medications:", error);
+      console.error("Error loading dashboard data:", error);
     }
-  }, []);
+  }, [activePatientId]);
 
   const setupNotifications = async () => {
     try {
@@ -323,7 +291,7 @@ export default function HomeScreen() {
             ...medication,
             id: medication._id,
             startDate: medication.duration.startDate,
-            times: medication.schedule.times
+            times: medication.customSchedule.enabled ? medication.customSchedule.times : routines.filter(r => medication.routineIds?.includes(r._id)).map(r => r.time)
           } as any);
         }
       }
@@ -361,73 +329,45 @@ export default function HomeScreen() {
     }, [loadMedications])
   );
 
-  const handleTakeDose = async (medication: Medication) => {
+  const handleTakeDose = async (logId: string) => {
     try {
-      await medicineService.logIntake(medication.id, {
-        takenAt: new Date().toISOString(),
-        status: 'taken',
-        loggedBy: 'self'
-      });
-      await loadMedications(); // Reload data after recording dose
+      await updateLogStatus(logId, { status: 'taken' });
+      await loadMedications();
+      Alert.alert("Success", "Medication recorded!");
     } catch (error) {
       console.error("Error recording dose:", error);
       Alert.alert("Error", "Failed to record dose. Please try again.");
     }
   };
 
-  const isDoseTaken = (medicationId: string, time?: string) => {
-    const med = medications.find(m => m.id === medicationId);
-    if (!med) return false;
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    const logs = (med as any).logs || [];
-    
-    return logs.some((log: any) => 
-      log.status === 'taken' && 
-      log.takenAt.startsWith(todayStr)
-      // Ideally we check time match here too
-    );
-  };
 
-  const progress =
-    todaysMedications.length > 0
-      ? completedDoses / (todaysMedications.length * 2)
-      : 0;
+  const completedDoses = todaysLogs.filter(l => l.status === 'taken').length;
+  const totalDoses = todaysLogs.length;
+  const progress = totalDoses > 0 ? completedDoses / totalDoses : 0;
 
-  // Find next upcoming medication
+  // Find next upcoming log
   const getNextMedication = () => {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    let nextMed: Medication | null = null;
-    let nextTime = "";
+    let nextLog: MedicineLog | null = null;
     let smallestDiff = Infinity;
 
-    for (const med of todaysMedications) {
-      if (isDoseTaken(med.id)) continue;
-      for (const time of med.times) {
-        const [h, m] = time.split(":").map(Number);
-        const medMinutes = h * 60 + m;
-        const diff = medMinutes - currentMinutes;
-        if (diff > 0 && diff < smallestDiff) {
-          smallestDiff = diff;
-          nextMed = med;
-          nextTime = time;
-        }
+    for (const log of todaysLogs) {
+      if (log.status !== 'pending') continue;
+      const [h, m] = log.scheduledTime.split(":").map(Number);
+      const logMinutes = h * 60 + m;
+      const diff = logMinutes - currentMinutes;
+      // Also consider current/slightly past if still pending
+      if (diff > -30 && diff < smallestDiff) {
+        smallestDiff = diff;
+        nextLog = log;
       }
     }
-    if (!nextMed) {
-      // Check for any untaken meds (even past time)
-      for (const med of todaysMedications) {
-        if (!isDoseTaken(med.id)) {
-          return { medication: med, time: med.times[0], minutesUntil: 0 };
-        }
-      }
-    }
-    return nextMed ? { medication: nextMed, time: nextTime, minutesUntil: smallestDiff } : null;
+    return nextLog ? { log: nextLog, minutesUntil: smallestDiff } : null;
   };
 
-  const nextMed = getNextMedication();
+  const nextMedLog = getNextMedication();
 
   const formatCountdown = (minutes: number) => {
     if (minutes <= 0) return "Now";
@@ -464,14 +404,14 @@ export default function HomeScreen() {
             <View style={styles.flex1}>
               <Text style={styles.overviewTitle}>Daily Progress</Text>
               <Text style={styles.overviewDoseCount}>
-                {completedDoses}/{todaysMedications.length * 2}
+                {completedDoses}/{totalDoses}
               </Text>
               <Text style={styles.overviewSubtitle}>doses completed</Text>
             </View>
             <View style={styles.glowRingContainer}>
               <CircularProgress
                 progress={progress}
-                totalDoses={todaysMedications.length * 2}
+                totalDoses={totalDoses}
                 completedDoses={completedDoses}
               />
             </View>
@@ -504,46 +444,40 @@ export default function HomeScreen() {
         )}
 
         {/* Next Medication Hero Card */}
-        {todaysMedications.length > 0 && (
+        {totalDoses > 0 && (
           <View style={styles.heroSection}>
             <Animated.View style={[styles.heroCard, { opacity: nextMedFade, transform: [{ translateY: nextMedSlide }] }]}>
-              {nextMed ? (
+              {nextMedLog ? (
                 <>
                   <View style={styles.heroCardHeader}>
                     <View style={styles.heroCardIconContainer}>
-                      {nextMed.medication.imageUrl ? (
-                        <Image source={{ uri: nextMed.medication.imageUrl }} style={styles.medIconImage} />
-                      ) : (
-                        <Ionicons name="medical" size={26} color="#059669" />
-                      )}
+                      <Ionicons name="medical" size={26} color="#059669" />
                     </View>
                     <View style={styles.heroCardText}>
                       <Text style={styles.heroNextLabel}>UPCOMING MEDICATION</Text>
-                      <Text style={styles.heroMedName}>{nextMed.medication.name}</Text>
-                      <Text style={styles.heroMedDosage}>{nextMed.medication.dosage} • {nextMed.time}</Text>
+                      <Text style={styles.heroMedName}>{nextMedLog.log.medicineId?.name || 'Medication'}</Text>
+                      <Text style={styles.heroMedDosage}>{nextMedLog.log.scheduledTime}</Text>
                     </View>
                   </View>
 
                   <View style={styles.heroCardFooter}>
                     <View style={styles.heroCountdown}>
                       <Ionicons name="time" size={18} color="#059669" />
-                      <Text style={styles.heroCountdownText}>In {formatCountdown(nextMed.minutesUntil)}</Text>
+                      <Text style={styles.heroCountdownText}>In {formatCountdown(nextMedLog.minutesUntil)}</Text>
                     </View>
 
-                    {!isDoseTaken(nextMed.medication.id) && (
-                      <TouchableOpacity
-                        style={styles.heroTakeBtn}
-                        onPress={() => handleTakeDose(nextMed.medication)}
-                      >
-                        <LinearGradient
-                          colors={["#065F46", "#064E3B"]}
-                          style={StyleSheet.absoluteFillObject}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                        />
-                        <Text style={styles.heroTakeText}>Mark Taken</Text>
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      style={styles.heroTakeBtn}
+                      onPress={() => handleTakeDose(nextMedLog.log._id)}
+                    >
+                      <LinearGradient
+                        colors={["#065F46", "#064E3B"]}
+                        style={StyleSheet.absoluteFillObject}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      />
+                      <Text style={styles.heroTakeText}>Mark Taken</Text>
+                    </TouchableOpacity>
                   </View>
                 </>
               ) : (
@@ -635,11 +569,11 @@ export default function HomeScreen() {
             </View>
 
             {(() => {
-              const filteredMeds = todaysMedications.filter(med =>
-                med.name.toLowerCase().includes(searchQuery.toLowerCase())
+              const filteredLogs = todaysLogs.filter(log =>
+                log.medicineId?.name?.toLowerCase().includes(searchQuery.toLowerCase())
               );
 
-              if (todaysMedications.length === 0) {
+              if (todaysLogs.length === 0) {
                 return (
                   <View style={styles.emptyState}>
                     <Ionicons name="calendar-clear-outline" size={60} color="#CBD5E1" />
@@ -649,7 +583,7 @@ export default function HomeScreen() {
                 );
               }
 
-              if (filteredMeds.length === 0) {
+              if (filteredLogs.length === 0) {
                 return (
                   <View style={styles.emptyState}>
                     <Ionicons name="search-outline" size={48} color="#CBD5E1" />
@@ -660,70 +594,46 @@ export default function HomeScreen() {
                 );
               }
 
-              // Group medications by scheduleGroupId AND time slot
-              const grouped: { key: string; meds: Medication[]; time: string }[] = [];
-              const seen = new Set<string>();
+              // Group logs by time slot
+              const grouped: { time: string; logs: MedicineLog[] }[] = [];
+              const timeSlots = Array.from(new Set(filteredLogs.map(l => l.scheduledTime))).sort();
 
-              for (const med of filteredMeds) {
-                // Each meditation can have multiple times, but for 'Today' we usually show them per-time slot
-                // The current app logic seems to flat-map medications by their time slots in 'todaysMedications'
-                // Let's assume 'todaysMedications' already has one entry per time slot for that med
-
-                const timeStr = med.times[0] || "No time";
-                const groupingKey = med.scheduleGroupId
-                  ? `${med.scheduleGroupId}_${timeStr}`
-                  : `${med.id}_${timeStr}`;
-
-                if (seen.has(groupingKey)) continue;
-                seen.add(groupingKey);
-
+              timeSlots.forEach(time => {
                 grouped.push({
-                  key: groupingKey,
-                  time: timeStr,
-                  meds: filteredMeds.filter(m => {
-                    const mTime = m.times[0] || "No time";
-                    if (med.scheduleGroupId) {
-                      return m.scheduleGroupId === med.scheduleGroupId && mTime === timeStr;
-                    }
-                    return m.id === med.id && mTime === timeStr;
-                  }),
+                  time,
+                  logs: filteredLogs.filter(l => l.scheduledTime === time)
                 });
-              }
+              });
 
               return (
                 <View style={styles.timelineContainer}>
                   {grouped.map((group, index) => {
-                    const allTaken = group.meds.every(m => isDoseTaken(m.id));
-                    const isGroup = group.meds.length > 1;
+                    const allTaken = group.logs.every(l => l.status === 'taken');
+                    const routineName = routines.find(r => group.logs[0].routineId === r._id)?.name;
 
                     return (
-                      <View key={group.key} style={styles.timelineRow}>
+                      <View key={group.time} style={styles.timelineRow}>
                         <View style={styles.timelineTrack}>
                           <View style={[styles.timelineDot, allTaken && styles.timelineDotTaken]} />
                           {index !== grouped.length - 1 && <View style={styles.timelineLine} />}
                         </View>
 
                         <View style={[styles.premiumDoseCard, allTaken && styles.premiumDoseCardTaken]}>
-                          {isGroup && (
-                            <View style={styles.groupBadge}>
-                              <Ionicons name="layers-outline" size={12} color="#059669" />
-                              <Text style={styles.groupBadgeText}>{group.meds.length} medicines • {group.time}</Text>
-                            </View>
-                          )}
+                          <View style={styles.groupBadge}>
+                            <Ionicons name="time-outline" size={12} color="#059669" />
+                            <Text style={styles.groupBadgeText}>{routineName || "Custom Slot"} • {group.time}</Text>
+                          </View>
 
-                          {group.meds.map((medication) => {
-                            const isTaken = isDoseTaken(medication.id);
+                          {group.logs.map((log) => {
+                            const isTaken = log.status === 'taken';
                             return (
-                              <View key={medication.id} style={[styles.groupMedRow, isGroup && styles.groupMedRowBorder]}>
+                              <View key={log._id} style={styles.groupMedRow}>
                                 <View style={styles.doseInfo}>
                                   <Text style={[styles.premiumMedicineName, isTaken && styles.premiumTextTaken]}>
-                                    {medication.name}
-                                    {medication.addedBy === 'caregiver' && (
-                                      <Text style={styles.caregiverBadgeText}> ✨</Text>
-                                    )}
+                                    {log.medicineId?.name || 'Medicine'}
                                   </Text>
                                   <Text style={styles.premiumDosageInfo}>
-                                    {medication.dosage}{!isGroup ? ` • ${medication.times[0]}` : ''}
+                                    Scheduled for {log.scheduledTime}
                                   </Text>
                                 </View>
                                 <View style={styles.cardActions}>
@@ -733,24 +643,19 @@ export default function HomeScreen() {
                                       <Text style={styles.takenBadgeText}>Taken</Text>
                                     </View>
                                   ) : (
-                                    <TouchableOpacity
-                                      style={styles.premiumTakeBtn}
-                                      onPress={() => handleTakeDose(medication)}
-                                    >
-                                      <Text style={styles.premiumTakeBtnText}>Take</Text>
-                                    </TouchableOpacity>
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                      <TouchableOpacity
+                                        style={styles.premiumTakeBtn}
+                                        onPress={() => handleTakeDose(log._id)}
+                                      >
+                                        <Text style={styles.premiumTakeBtnText}>Take</Text>
+                                      </TouchableOpacity>
+                                    </View>
                                   )}
                                 </View>
                               </View>
                             );
                           })}
-
-                          <TouchableOpacity
-                            style={styles.editIconBtn}
-                            onPress={() => router.push(`/medications/edit?id=${group.meds[0].id}`)}
-                          >
-                            <Ionicons name="create-outline" size={18} color="#666" />
-                          </TouchableOpacity>
                         </View>
                       </View>
                     );
@@ -798,20 +703,20 @@ export default function HomeScreen() {
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
-            {todaysMedications.map((medication) => (
-              <View key={medication.id} style={styles.notificationItem}>
+            {todaysLogs.map((log) => (
+              <View key={log._id} style={styles.notificationItem}>
                 <View style={styles.notificationIcon}>
-                  <Ionicons name="medical" size={24} color={medication.color} />
+                  <Ionicons name="medical" size={24} color="#059669" />
                 </View>
                 <View style={styles.notificationContent}>
                   <Text style={styles.notificationTitle}>
-                    {medication.name}
+                    {log.medicineId?.name || 'Medicine'}
                   </Text>
                   <Text style={styles.notificationMessage}>
-                    {medication.dosage}
+                    Status: {log.status}
                   </Text>
                   <Text style={styles.notificationTime}>
-                    {medication.times[0]}
+                    {log.scheduledTime}
                   </Text>
                 </View>
               </View>

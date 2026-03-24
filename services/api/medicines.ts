@@ -1,6 +1,13 @@
 import axiosInstance from './base';
 
-export interface MedicineSchedule {
+export interface MedicineDosage {
+  amount: string;
+  unit: string;
+  perIntake: number;
+}
+
+export interface CustomSchedule {
+  enabled: boolean;
   times: string[];
   frequency: 'daily' | 'weekly' | 'custom' | 'as_needed';
   daysOfWeek?: number[];
@@ -11,36 +18,37 @@ export interface MedicineDuration {
   endDate?: string;
 }
 
+export interface MedicinePrescription {
+  prescribedBy?: string;
+  purpose?: string;
+}
+
+export interface MedicineRefill {
+  refillReminder: boolean;
+  totalQuantity: number;
+  remainingQuantity: number;
+  refillAt: number;
+}
+
 export interface Medicine {
   _id: string;
   userId: string;
   name: string;
   type: string;
-  dosage: string;
-  dosageUnit?: string;
-  schedule: MedicineSchedule;
+  dosage: MedicineDosage;
+  routineIds: any[]; // Populated
+  customSchedule: CustomSchedule;
   duration: MedicineDuration;
-  instructions?: string;
+  mealTiming: string[];
+  prescription: MedicinePrescription;
   notes?: string;
-  mealTiming?: string[];
-  prescribedBy?: string;
-  purpose?: string;
+  instructions?: string;
   color?: string;
   imageUrl?: string;
-  useGlobal: boolean;
-  refillReminder?: boolean;
-  currentSupply?: number;
-  totalSupply?: number;
-  refillAt?: number;
-  reminderEnabled?: boolean;
+  refill: MedicineRefill;
+  reminderEnabled: boolean;
   scheduleGroupId?: string;
   isActive: boolean;
-  logs: Array<{
-    takenAt: string;
-    status: 'taken' | 'skipped' | 'missed';
-    notes?: string;
-    loggedBy: string;
-  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,22 +56,17 @@ export interface Medicine {
 export interface CreateMedicineInput {
   name: string;
   type: string;
-  dosage: string;
-  dosageUnit?: string;
-  schedule: MedicineSchedule;
+  dosage: MedicineDosage;
+  routineIds?: string[];
+  customSchedule: CustomSchedule;
   duration: MedicineDuration;
-  instructions?: string;
-  notes?: string;
   mealTiming?: string[];
-  prescribedBy?: string;
-  purpose?: string;
+  prescription: MedicinePrescription;
+  notes?: string;
+  instructions?: string;
   color?: string;
   imageUrl?: string;
-  useGlobal: boolean;
-  refillReminder?: boolean;
-  currentSupply?: number;
-  totalSupply?: number;
-  refillAt?: number;
+  refill: MedicineRefill;
   reminderEnabled?: boolean;
   scheduleGroupId?: string;
   patientId?: string;
@@ -71,13 +74,6 @@ export interface CreateMedicineInput {
 
 export interface UpdateMedicineInput extends Partial<CreateMedicineInput> {
   isActive?: boolean;
-}
-
-export interface MedicineLogInput {
-  takenAt: string;
-  status: 'taken' | 'skipped' | 'missed';
-  notes?: string;
-  loggedBy: string;
 }
 
 export const medicineService = {
@@ -107,11 +103,6 @@ export const medicineService = {
     const response = await axiosInstance.delete(`/medicines/${id}`);
     return response.data;
   },
-
-  logIntake: async (id: string, log: MedicineLogInput): Promise<Medicine> => {
-    const response = await axiosInstance.post<Medicine>(`/medicines/${id}/take`, log);
-    return response.data;
-  },
 };
 
 export async function createMedicine(data: CreateMedicineInput) {
@@ -132,8 +123,4 @@ export async function updateMedicine(id: string, data: UpdateMedicineInput) {
 
 export async function deleteMedicine(id: string) {
   return medicineService.deleteMedicine(id);
-}
-
-export async function logIntake(id: string, log: MedicineLogInput) {
-  return medicineService.logIntake(id, log);
 }

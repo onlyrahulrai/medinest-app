@@ -47,7 +47,6 @@ export default function VerifyOTPScreen() {
         if (result.success) {
             try {
                 const profile = await fetchCurrentUserProfile();
-                console.log('Fetched user profile after OTP verification:', profile);
 
                 if (profile?.isOnboardingCompleted) {
                     if (profile) {

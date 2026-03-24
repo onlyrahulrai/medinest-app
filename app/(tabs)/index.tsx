@@ -19,14 +19,11 @@ import { Link, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import {
-  getMedications,
-  getMedicationsForUser,
   Medication,
-  getTodaysDoses,
-  recordDose,
-  DoseHistory,
-  getUserProfile,
+  getUserProfile as getLocalUserProfile,
 } from "../../utils/storage";
+import { profileService, mapRemoteProfileToLocalProfile } from "../../services/api/profile";
+import { medicineService, Medicine as ApiMedicine } from "../../services/api/medicines";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   registerForPushNotificationsAsync,
@@ -192,9 +189,10 @@ export default function HomeScreen() {
   const [medications, setMedications] = useState<Medication[]>([]);
   const [todaysMedications, setTodaysMedications] = useState<Medication[]>([]);
   const [completedDoses, setCompletedDoses] = useState(0);
-  const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
   const [userName, setUserName] = useState<string>("User");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activePatientId, setActivePatientId] = useState<string | null>(null);
+  const [managedPatients, setManagedPatients] = useState<any[]>([]);
 
   const nextMedFade = useRef(new Animated.Value(0)).current;
   const nextMedSlide = useRef(new Animated.Value(20)).current;
@@ -247,39 +245,61 @@ export default function HomeScreen() {
     ]).start();
   }, [nextMedFade, nextMedSlide, streakAnim, quickActionsAnim, scheduleAnim, tipAnim]);
 
+  useEffect(() => {
+    loadMedications();
+  }, [activePatientId]);
+
   const loadMedications = useCallback(async () => {
     try {
-      const [allMedications, todaysDoses, profile] = await Promise.all([
-        getMedicationsForUser('self'),
-        getTodaysDoses(),
-        getUserProfile()
+      const [remoteProfile, allMeds] = await Promise.all([
+        profileService.fetchCurrentUserProfile(),
+        medicineService.getAllMedicines('active', new Date().toISOString(), activePatientId || undefined)
       ]);
 
-      if (profile) setUserName(profile.name);
+      const profile = mapRemoteProfileToLocalProfile(remoteProfile);
+      if (profile) {
+        setUserName(profile.name);
+        setManagedPatients(remoteProfile.managedPatients || []);
+      }
 
-      setDoseHistory(todaysDoses);
-      setMedications(allMedications);
+      // Map backend medicine to local Medication type
+      const mappedMeds: Medication[] = allMeds.map(m => ({
+        id: m._id!,
+        name: m.name,
+        dosage: m.dosage,
+        dosageUnit: m.dosageUnit,
+        type: m.type,
+        mealTiming: m.mealTiming,
+        prescribedBy: m.prescribedBy,
+        purpose: m.purpose,
+        times: m.schedule.times,
+        startDate: m.duration.startDate,
+        duration: m.duration.endDate ? `${Math.ceil((new Date(m.duration.endDate).getTime() - new Date(m.duration.startDate).getTime()) / (1000 * 60 * 60 * 24))} days` : "Ongoing",
+        color: m.color || "#059669",
+        reminderEnabled: m.reminderEnabled || false,
+        currentSupply: m.currentSupply || 0,
+        totalSupply: m.totalSupply || 0,
+        refillAt: m.refillAt || 0,
+        refillReminder: m.refillReminder || false,
+        imageUrl: m.imageUrl,
+        notes: m.notes,
+        scheduleGroupId: m.scheduleGroupId,
+        ownerId: m.userId,
+        logs: m.logs as any // Store logs for isDoseTaken check
+      } as any));
 
-      // Filter medications for today
-      const today = new Date();
-      const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const todayMeds = allMedications.filter((med: Medication) => {
-        const startDate = new Date(med.startDate);
-        const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-        const durationDays = parseInt(med.duration?.split(" ")[0]);
-
-        // Ongoing / unrecognizable duration → always show
-        if (isNaN(durationDays) || durationDays <= 0) return true;
-
-        // Within start → end window
-        const endDay = new Date(startDay.getTime() + durationDays * 24 * 60 * 60 * 1000);
-        return todayDay >= startDay && todayDay <= endDay;
-      });
-
-      setTodaysMedications(todayMeds);
+      setMedications(mappedMeds);
+      setTodaysMedications(mappedMeds); // allMeds from backend was already filtered by date
 
       // Calculate completed doses
-      const completed = todaysDoses.filter((dose: DoseHistory) => dose.taken).length;
+      let completed = 0;
+      const todayStr = new Date().toISOString().split('T')[0];
+      mappedMeds.forEach(med => {
+        const todayLogs = (med as any).logs?.filter((l: any) => 
+          l.status === 'taken' && l.takenAt.startsWith(todayStr)
+        ) || [];
+        completed += todayLogs.length;
+      });
       setCompletedDoses(completed);
     } catch (error) {
       console.error("Error loading medications:", error);
@@ -295,10 +315,16 @@ export default function HomeScreen() {
       }
 
       // Schedule reminders for all medications
-      const medications = await getMedications();
+      const medications = await medicineService.getAllMedicines();
       for (const medication of medications) {
         if (medication.reminderEnabled) {
-          await scheduleMedicationReminder(medication);
+          // Map to format notification helper expects
+          await scheduleMedicationReminder({
+            ...medication,
+            id: medication._id,
+            startDate: medication.duration.startDate,
+            times: medication.schedule.times
+          } as any);
         }
       }
     } catch (error) {
@@ -337,7 +363,11 @@ export default function HomeScreen() {
 
   const handleTakeDose = async (medication: Medication) => {
     try {
-      await recordDose(medication.id, true, new Date().toISOString(), 'self', 'taken');
+      await medicineService.logIntake(medication.id, {
+        takenAt: new Date().toISOString(),
+        status: 'taken',
+        loggedBy: 'self'
+      });
       await loadMedications(); // Reload data after recording dose
     } catch (error) {
       console.error("Error recording dose:", error);
@@ -345,9 +375,17 @@ export default function HomeScreen() {
     }
   };
 
-  const isDoseTaken = (medicationId: string) => {
-    return doseHistory.some(
-      (dose) => dose.medicationId === medicationId && dose.taken
+  const isDoseTaken = (medicationId: string, time?: string) => {
+    const med = medications.find(m => m.id === medicationId);
+    if (!med) return false;
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    const logs = (med as any).logs || [];
+    
+    return logs.some((log: any) => 
+      log.status === 'taken' && 
+      log.takenAt.startsWith(todayStr)
+      // Ideally we check time match here too
     );
   };
 
@@ -442,6 +480,29 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.content}>
+        {/* Patient Selection for Caregivers */}
+        {managedPatients.length > 0 && (
+          <View style={styles.patientSelectorContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.patientScroll}>
+              <TouchableOpacity
+                style={[styles.patientChip, activePatientId === null && styles.patientChipActive]}
+                onPress={() => setActivePatientId(null)}
+              >
+                <Text style={[styles.patientChipText, activePatientId === null && styles.patientChipTextActive]}>Me</Text>
+              </TouchableOpacity>
+              {managedPatients.map(patient => (
+                <TouchableOpacity
+                  key={patient._id}
+                  style={[styles.patientChip, activePatientId === patient._id && styles.patientChipActive]}
+                  onPress={() => setActivePatientId(patient._id)}
+                >
+                  <Text style={[styles.patientChipText, activePatientId === patient._id && styles.patientChipTextActive]}>{patient.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Next Medication Hero Card */}
         {todaysMedications.length > 0 && (
           <View style={styles.heroSection}>
@@ -848,6 +909,39 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingTop: 8,
+  },
+  patientSelectorContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    zIndex: 20,
+  },
+  patientScroll: {
+    gap: 12,
+  },
+  patientChip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  patientChipActive: {
+    backgroundColor: "#059669",
+    borderColor: "#059669",
+  },
+  patientChipText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  patientChipTextActive: {
+    color: "white",
   },
   quickActionsContainer: {
     marginBottom: 32,

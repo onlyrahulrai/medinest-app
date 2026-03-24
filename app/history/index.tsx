@@ -13,14 +13,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import {
-  getDoseHistory,
-  getMedications,
-  DoseHistory,
   Medication,
-  clearAllData,
 } from "../../utils/storage";
+import { medicineService } from "../../services/api/medicines";
 
-type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
+type EnrichedDoseHistory = {
+  id: string;
+  medicationId: string;
+  timestamp: string;
+  taken: boolean;
+  notes?: string;
+  medication?: Medication;
+};
 
 export default function HistoryScreen() {
   const router = useRouter();
@@ -31,18 +35,30 @@ export default function HistoryScreen() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const [doseHistory, medications] = await Promise.all([
-        getDoseHistory(),
-        getMedications(),
-      ]);
+      const allMeds = await medicineService.getAllMedicines();
+      
+      // Extract logs and enrich them
+      const enrichedHistory: EnrichedDoseHistory[] = [];
+      
+      allMeds.forEach(med => {
+        (med.logs || []).forEach((log, index) => {
+          enrichedHistory.push({
+            id: `${med._id}-${index}`,
+            medicationId: med._id,
+            timestamp: log.takenAt,
+            taken: log.status === 'taken',
+            notes: log.notes,
+            medication: {
+              id: med._id,
+              name: med.name,
+              dosage: med.dosage,
+              color: med.color || "#059669",
+            } as any
+          });
+        });
+      });
 
-      // Combine history with medication details
-      const enrichedHistory = doseHistory.map((dose) => ({
-        ...dose,
-        medication: medications.find((med) => med.id === dose.medicationId),
-      }));
-
-      setHistory(enrichedHistory);
+      setHistory(enrichedHistory.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     } catch (error) {
       console.error("Error loading history:", error);
     }
@@ -80,28 +96,9 @@ export default function HistoryScreen() {
 
   const handleClearAllData = () => {
     Alert.alert(
-      "Clear All Data",
-      "Are you sure you want to clear all medication data? This action cannot be undone.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Clear All",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await clearAllData();
-              await loadHistory();
-              Alert.alert("Success", "All data has been cleared successfully");
-            } catch (error) {
-              console.error("Error clearing data:", error);
-              Alert.alert("Error", "Failed to clear data. Please try again.");
-            }
-          },
-        },
-      ]
+      "Feature Unavailable",
+      "Clearing all data from the remote server is not supported from this screen.",
+      [{ text: "OK" }]
     );
   };
 

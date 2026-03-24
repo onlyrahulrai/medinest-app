@@ -81,8 +81,6 @@ export function useAuth() {
         try {
             const profile = await authService.getProfile();
 
-            console.log('Fetched user profile:', profile);
-
             return profile;
         } catch (err) {
             console.error('Failed to fetch user profile', err);

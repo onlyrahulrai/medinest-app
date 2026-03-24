@@ -20,11 +20,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
 import {
-  addMedication,
-  addMedicationGroup,
-  getMedications,
-  updateMedication,
-  deleteMedication,
   getUserProfile,
   ManagedPatient,
   Medication,
@@ -133,10 +128,6 @@ export default function AddMedicationScreen() {
   const [schedule, setSchedule] = useState({
     reminderEnabled: true,
     ownerId: "self",
-    frequency: "Once daily",
-    times: ["09:00", "21:00"] as string[],
-    duration: "30 days",
-    startDate: new Date(),
   });
 
   const [globalTimings, setGlobalTimings] = useState<string[]>(["09:00", "21:00"]);
@@ -147,7 +138,6 @@ export default function AddMedicationScreen() {
 
   // Picker management
   const [activePickerIndex, setActivePickerIndex] = useState<number | null>(null);
-  const [activePickerIsGlobal, setActivePickerIsGlobal] = useState(true);
   const [activeTimeIndex, setActiveTimeIndex] = useState<number>(0);
 
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
@@ -190,7 +180,6 @@ export default function AddMedicationScreen() {
       setUserProfile(profile as any);
       setManagedPatients(profile?.managedPatients || []);
       setGlobalTimings(gSched.times);
-      setSchedule(prev => ({ ...prev, times: gSched.times }));
       if (patientId) {
         setSchedule(prev => ({ ...prev, ownerId: patientId }));
       }
@@ -242,14 +231,6 @@ export default function AddMedicationScreen() {
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
 
-    // Validate global schedule
-    if (!schedule.frequency) {
-      newErrors['global_frequency'] = "Frequency is required";
-    }
-    if (!schedule.duration) {
-      newErrors['global_duration'] = "Duration is required";
-    }
-
     // Validate each medicine
     medicines.forEach((med, index) => {
       if (!med.name.trim()) {
@@ -258,13 +239,13 @@ export default function AddMedicationScreen() {
       if (!med.dosage.trim()) {
         newErrors[`dosage_${index}`] = "Dosage is required";
       }
-      // Validate per-medicine schedule if custom
+      // Validate per-medicine schedule
+      if (!med.duration) {
+        newErrors[`duration_${index}`] = "Duration is required";
+      }
       if (med.customSchedule) {
         if (!med.frequency) {
           newErrors[`frequency_${index}`] = "Frequency is required";
-        }
-        if (!med.duration) {
-          newErrors[`duration_${index}`] = "Duration is required";
         }
       }
       if (med.refillReminder) {
@@ -299,10 +280,11 @@ export default function AddMedicationScreen() {
         const useCustom = med.customSchedule;
         const useGlobalTiming = !useCustom;
 
-        const freqLabel = useCustom ? med.frequency : schedule.frequency;
-        const times = useGlobalTiming ? globalTimings : (useCustom ? med.times : schedule.times);
-        const durLabel = useCustom ? med.duration : schedule.duration;
-        const startDate = useCustom ? med.startDate : schedule.startDate;
+        // Use individual schedule if custom, otherwise use global/default
+        const freqLabel = useCustom ? med.frequency : "Once daily"; // Default to once daily if using global and no group frequency
+        const times = useGlobalTiming ? globalTimings : med.times;
+        const durLabel = useCustom ? med.duration : "Ongoing";
+        const startDate = useCustom ? med.startDate : new Date();
 
         // Map frequency
         let frequency: 'daily' | 'weekly' | 'custom' | 'as_needed' = 'daily';
@@ -390,23 +372,17 @@ export default function AddMedicationScreen() {
     }
   };
 
-  const renderFrequencyOptions = (medIndex: number | 'global') => {
-    const freq = medIndex === 'global' ? schedule.frequency : medicines[medIndex].frequency;
-
+  const renderFrequencyOptions = (medIndex: number) => {
+    const freq = medicines[medIndex].frequency;
     const setFreq = (label: string, times: string[]) => {
-      if (medIndex === 'global') {
-        setSchedule(prev => ({ ...prev, frequency: label, times }));
-      } else {
-        updateMedicine(medIndex, { frequency: label, times });
-      }
+      updateMedicine(medIndex, { frequency: label, times });
     };
-
     return (
       <View style={styles.optionsGrid}>
         {FREQUENCIES.map((f) => (
           <TouchableOpacity
             key={f.id}
-            style={[styles.optionCard, { width: (medIndex === 'global' ? width - 56 : width - 88) / 2 }, freq === f.label && styles.selectedOptionCard]}
+            style={[styles.optionCard, { width: (width - 88) / 2 }, freq === f.label && styles.selectedOptionCard]}
             onPress={() => setFreq(f.label, f.times)}
           >
             <View style={[styles.optionIcon, freq === f.label && styles.selectedOptionIcon]}>
@@ -421,21 +397,17 @@ export default function AddMedicationScreen() {
     );
   };
 
-  const renderDurationOptions = (medIndex: number | 'global') => {
-    const dur = medIndex === 'global' ? schedule.duration : medicines[medIndex].duration;
+  const renderDurationOptions = (medIndex: number) => {
+    const dur = medicines[medIndex].duration;
     const setDur = (label: string) => {
-      if (medIndex === 'global') {
-        setSchedule(prev => ({ ...prev, duration: label }));
-      } else {
-        updateMedicine(medIndex, { duration: label });
-      }
+      updateMedicine(medIndex, { duration: label });
     };
     return (
       <View style={styles.optionsGrid}>
         {DURATIONS.map((d) => (
           <TouchableOpacity
             key={d.id}
-            style={[styles.optionCard, { width: (medIndex === 'global' ? width - 56 : width - 88) / 2 }, dur === d.label && styles.selectedOptionCard]}
+            style={[styles.optionCard, { width: (width - 88) / 2 }, dur === d.label && styles.selectedOptionCard]}
             onPress={() => setDur(d.label)}
           >
             <Text style={[styles.durationNumber, dur === d.label && styles.selectedDurationNumber]}>
@@ -452,7 +424,7 @@ export default function AddMedicationScreen() {
 
   const renderMedicineCard = (med: MedicineEntry, index: number) => {
     const isExpanded = expandedMedicine === index;
-    const hasError = errors[`name_${index}`] || errors[`dosage_${index}`];
+    const hasError = errors[`dosage_${index}`] || errors[`duration_${index}`] || errors[`frequency_${index}`];
 
     return (
       <View key={index} style={[styles.medicineCard, hasError && { borderColor: "#FF5252" }]}>
@@ -461,7 +433,7 @@ export default function AddMedicationScreen() {
           style={styles.medicineCardHeader}
           onPress={() => setExpandedMedicine(isExpanded ? -1 : index)}
         >
-          <View style={[styles.medicineNumberBadge, { backgroundColor: med.color || theme.lightAccent }]}>
+          <View style={[styles.medicineNumberBadge, { backgroundColor: med.color || theme.accent }]}>
             <Text style={styles.medicineNumberText}>{index + 1}</Text>
           </View>
           <View style={styles.medicineHeaderInfo}>
@@ -485,70 +457,59 @@ export default function AddMedicationScreen() {
         {/* Expanded Medicine Fields */}
         {isExpanded && (
           <View style={styles.medicineCardBody}>
-            {/* Image Picker */}
-            <View style={styles.imageSection}>
-              <TouchableOpacity style={styles.imageContainerSmall} onPress={() => pickImage(index)}>
-                {med.imageUri ? (
-                  <Image source={{ uri: med.imageUri }} style={styles.medicationImage} />
-                ) : (
-                  <View style={styles.imagePlaceholder}>
-                    <Ionicons name="camera-outline" size={28} color={theme.accent} />
-                    <Text style={styles.imagePlaceholderText}>Photo</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+            {/* 1. Medicine Picture */}
+            <View style={[styles.innerSection, { borderBottomWidth: 0 }]}>
+              <Text style={styles.innerSectionTitle}>1. Medicine Photo</Text>
 
-            {/* Name */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.mainInput, errors[`name_${index}`] && styles.inputError]}
-                placeholder="Medication Name"
-                placeholderTextColor="#999"
-                value={med.name}
-                onChangeText={(text) => {
-                  updateMedicine(index, { name: text });
-                  if (errors[`name_${index}`]) setErrors(prev => ({ ...prev, [`name_${index}`]: "" }));
-                }}
-              />
-              {errors[`name_${index}`] && <Text style={styles.errorText}>{errors[`name_${index}`]}</Text>}
-            </View>
-
-            {/* Dosage */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.mainInput, errors[`dosage_${index}`] && styles.inputError]}
-                placeholder="Dosage (e.g., 500)"
-                placeholderTextColor="#999"
-                value={med.dosage}
-                onChangeText={(text) => {
-                  updateMedicine(index, { dosage: text });
-                  if (errors[`dosage_${index}`]) setErrors(prev => ({ ...prev, [`dosage_${index}`]: "" }));
-                }}
-                keyboardType="numeric"
-              />
-              {errors[`dosage_${index}`] && <Text style={styles.errorText}>{errors[`dosage_${index}`]}</Text>}
-            </View>
-
-            {/* Dosage Units */}
-            <Text style={styles.unitLabel}>Unit</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitScroller}>
-              {DOSAGE_UNITS.map((unit) => (
-                <TouchableOpacity
-                  key={unit}
-                  style={[styles.unitChip, med.dosageUnit === unit && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                  onPress={() => updateMedicine(index, { dosageUnit: unit })}
-                >
-                  <Text style={[styles.unitChipText, med.dosageUnit === unit && styles.unitChipTextActive]}>
-                    {unit}
-                  </Text>
+              <View style={{ alignItems: "center" }}>
+                <TouchableOpacity style={styles.imageContainerSmall} onPress={() => pickImage(index)}>
+                  {med.imageUri ? (
+                    <Image source={{ uri: med.imageUri }} style={styles.medicationImage} />
+                  ) : (
+                    <View style={styles.imagePlaceholder}>
+                      <Ionicons name="camera-outline" size={28} color={theme.accent} />
+                      <Text style={styles.imagePlaceholderText}>Photo</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+              </View>
+            </View>
 
-            {/* Schedule Section */}
+            {/* 2. Dosage & 3. Unit */}
             <View style={styles.innerSection}>
-              {/* Custom Schedule Toggle */}
+              <Text style={styles.innerSectionTitle}>2. Dosage & 3. Unit</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={[styles.mainInput, errors[`dosage_${index}`] && styles.inputError]}
+                  placeholder="Dosage (e.g. 500)"
+                  placeholderTextColor="#999"
+                  value={med.dosage}
+                  onChangeText={(text) => {
+                    updateMedicine(index, { dosage: text });
+                    if (errors[`dosage_${index}`]) setErrors(prev => ({ ...prev, [`dosage_${index}`]: "" }));
+                  }}
+                  keyboardType="numeric"
+                />
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitScroller}>
+                {DOSAGE_UNITS.map((unit) => (
+                  <TouchableOpacity
+                    key={unit}
+                    style={[styles.unitChip, med.dosageUnit === unit && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                    onPress={() => updateMedicine(index, { dosageUnit: unit })}
+                  >
+                    <Text style={[styles.unitChipText, med.dosageUnit === unit && { color: "white" }]}>
+                      {unit}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* 4. Schedule Configuration */}
+            <View style={styles.innerSection}>
+              <Text style={styles.innerSectionTitle}>4. Schedule Configuration</Text>
+
               <View style={styles.switchRow}>
                 <View style={styles.switchLabelContainer}>
                   <View style={styles.iconContainer}>
@@ -556,7 +517,7 @@ export default function AddMedicationScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.switchLabel}>Custom Schedule</Text>
-                    <Text style={styles.switchSubLabel}>Set unique times, frequency or duration</Text>
+                    <Text style={styles.switchSubLabel}>Override global timings</Text>
                   </View>
                 </View>
                 <Switch
@@ -567,15 +528,9 @@ export default function AddMedicationScreen() {
                 />
               </View>
 
-              {!med.customSchedule ? (
-                <View style={{ marginTop: 10, padding: 12, backgroundColor: "#f8f9fa", borderRadius: 10 }}>
-                  <Text style={{ fontSize: 13, color: "#666", fontStyle: 'italic' }}>
-                    <Ionicons name="information-circle-outline" size={14} color={theme.accent} /> This medicine will follow your default daily schedule.
-                  </Text>
-                </View>
-              ) : (
+              {med.customSchedule ? (
                 <View style={{ marginTop: 15 }}>
-                  <Text style={styles.sectionTitle}>Custom Medication Times</Text>
+                  <Text style={styles.subSectionLabel}>4.1 Medication Time</Text>
                   <View style={styles.timesContainer}>
                     {med.times.map((time, tIndex) => (
                       <TouchableOpacity
@@ -583,7 +538,6 @@ export default function AddMedicationScreen() {
                         style={styles.timeButton}
                         onPress={() => {
                           setActivePickerIndex(index);
-                          setActivePickerIsGlobal(false);
                           setActiveTimeIndex(tIndex);
                           setShowTimePicker(true);
                         }}
@@ -597,176 +551,184 @@ export default function AddMedicationScreen() {
                     ))}
                   </View>
 
-                  <Text style={styles.sectionTitle}>Frequency</Text>
+                  <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>4.2 Frequency</Text>
                   {errors[`frequency_${index}`] && <Text style={styles.errorText}>{errors[`frequency_${index}`]}</Text>}
                   {renderFrequencyOptions(index)}
-
-                  <Text style={styles.sectionTitle}>For How Long?</Text>
-                  {errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
-                  {renderDurationOptions(index)}
-
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => {
-                      setActivePickerIndex(index);
-                      setActivePickerIsGlobal(false);
-                      setShowDatePicker(true);
-                    }}
-                  >
-                    <View style={styles.dateIconContainer}>
-                      <Ionicons name="calendar" size={20} color={theme.accent} />
-                    </View>
-                    <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#666" />
-                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={{ marginTop: 10, padding: 12, backgroundColor: theme.lightAccent, borderRadius: 10 }}>
+                  <Text style={{ fontSize: 13, color: theme.accent, fontStyle: 'italic' }}>
+                    <Ionicons name="information-circle-outline" size={14} color={theme.accent} /> Follows your default profile schedule ({globalTimings.join(", ")})
+                  </Text>
                 </View>
               )}
-            </View>
 
-            {/* Medication Type */}
-            <Text style={styles.sectionTitle}>
-              <Ionicons name="medkit-outline" size={18} color={theme.accent} />{" "}Type
-            </Text>
-            <View style={styles.typeGrid}>
-              {MEDICATION_TYPES.map((medType) => (
-                <TouchableOpacity
-                  key={medType.id}
-                  style={[styles.typeChip, med.type === medType.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                  onPress={() => updateMedicine(index, { type: medType.label })}
-                >
-                  <View style={[styles.typeIconContainer, med.type === medType.label && { backgroundColor: theme.accent }]}>
-                    <Ionicons name={medType.icon} size={20} color={med.type === medType.label ? "white" : theme.accent} />
-                  </View>
-                  <Text style={[styles.typeChipLabel, med.type === medType.label && { color: "white" }]}>
-                    {medType.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+              <View style={{ marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
+                <Text style={styles.subSectionLabel}>4.3 For How Long?</Text>
+                {errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
+                {renderDurationOptions(index)}
 
-            {/* Medicine Color */}
-            <Text style={styles.sectionTitle}>
-              <Ionicons name="color-palette-outline" size={18} color={theme.accent} />{" "}Color
-            </Text>
-            <View style={styles.colorGrid}>
-              {MEDICINE_COLORS.map((color) => (
+                <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>4.4 Start Date</Text>
                 <TouchableOpacity
-                  key={color}
-                  style={[styles.colorCircle, { backgroundColor: color }, med.color === color && styles.colorCircleActive]}
-                  onPress={() => updateMedicine(index, { color })}
-                >
-                  {med.color === color && <Ionicons name="checkmark" size={20} color="white" />}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Meal Timing */}
-            <Text style={styles.sectionTitle}>
-              <Ionicons name="restaurant-outline" size={18} color={theme.accent} />{" "}When to Take
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealTimingScroller}>
-              {MEAL_TIMINGS.map((timing) => (
-                <TouchableOpacity
-                  key={timing.id}
-                  style={[styles.mealChip, med.mealTiming.includes(timing.label) && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                  style={styles.dateButton}
                   onPress={() => {
-                    const newTimings = med.mealTiming.includes(timing.label)
-                      ? med.mealTiming.filter((t: string) => t !== timing.label)
-                      : [...med.mealTiming, timing.label];
-                    updateMedicine(index, { mealTiming: newTimings });
+                    setActivePickerIndex(index);
+                    setShowDatePicker(true);
                   }}
                 >
-                  <View style={[styles.mealChipIcon, med.mealTiming.includes(timing.label) && { backgroundColor: theme.accent }]}>
-                    <Ionicons name={timing.icon} size={20} color={med.mealTiming.includes(timing.label) ? "white" : theme.accent} />
+                  <View style={styles.dateIconContainer}>
+                    <Ionicons name="calendar-outline" size={20} color={theme.accent} />
                   </View>
-                  <Text style={[styles.mealChipText, med.mealTiming.includes(timing.label) && { color: "white" }]}>
-                    {timing.label}
-                  </Text>
+                  <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
+                  <Ionicons name="chevron-forward" size={20} color="#666" />
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+              </View>
+            </View>
 
-            {/* Refill Tracking */}
-            <View style={[styles.card, { marginTop: 20, marginBottom: 8 }]}>
+            {/* 5. Type */}
+            <View style={styles.innerSection}>
+              <Text style={styles.innerSectionTitle}>5. Type</Text>
+              <View style={styles.typeGrid}>
+                {MEDICATION_TYPES.map((medType) => (
+                  <TouchableOpacity
+                    key={medType.id}
+                    style={[styles.typeChip, med.type === medType.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                    onPress={() => updateMedicine(index, { type: medType.label })}
+                  >
+                    <View style={[styles.typeIconContainer, med.type === medType.label && { backgroundColor: theme.accent }]}>
+                      <Ionicons name={medType.icon} size={20} color={med.type === medType.label ? "white" : theme.accent} />
+                    </View>
+                    <Text style={[styles.typeChipLabel, med.type === medType.label && { color: "white" }]}>
+                      {medType.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 6. Color */}
+            <View style={styles.innerSection}>
+              <Text style={styles.innerSectionTitle}>6. Color</Text>
+              <View style={styles.colorGrid}>
+                {MEDICINE_COLORS.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[styles.colorCircle, { backgroundColor: color }, med.color === color && styles.colorCircleActive]}
+                    onPress={() => updateMedicine(index, { color })}
+                  >
+                    {med.color === color && <Ionicons name="checkmark" size={20} color="white" />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 7. When to Take */}
+            <View style={styles.innerSection}>
+              <Text style={styles.innerSectionTitle}>7. When to Take</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealTimingScroller}>
+                {MEAL_TIMINGS.map((timing) => (
+                  <TouchableOpacity
+                    key={timing.id}
+                    style={[styles.mealChip, med.mealTiming.includes(timing.label) && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                    onPress={() => {
+                      const newTimings = med.mealTiming.includes(timing.label)
+                        ? med.mealTiming.filter(t => t !== timing.label)
+                        : [...med.mealTiming, timing.label];
+                      updateMedicine(index, { mealTiming: newTimings });
+                    }}
+                  >
+                    <View style={[styles.mealChipIcon, med.mealTiming.includes(timing.label) && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                      <Ionicons name={timing.icon} size={20} color={med.mealTiming.includes(timing.label) ? "white" : theme.accent} />
+                    </View>
+                    <Text style={[styles.mealChipText, med.mealTiming.includes(timing.label) && { color: "white" }]}>
+                      {timing.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* 8. Refill Tracking */}
+            <View style={styles.innerSection}>
               <View style={styles.switchRow}>
-                <View style={styles.switchLabelContainer}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons name="reload" size={20} color={theme.accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.switchLabel}>Refill Tracking</Text>
-                    <Text style={styles.switchSubLabel}>Get notified when you need to refill</Text>
-                  </View>
-                </View>
+                <Text style={styles.innerSectionTitle}>8. Refill Tracking</Text>
                 <Switch
                   value={med.refillReminder}
-                  onValueChange={(value) => updateMedicine(index, { refillReminder: value })}
+                  onValueChange={(val) => updateMedicine(index, { refillReminder: val })}
                   trackColor={{ false: "#ddd", true: theme.accent }}
                   thumbColor="white"
                 />
               </View>
               {med.refillReminder && (
-                <View style={styles.refillInputs}>
+                <View style={{ marginTop: 10 }}>
                   <View style={styles.inputRow}>
-                    <View style={[styles.inputContainer, styles.flex1]}>
-                      <TextInput
-                        style={[styles.input, errors[`currentSupply_${index}`] && styles.inputError]}
-                        placeholder="Current Supply"
-                        placeholderTextColor="#999"
-                        value={med.currentSupply}
-                        onChangeText={(text) => updateMedicine(index, { currentSupply: text })}
-                        keyboardType="numeric"
-                      />
-                      {errors[`currentSupply_${index}`] && <Text style={styles.errorText}>{errors[`currentSupply_${index}`]}</Text>}
+                    <View style={styles.flex1}>
+                      <Text style={styles.subSectionLabel}>8.1 Current Supply</Text>
+                      <View style={[styles.inputContainer, errors[`currentSupply_${index}`] && styles.inputError]}>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="0"
+                          value={med.currentSupply}
+                          onChangeText={(text) => updateMedicine(index, { currentSupply: text })}
+                          keyboardType="numeric"
+                        />
+                      </View>
                     </View>
-                    <View style={[styles.inputContainer, styles.flex1]}>
-                      <TextInput
-                        style={[styles.input, errors[`refillAt_${index}`] && styles.inputError]}
-                        placeholder="Alert at"
-                        placeholderTextColor="#999"
-                        value={med.refillAt}
-                        onChangeText={(text) => updateMedicine(index, { refillAt: text })}
-                        keyboardType="numeric"
-                      />
-                      {errors[`refillAt_${index}`] && <Text style={styles.errorText}>{errors[`refillAt_${index}`]}</Text>}
+                    <View style={styles.flex1}>
+                      <Text style={styles.subSectionLabel}>8.2 Alert At</Text>
+                      <View style={[styles.inputContainer, errors[`refillAt_${index}`] && styles.inputError]}>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="0"
+                          value={med.refillAt}
+                          onChangeText={(text) => updateMedicine(index, { refillAt: text })}
+                          keyboardType="numeric"
+                        />
+                      </View>
                     </View>
                   </View>
                 </View>
               )}
             </View>
 
-            {/* Additional Details */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.mainInput}
-                placeholder="Prescribed By (Doctor's Name)"
-                placeholderTextColor="#999"
-                value={med.prescribedBy}
-                onChangeText={(text) => updateMedicine(index, { prescribedBy: text })}
-              />
-            </View>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.mainInput}
-                placeholder="Purpose (e.g., Blood Pressure)"
-                placeholderTextColor="#999"
-                value={med.purpose}
-                onChangeText={(text) => updateMedicine(index, { purpose: text })}
-              />
+            {/* 9. Prescribed By */}
+            <View style={styles.innerSection}>
+              <Text style={styles.innerSectionTitle}>9. Prescribed By</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Doctor's Name"
+                  value={med.prescribedBy}
+                  onChangeText={(text) => updateMedicine(index, { prescribedBy: text })}
+                />
+              </View>
             </View>
 
-            {/* Notes */}
-            <View style={styles.textAreaContainer}>
-              <TextInput
-                style={styles.textArea}
-                placeholder="Add notes or special instructions..."
-                placeholderTextColor="#999"
-                value={med.notes}
-                onChangeText={(text) => updateMedicine(index, { notes: text })}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
+            {/* 10. Purpose */}
+            <View style={styles.innerSection}>
+              <Text style={styles.innerSectionTitle}>10. Purpose</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Fever"
+                  value={med.purpose}
+                  onChangeText={(text) => updateMedicine(index, { purpose: text })}
+                />
+              </View>
+            </View>
+
+            {/* 11. Notes */}
+            <View style={[styles.innerSection, { borderBottomWidth: 0 }]}>
+              <Text style={styles.innerSectionTitle}>11. Notes</Text>
+              <View style={styles.textAreaContainer}>
+                <TextInput
+                  style={styles.textArea}
+                  placeholder="Additional instructions..."
+                  multiline
+                  value={med.notes}
+                  onChangeText={(text) => updateMedicine(index, { notes: text })}
+                />
+              </View>
             </View>
           </View>
         )}
@@ -869,58 +831,7 @@ export default function AddMedicationScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ======= GLOBAL SCHEDULE SECTION ======= */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              <Ionicons name="calendar-outline" size={18} color={theme.accent} />{" "}
-              Schedule
-            </Text>
 
-            <Text style={styles.sectionTitle}>Frequency</Text>
-            {errors['global_frequency'] && <Text style={styles.errorText}>{errors['global_frequency']}</Text>}
-            {renderFrequencyOptions('global')}
-
-            <Text style={styles.sectionTitle}>For How Long?</Text>
-            {errors['global_duration'] && <Text style={styles.errorText}>{errors['global_duration']}</Text>}
-            {renderDurationOptions('global')}
-
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => {
-                setActivePickerIsGlobal(true);
-                setShowDatePicker(true);
-              }}
-            >
-              <View style={styles.dateIconContainer}>
-                <Ionicons name="calendar" size={20} color={theme.accent} />
-              </View>
-              <Text style={styles.dateButtonText}>Starts {schedule.startDate.toLocaleDateString()}</Text>
-              <Ionicons name="chevron-forward" size={20} color="#666" />
-            </TouchableOpacity>
-
-            {schedule.frequency && schedule.frequency !== "As needed" && (
-              <View style={styles.timesContainer}>
-                <Text style={styles.timesTitle}>Medication Times</Text>
-                {schedule.times.map((time, tIndex) => (
-                  <TouchableOpacity
-                    key={tIndex}
-                    style={styles.timeButton}
-                    onPress={() => {
-                      setActivePickerIsGlobal(true);
-                      setActiveTimeIndex(tIndex);
-                      setShowTimePicker(true);
-                    }}
-                  >
-                    <View style={styles.timeIconContainer}>
-                      <Ionicons name="time-outline" size={20} color={theme.accent} />
-                    </View>
-                    <Text style={styles.timeButtonText}>{time}</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#666" />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
@@ -953,16 +864,12 @@ export default function AddMedicationScreen() {
 
           {showDatePicker && (
             <DateTimePicker
-              value={activePickerIsGlobal ? schedule.startDate : (activePickerIndex !== null ? medicines[activePickerIndex].startDate : new Date())}
+              value={activePickerIndex !== null ? medicines[activePickerIndex].startDate : new Date()}
               mode="date"
               onChange={(event, date) => {
                 setShowDatePicker(false);
-                if (date) {
-                  if (activePickerIsGlobal) {
-                    setSchedule(prev => ({ ...prev, startDate: date }));
-                  } else if (activePickerIndex !== null) {
-                    updateMedicine(activePickerIndex, { startDate: date });
-                  }
+                if (date && activePickerIndex !== null) {
+                  updateMedicine(activePickerIndex, { startDate: date });
                 }
               }}
             />
@@ -971,8 +878,9 @@ export default function AddMedicationScreen() {
           {showTimePicker && (
             <DateTimePicker
               value={(() => {
-                const times = activePickerIsGlobal ? schedule.times : (activePickerIndex !== null ? medicines[activePickerIndex].times : ["09:00"]);
-                const [hours, minutes] = times[activeTimeIndex].split(":").map(Number);
+                const times = activePickerIndex !== null ? medicines[activePickerIndex].times : ["09:00"];
+                const timeStr = times[activeTimeIndex] || "09:00";
+                const [hours, minutes] = timeStr.split(":").map(Number);
                 const date = new Date();
                 date.setHours(hours, minutes, 0, 0);
                 return date;
@@ -980,19 +888,13 @@ export default function AddMedicationScreen() {
               mode="time"
               onChange={(event, date) => {
                 setShowTimePicker(false);
-                if (date) {
+                if (date && activePickerIndex !== null) {
                   const newTime = date.toLocaleTimeString("default", {
                     hour: "2-digit", minute: "2-digit", hour12: false,
                   });
-                  if (activePickerIsGlobal) {
-                    const newTimes = [...schedule.times];
-                    newTimes[activeTimeIndex] = newTime;
-                    setSchedule(prev => ({ ...prev, times: newTimes }));
-                  } else if (activePickerIndex !== null) {
-                    const newTimes = [...medicines[activePickerIndex].times];
-                    newTimes[activeTimeIndex] = newTime;
-                    updateMedicine(activePickerIndex, { times: newTimes });
-                  }
+                  const newTimes = [...medicines[activePickerIndex].times];
+                  newTimes[activeTimeIndex] = newTime;
+                  updateMedicine(activePickerIndex, { times: newTimes });
                 }
               }}
             />
@@ -1057,7 +959,7 @@ const styles = StyleSheet.create({
   removeMedBtn: { padding: 6, borderRadius: 8, backgroundColor: "#FEE2E2" },
   medicineCardBody: { paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: "#f0f0f0" },
   innerSection: {
-    marginTop: 15, paddingVertical: 15, borderTopWidth: 1, borderTopColor: "#f0f0f0",
+    marginTop: 15, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: "#f0f0f0",
   },
   innerSectionTitle: {
     fontSize: 16, fontWeight: "700", color: "#1a1a1a", marginBottom: 12,
@@ -1235,4 +1137,5 @@ const styles = StyleSheet.create({
     alignItems: "center", overflow: "hidden",
   },
   patientAvatarMiniText: { fontSize: 10, fontWeight: "700", color: "#666" },
+  subSectionLabel: { fontSize: 13, fontWeight: "600", color: "#666", marginBottom: 8, marginTop: 4 },
 });

@@ -620,22 +620,8 @@ export default function HomeScreen() {
 
                         <View style={[styles.premiumDoseCard, allTaken && styles.premiumDoseCardTaken]}>
                           <View style={styles.groupBadge}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Ionicons name="time-outline" size={12} color="#059669" />
-                              <Text style={styles.groupBadgeText}>{routineName || "Custom Slot"} • {group.time}</Text>
-                            </View>
-                            <TouchableOpacity
-                              onPress={() => {
-                                const ids = Array.from(new Set(group.logs.map(l => l.medicineId?._id).filter(id => !!id))).join(',');
-                                router.push({
-                                  pathname: '/medications/edit',
-                                  params: { ids }
-                                });
-                              }}
-                              style={styles.routineHeaderEditBtn}
-                            >
-                              <Ionicons name="pencil" size={14} color="#059669" />
-                            </TouchableOpacity>
+                            <Ionicons name="time-outline" size={12} color="#059669" />
+                            <Text style={styles.groupBadgeText}>{routineName || "Custom Slot"} • {group.time}</Text>
                           </View>
 
                           {group.logs.map((log) => {
@@ -668,6 +654,20 @@ export default function HomeScreen() {
                               </View>
                             );
                           })}
+
+                          {/* Float Edit Button at Bottom Right */}
+                          <TouchableOpacity
+                            onPress={() => {
+                              const ids = Array.from(new Set(group.logs.map(l => l.medicineId?._id).filter(id => !!id))).join(',');
+                              router.push({
+                                pathname: '/medications/edit',
+                                params: { ids }
+                              });
+                            }}
+                            style={styles.floatingCardEditBtn}
+                          >
+                            <Ionicons name="pencil" size={18} color="#94A3B8" />
+                          </TouchableOpacity>
                         </View>
                       </View>
                     );
@@ -1455,21 +1455,36 @@ const styles = StyleSheet.create({
   groupBadge: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     backgroundColor: "#D1FAE5",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
     marginBottom: 8,
-    alignSelf: "stretch",
+    alignSelf: "flex-start",
+    gap: 4,
   },
   groupBadgeText: {
     fontSize: 11,
     fontWeight: "700",
     color: "#059669",
   },
-  routineHeaderEditBtn: {
-    padding: 2,
+  floatingCardEditBtn: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   groupMedRow: {
     flexDirection: "row",

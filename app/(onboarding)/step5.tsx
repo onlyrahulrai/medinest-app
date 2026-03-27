@@ -93,11 +93,11 @@ export default function Step5Screen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.title}>
-          {t("onboarding.step4.title", "Final Settings")}
+          {t("onboarding.step5.title", "Final Settings")}
         </Text>
         <Text style={styles.subtitle}>
           {t(
-            "onboarding.step4.subtitle",
+            "onboarding.step5.subtitle",
             "Configure how you want to receive alerts.",
           )}
         </Text>
@@ -113,11 +113,11 @@ export default function Step5Screen() {
               />
               <View>
                 <Text style={styles.settingTitle}>
-                  {t("onboarding.step4.sound.title", "Sound Alerts")}
+                  {t("onboarding.step5.sound.title", "Sound Alerts")}
                 </Text>
                 <Text style={styles.settingDescription}>
                   {t(
-                    "onboarding.step4.sound.description",
+                    "onboarding.step5.sound.description",
                     "Get audible reminders for medication.",
                   )}
                 </Text>
@@ -141,11 +141,11 @@ export default function Step5Screen() {
               />
               <View>
                 <Text style={styles.settingTitle}>
-                  {t("onboarding.step4.vibration.title", "Vibration")}
+                  {t("onboarding.step5.vibration.title", "Vibration")}
                 </Text>
                 <Text style={styles.settingDescription}>
                   {t(
-                    "onboarding.step4.vibration.description",
+                    "onboarding.step5.vibration.description",
                     "Vibrate for reminder notifications.",
                   )}
                 </Text>
@@ -169,11 +169,11 @@ export default function Step5Screen() {
               />
               <View>
                 <Text style={styles.settingTitle}>
-                  {t("onboarding.step4.shareActivity.title", "Share Activity")}
+                  {t("onboarding.step5.shareActivity.title", "Share Activity")}
                 </Text>
                 <Text style={styles.settingDescription}>
                   {t(
-                    "onboarding.step4.shareActivity.description",
+                    "onboarding.step5.shareActivity.description",
                     "Keep caregivers informed of your progress.",
                   )}
                 </Text>
@@ -206,7 +206,7 @@ export default function Step5Screen() {
               ]}
             >
               {isSaving
-                ? t("onboarding.step4.saving", "Saving...")
+                ? t("onboarding.step5.saving", "Saving...")
                 : t("common.finish", "Finish Setup")}
             </Text>
             {isSaving ? (

@@ -99,7 +99,7 @@ export default function Step3Screen() {
       if (!PHONE_REGEX.test(digits)) {
         setPhoneError(
           t("onboarding.step3.validation.invalidFormat") ||
-            "Invalid phone format",
+          "Invalid phone format",
         );
         return;
       }
@@ -107,7 +107,7 @@ export default function Step3Screen() {
       if (digits === user?.phone) {
         setPhoneError(
           t("onboarding.step3.validation.sameAsUser") ||
-            "Cannot use your own phone number",
+          "Cannot use your own phone number",
         );
         return;
       }
@@ -142,12 +142,12 @@ export default function Step3Screen() {
         caregivers:
           emergencyName || emergencyPhone
             ? [
-                {
-                  name: emergencyName.trim(),
-                  phone: emergencyPhone.trim(),
-                  relation: emergencyRelation.trim(),
-                },
-              ]
+              {
+                name: emergencyName.trim(),
+                phone: emergencyPhone.trim(),
+                relation: emergencyRelation.trim(),
+              },
+            ]
             : [],
       });
 

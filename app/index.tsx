@@ -84,7 +84,7 @@ function SplashScreen() {
             router.replace(route);
           }
         } else {
-          router.replace("/login");
+          router.replace("/(auth)/login");
         }
       } else {
         // No internet: Navigate to a screen that can work offline or show an error

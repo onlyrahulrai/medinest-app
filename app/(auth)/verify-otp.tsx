@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
+  TouchableOpacity,
   Keyboard,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -13,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { OTPInput } from "../../components/auth/OTPInput";
 import { Button } from "../../components/auth/Button";
 import { useAuth } from "../../hooks/useAuth";
+import { getOnboardingRoute } from "@/utils/onboardingHelpers";
 
 const RESEND_TIMER = 30;
 
@@ -130,9 +132,6 @@ export default function VerifyOTPScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-import { TouchableOpacity } from "react-native";
-import { getOnboardingRoute } from "@/utils/onboardingHelpers";
 
 const styles = StyleSheet.create({
   container: {

@@ -18,6 +18,8 @@ export const caregiverApi = {
     return res.data;
   },
   getInvitations: async (phone?: string) => {
+    console.log("Fetching caregiver invitations for phone:", phone);
+
     const res = await axiosInstance.get('/caregiver/invitations', { params: { phone } });
     return res.data;
   },

@@ -29,18 +29,19 @@ export default function ProfileScreen() {
     useFocusEffect(
         useCallback(() => {
             loadProfile();
-            loadInvitations();
+            // loadInvitations();
         }, [])
     );
 
-    const loadInvitations = async () => {
-        try {
-            const data = await caregiverApi.getInvitations(profile?.phoneNumber || "");
-            setPendingInvitations(data);
-        } catch (error) {
-            console.error("Failed to load invitations", error);
-        }
-    };
+    // const loadInvitations = async () => {
+    //     try {
+    //         const data = await caregiverApi.getInvitations(profile?.phoneNumber || "");
+
+    //         setPendingInvitations(data);
+    //     } catch (error) {
+    //         console.error("Failed to load invitations", error);
+    //     }
+    // };
 
     const loadProfile = async () => {
         setIsLoading(true);
@@ -52,6 +53,9 @@ export default function ProfileScreen() {
             // Also load invitations once we have the phone number
             if (localProfile.phoneNumber) {
                 const invs = await caregiverApi.getInvitations(localProfile.phoneNumber);
+
+                console.log("Loaded caregiver invitations:", invs);
+
                 setPendingInvitations(invs);
             }
         } catch (error) {
@@ -67,7 +71,7 @@ export default function ProfileScreen() {
             await respondInvitation(invitationId, 'accepted');
             Alert.alert("Success", "Invitation accepted.");
             loadProfile();
-            loadInvitations();
+            // loadInvitations();
         } catch (error: any) {
             Alert.alert("Error", error?.message || "Failed to accept");
         } finally {

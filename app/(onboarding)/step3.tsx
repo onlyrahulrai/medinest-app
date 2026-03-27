@@ -76,8 +76,11 @@ export default function Step3Screen() {
         setLookupStatus('checking');
         try {
             const result = await validateCaregiverPhone(digits);
+
+            console.log('Phone lookup result:', result);
+
             if (result.success) {
-                setLookupStatus(result.data?.exists ? 'found' : 'not-found');
+                setLookupStatus(result.data?.found ? 'found' : 'not-found');
             } else {
                 setLookupStatus('not-found');
             }

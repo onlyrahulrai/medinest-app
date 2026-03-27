@@ -127,5 +127,6 @@ export const getOnboardingRoute = (step: number): OnboardingRoute => {
         5: "/(onboarding)/step5",
     };
 
-    return routes[Math.min(step + 1, 5) || routes[1]];
+    const nextStep = (Number(step) || 0) + 1;
+    return routes[Math.min(nextStep, 5)] || routes[1];
 };

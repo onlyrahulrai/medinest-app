@@ -126,8 +126,8 @@ export default function Step4Screen() {
 
                 <View style={styles.gridContainer}>
                     {routines.map((routine, index) => (
-                        <TouchableOpacity 
-                            key={index} 
+                        <TouchableOpacity
+                            key={index}
                             style={styles.routineGridCard}
                             onPress={() => openEditModal(index)}
                         >
@@ -149,8 +149,8 @@ export default function Step4Screen() {
                         </TouchableOpacity>
                     ))}
 
-                    <TouchableOpacity 
-                        style={styles.addGridCard} 
+                    <TouchableOpacity
+                        style={styles.addGridCard}
                         onPress={() => {
                             setEditIndex(null);
                             setNewRoutineName('');
@@ -180,7 +180,7 @@ export default function Step4Screen() {
                         <Text style={styles.modalTitle}>
                             {editIndex !== null ? 'Edit Routine' : 'New Routine'}
                         </Text>
-                        
+
                         <Text style={styles.modalLabel}>Routine Name</Text>
                         <TextInput
                             style={styles.input}
@@ -198,8 +198,8 @@ export default function Step4Screen() {
                         </TouchableOpacity>
 
                         <View style={styles.modalFooter}>
-                            <TouchableOpacity 
-                                style={styles.cancelBtn} 
+                            <TouchableOpacity
+                                style={styles.cancelBtn}
                                 onPress={() => {
                                     setShowAddModal(false);
                                     setEditIndex(null);
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     modalTitle: { fontSize: 24, fontWeight: '900', marginBottom: 22, color: '#1E293B' },
     modalLabel: { fontSize: 14, fontWeight: '700', color: '#64748B', marginBottom: 8, marginLeft: 4 },
     input: { backgroundColor: '#F8FAFC', padding: 18, borderRadius: 14, fontSize: 17, marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0', color: '#1E293B' },
-    timeSelectBtn: { 
+    timeSelectBtn: {
         backgroundColor: '#F0FDF4',
         padding: 18,
         borderRadius: 14,

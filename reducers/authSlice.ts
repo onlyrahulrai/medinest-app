@@ -1,83 +1,50 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-interface OnboardingStatus {
-    completed: boolean;
-    step: number;
-}
-
 interface AuthState {
     user: Record<string, any> | null;
-    access: string | null;
-    refresh: string | null;
-    onboarding: OnboardingStatus | null;
-    networkInfo?: any; // Optional, can be set by AuthSync
-    language?: string | null; // Optional, can be set by AuthSync
-    isSessionRestoring: boolean;
+    token:  {
+        access: string;
+        refresh: string;
+    };
+    loading: boolean;
+    error: string | null;
 }
 
 const initialState: AuthState = {
     user: null,
-    access: null,
-    refresh: null,
-    onboarding: null,
-    networkInfo: null,
-    language: "en",
-    isSessionRestoring: true, // Start as true to prevent flash of login during boot
+    token: {
+        access: "",
+        refresh: ""
+    },
+    loading: false,
+    error: null,
 };
 
 export const authSlice = createSlice({
     name: "auth",
     initialState,
     reducers: {
-        setSessionRestoring: (state, action: PayloadAction<boolean>) => {
-            state.isSessionRestoring = action.payload;
+        authenticated: (state, action: Record<string, any>) => {
+            const {access, refresh, ...user} = action.payload;
+            state.user = user;
+            state.token = {
+                access,
+                refresh
+            };
+            state.error = null;
+            state.loading = false;
         },
-        setNetworkInfo: (state, action: PayloadAction<any>) => {
-            const { isConnected:connected, type } = action.payload;
-
-            state.networkInfo = { connected, type };
-        },
-        setLanguage: (state, action: PayloadAction<string>) => {
-            state.language = action.payload;
-        },
-        authenticated: (state, action: PayloadAction<{
-            user: Record<string, any>;
-            access: string;
-            refresh?: string;
-            onboarding?: OnboardingStatus;
-        }>) => {
-            state.user = action.payload.user;
-            state.access = action.payload.access;
-            state.refresh = action.payload.refresh || null;
-            state.onboarding = action.payload.onboarding || null;
-            state.isSessionRestoring = false;
-        },
-        loaded: (state, action: PayloadAction<{
-            user: Record<string, any>;
-            access?: string;
-            refresh?: string;
-            onboarding?: OnboardingStatus;
-        }>) => {
-            state.user = action.payload.user;
-            if (action.payload.access) state.access = action.payload.access;
-            if (action.payload.refresh) state.refresh = action.payload.refresh;
-            if (action.payload.onboarding) state.onboarding = action.payload.onboarding;
-            state.isSessionRestoring = false;
-        },
-        updateUserProfile: (state, action: PayloadAction<Record<string, any>>) => {
-            if (state.user) {
-                state.user = { ...state.user, ...action.payload };
-            }
-        },
-        updateOnboarding: (state, action: PayloadAction<OnboardingStatus>) => {
-            state.onboarding = action.payload;
+        loaded: (state, action: PayloadAction<{ user: Record<string, any> }>) => {
+            state.user = action.payload;
         },
         logout: (state) => {
             state.user = null;
-            state.access = null;
-            state.refresh = null;
-            state.onboarding = null;
-            state.isSessionRestoring = false;
+            state.token = {
+                access: "",
+                refresh: ""
+            };
+            state.error = null;
+            state.loading = false;
         },
         // Deprecated: kept for backward compatibility
         edit: (state, action: PayloadAction<Record<string, any>>) => {
@@ -93,10 +60,6 @@ export const {
     loaded,
     logout,
     edit,
-    setSessionRestoring,
-    updateUserProfile,
-    updateOnboarding,
-    setNetworkInfo,
 } = authSlice.actions;
 
 export default authSlice.reducer;

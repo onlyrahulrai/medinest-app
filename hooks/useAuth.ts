@@ -4,7 +4,7 @@ import { authStorage } from '../utils/authStorage';
 import { authService } from '../services/api/auth';
 import {
     authenticated,
-    setSessionRestoring,
+    loaded
 } from '../reducers';
 
 export function useAuth() {
@@ -67,28 +67,18 @@ export function useAuth() {
                     setSessionToken(result.access);
                 }
 
-                // Extract onboarding status from response
-                const onboarding = result?.onboarding || {
-                    completed: result?.isOnboardingCompleted || false,
-                    step: result?.onboardingStep || 1,
-                };
-
                 // Dispatch to Redux for global state
                 dispatch(
-                    authenticated({
-                        user: result,
-                        access: result.access,
-                        refresh: result.refresh,
-                        onboarding,
-                    })
+                    authenticated(result)
                 );
 
                 return {
                     success: true,
                     data: result,
-                    onboarding,
                 };
             } catch (err: any) {
+                console.log('Login error', err);
+
                 const errorMessage =
                     err.response?.data?.fields?.otp ||
                     err.response?.data?.message ||
@@ -108,7 +98,7 @@ export function useAuth() {
             await authService.logout();
             await authStorage.deleteToken();
             setSessionToken(null);
-            dispatch(setSessionRestoring(false));
+            // dispatch(setSessionRestoring(false));
         } catch (err: any) {
             console.error('Logout error', err);
         } finally {
@@ -119,10 +109,22 @@ export function useAuth() {
     const getUserProfile = useCallback(async () => {
         try {
             const profile = await authService.getProfile();
-            return profile;
+
+            return { success: true, data: profile };
         } catch (err) {
-            console.error('Failed to fetch user profile', err);
-            return null;
+            return { success: false, data: null };
+        }
+    }, []);
+
+    const editUserProfile = useCallback(async (data: Record<string, any>) => {
+        try {
+            const result = await authService.editProfile(data);
+
+            dispatch(loaded(result));
+
+            return { success: true, data: result };
+        } catch (err: any) {
+            return err.response?.data;
         }
     }, []);
 
@@ -132,6 +134,7 @@ export function useAuth() {
         error,
         requestOTP,
         loginWithOtp,
+        editUserProfile,
         getUserProfile,
         logout,
     };

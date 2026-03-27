@@ -1,10 +1,7 @@
 export { default as authReducer } from './authSlice';
-export {
-    loaded,
-    authenticated,
-    logout,
-    edit,
-    setSessionRestoring,
-    updateUserProfile,
-    updateOnboarding,
-} from './authSlice';
+export { default as appReducer } from './appSlice';
+export { default as networkReducer } from './networkSlice';
+
+export * from './authSlice';
+export * from './appSlice';
+export * from './networkSlice';

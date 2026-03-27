@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal, TextInput, Alert } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { fetchCurrentUserProfile } from '../../services/api/profile';
-import { updateOnboardingProfile, buildOnboardingPayload } from '../../utils/onboardingHelpers';
-import { updateOnboarding } from '../../reducers';
 import moment from 'moment';
+import { createOnboardingPayload } from '@/utils/onboardingHelpers';
+import { useAuth } from '@/hooks/useAuth';
+import { useSelector } from 'react-redux';
 
 const DEFAULT_ROUTINES = [
     { name: 'Morning', time: '09:00' },
@@ -18,27 +17,16 @@ const DEFAULT_ROUTINES = [
 
 export default function Step4Screen() {
     const router = useRouter();
-    const dispatch = useDispatch();
-    const params = useLocalSearchParams();
     const [routines, setRoutines] = useState(DEFAULT_ROUTINES);
     const [isSaving, setIsSaving] = useState(false);
+    const { editUserProfile } = useAuth();
+    const user = useSelector((state: any) => state.auth.user);
 
-    // Pre-fill from saved profile if resuming
     useEffect(() => {
-        fetchCurrentUserProfile()
-            .then((profile: any) => {
-                const savedRoutines = profile?.preferences?.reminderTimes || [];
-                if (savedRoutines.length > 0) {
-                    // Convert time strings to routine format if needed
-                    const formattedRoutines = savedRoutines.map((time: string, idx: number) => ({
-                        name: `Reminder ${idx + 1}`,
-                        time: time,
-                    }));
-                    setRoutines(formattedRoutines);
-                }
-            })
-            .catch(err => console.error('Failed to prefill Step 4:', err));
-    }, []);
+        if (user && user.routines) {
+            setRoutines(user.routines);
+        }
+    }, [user]);
 
     // Modal & Picker State
     const [showAddModal, setShowAddModal] = useState(false);
@@ -88,32 +76,25 @@ export default function Step4Screen() {
         }
 
         setIsSaving(true);
+
         try {
-            // Extract times from routines
             // Build payload for step 4
-            const payload = buildOnboardingPayload(4, {
+            const payload = createOnboardingPayload(4, {
                 routines,
-                soundEnabled: true,
-                vibrationEnabled: true,
-                shareActivityWithCaregiver: true,
             });
 
             console.log('Onboarding Step 4 payload:', payload);
 
             // Save to backend
-            const result = await updateOnboardingProfile(payload);
+            const result = await editUserProfile(payload);
 
-            if (!result.success) {
-                Alert.alert('Error', result.error || 'Failed to save. Please try again.');
+            if (result?.message) {
+                Alert.alert('Oops', result.message || 'Failed to save. Please try again.');
                 return;
             }
 
-            // Update Redux
-            dispatch(updateOnboarding({ completed: false, step: 5 }));
-
             router.push({
                 pathname: '/(onboarding)/step5' as any,
-                params: { ...params }
             });
         } catch (error) {
             console.error('Step 4 error:', error);
@@ -126,7 +107,7 @@ export default function Step4Screen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={() => router.replace("/(onboarding)/step3")} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
                 <View style={styles.progressContainer}>
@@ -249,7 +230,7 @@ export default function Step4Screen() {
                         <Text style={styles.nextButtonText}>
                             Next Step
                         </Text>
-                        {!isSaving && <Ionicons name="arrow-forward" size={24} color="white" />}
+                        {isSaving ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="arrow-forward" size={24} color="white" />}
                     </LinearGradient>
                 </TouchableOpacity>
             </View>

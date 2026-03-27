@@ -4,8 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider } from "react-redux";
 import { Stack } from "expo-router";
 import CaregiverInvitationModal from "../components/CaregiverInvitationModal";
-import RootNavigator from "./RootNavigator";
-import AuthSync from "@/components/auth/AuthSync";
 import { store } from "../store";
 
 const queryClient = new QueryClient();
@@ -14,7 +12,7 @@ export default function Layout() {
   return (
     <QueryClientProvider client={queryClient}>
       <Provider store={store}>
-        <AuthSync />
+        {/* <AuthSync /> */}
         <StatusBar style="light" />
         <CaregiverInvitationModal />
         <Stack
@@ -63,7 +61,6 @@ export default function Layout() {
             options={{ headerShown: false, animation: "slide_from_bottom" }}
           />
         </Stack>
-        <RootNavigator />
       </Provider>
     </QueryClientProvider>
   );

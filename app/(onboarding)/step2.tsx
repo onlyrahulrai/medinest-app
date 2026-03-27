@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { useDispatch } from "react-redux";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,17 +10,16 @@ import {
   KeyboardAvoidingView,
   Alert,
 } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
-import { fetchCurrentUserProfile } from "../../services/api/profile";
 import {
-  updateOnboardingProfile,
-  buildOnboardingPayload,
+  createOnboardingPayload,
 } from "../../utils/onboardingHelpers";
-import { updateOnboarding } from "../../reducers";
 import "../../utils/i18n";
+import { useAuth } from "@/hooks/useAuth";
+import { useSelector } from "react-redux";
 
 const PREDEFINED_CONDITIONS = [
   "Diabetes",
@@ -35,44 +33,19 @@ const PREDEFINED_CONDITIONS = [
 
 export default function Step2Screen() {
   const router = useRouter();
-  const dispatch = useDispatch();
   const { t } = useTranslation();
-  const params = useLocalSearchParams();
-
-  // Params from Step 1
-  const [name, setName] = useState((params.name as string) || "");
-  const [dateOfBirth, setDateOfBirth] = useState(
-    (params.dateOfBirth as string) || "",
-  );
-  const [gender, setGender] = useState((params.gender as string) || "");
-  const [weight, setWeight] = useState((params.weight as string) || "");
-  const [phoneNumber, setPhoneNumber] = useState(
-    (params.phoneNumber as string) || "",
-  );
-
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const user = useSelector((state: any) => state.auth.user);
   const [otherCondition, setOtherCondition] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const { editUserProfile } = useAuth();
 
-  // Pre-fill from saved profile if resuming onboarding
   useEffect(() => {
-    if (!name && !dateOfBirth) {
-      fetchCurrentUserProfile()
-        .then((profile: any) => {
-          if (profile?.name) setName(profile.name);
-          const dob = profile?.profile?.dateOfBirth || profile?.dateOfBirth;
-          if (dob) setDateOfBirth(new Date(dob).toISOString());
-          const g = profile?.profile?.gender || profile?.gender;
-          if (g) setGender(g);
-          const w = profile?.profile?.weight ?? profile?.weight;
-          if (w != null) setWeight(String(w));
-          if (profile?.phone) setPhoneNumber(profile.phone);
-          const conds = profile?.profile?.conditions || profile?.conditions;
-          if (conds?.length) setSelectedConditions(conds);
-        })
-        .catch((err) => console.error("Failed to prefill Step 2:", err));
+    // Pre-fill from saved profile if resuming onboarding
+    if (user?.profile?.conditions) {
+      setSelectedConditions(user.profile.conditions);
     }
-  }, [name, dateOfBirth]);
+  }, [user]);
 
   const toggleCondition = (condition: string) => {
     if (condition === "None") {
@@ -82,6 +55,7 @@ export default function Step2Screen() {
 
     setSelectedConditions((prev) => {
       const current = prev.filter((c) => c !== "None");
+
       if (current.includes(condition)) {
         return current.filter((c) => c !== condition);
       } else {
@@ -99,40 +73,28 @@ export default function Step2Screen() {
     setIsSaving(true);
 
     try {
-      // Build payload for step 2
-      // IMPORTANT: Do NOT send languages here - buildOnboardingPayload(2) doesn't include it
-      // This prevents accidentally overwriting the user's language preference
-      const payload = buildOnboardingPayload(2, {
+      console.log("Selected conditions before payload:", selectedConditions);
+
+      const payload = createOnboardingPayload(2, {
         conditions: selectedConditions,
+        profile: user?.profile || {}, // Include existing profile to prevent overwriting
       });
 
       console.log("Onboarding Step 2 payload:", payload);
 
       // Save to backend
-      const result = await updateOnboardingProfile(payload);
+      const result = await editUserProfile(payload);
 
-      if (!result.success) {
+      if (result?.message) {
         Alert.alert(
-          "Error",
-          result.error || "Failed to save. Please try again.",
+          "Oops",
+          result?.message || "Failed to save. Please try again.",
         );
         return;
       }
 
-      // Update Redux
-      dispatch(updateOnboarding({ completed: false, step: 3 }));
-
       router.push({
         pathname: "/(onboarding)/step3" as any,
-        params: {
-          name,
-          dateOfBirth,
-          gender,
-          weight,
-          phoneNumber,
-          otherCondition: otherCondition.trim(),
-          conditions: JSON.stringify(selectedConditions),
-        },
       });
     } catch (error) {
       console.error("Step 2 error:", error);
@@ -151,7 +113,7 @@ export default function Step2Screen() {
     >
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.replace("/(onboarding)/step1")}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color="#333" />

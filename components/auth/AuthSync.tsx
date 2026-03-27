@@ -2,21 +2,17 @@ import { authStorage } from "@/utils/authStorage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect } from "react";
 import { useSelector } from "react-redux";
+import * as Network from "expo-network";
 
 const AuthSync = () => {
   const auth = useSelector((state: Record<string, any>) => state.auth);
-
-  console.log("Auth state in AuthSync:", auth);
+  const networkState = Network.useNetworkState();
 
   useEffect(() => {
     const getLangauge = async () => {
       const language = await AsyncStorage.getItem("language");
 
-      const token = await authStorage.getToken();
-
-      console.log("Retrieved token from secure storage:", token);
-
-      console.log("Retrieved language from AsyncStorage:", language);
+      console.log(`Current network type: ${networkState.type}`);
 
       if (!language) {
         // Set the language in your app's state or context

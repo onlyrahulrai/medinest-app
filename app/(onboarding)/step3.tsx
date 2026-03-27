@@ -1,62 +1,99 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { saveOnboardingProfile, fetchCurrentUserProfile } from '../../services/api/profile';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useDispatch } from 'react-redux';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { lookupCaregiverByPhone } from '../../services/api/caregivers';
+import { fetchCurrentUserProfile } from '../../services/api/profile';
+import { updateOnboardingProfile, buildOnboardingPayload, validateCaregiverPhone } from '../../utils/onboardingHelpers';
+import { updateOnboarding } from '../../reducers';
 import '../../utils/i18n';
 
 const PHONE_REGEX = /^[6-9]\d{9}$/;
+const DEBOUNCE_DELAY = 400; // ms
 
 export default function Step3Screen() {
     const router = useRouter();
+    const dispatch = useDispatch();
     const { t } = useTranslation();
     const params = useLocalSearchParams();
+    const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
     // Params from previous steps
     const [name, setName] = useState(params.name as string || '');
     const [dateOfBirth, setDateOfBirth] = useState(params.dateOfBirth as string || '');
     const [gender, setGender] = useState(params.gender as string || '');
     const [weight, setWeight] = useState(params.weight as string || '');
-    const [conditions, setConditions] = useState(params.conditions as string || ''); // JSON stringified
+    const [conditions, setConditions] = useState(params.conditions as string || '');
     const [phoneNumber, setPhoneNumber] = useState(params.phoneNumber as string || '');
 
     const [emergencyName, setEmergencyName] = useState('');
     const [emergencyPhone, setEmergencyPhone] = useState('');
     const [emergencyRelation, setEmergencyRelation] = useState('');
-
-    // Pre-fill from saved profile if params are missing
-    useEffect(() => {
-      if (!name && !dateOfBirth) {
-        fetchCurrentUserProfile().then((profile) => {
-          if (profile?.name) setName(profile.name);
-          if (profile?.dateOfBirth) setDateOfBirth(new Date(profile.dateOfBirth).toISOString());
-          if (profile?.gender) setGender(profile.gender);
-          if (profile?.weight != null) setWeight(String(profile.weight));
-          if (profile?.phone) setPhoneNumber(profile.phone);
-          if (profile?.conditions?.length) setConditions(JSON.stringify(profile.conditions));
-          const caregiver = profile?.caregiverContacts?.[0];
-          if (caregiver?.name) setEmergencyName(caregiver.name);
-          if (caregiver?.phoneNumber) setEmergencyPhone(caregiver.phoneNumber);
-          if (caregiver?.relation) setEmergencyRelation(caregiver.relation);
-        }).catch(() => {});
-      }
-    }, []);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Phone validation & lookup state
     const [phoneError, setPhoneError] = useState('');
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'checking' | 'found' | 'not-found'>('idle');
     const [isLookingUp, setIsLookingUp] = useState(false);
 
-    const validateAndLookup = useCallback(async (phone: string) => {
+    // Pre-fill from saved profile if resuming
+    useEffect(() => {
+        if (!name && !dateOfBirth) {
+            fetchCurrentUserProfile()
+                .then((profile: any) => {
+                    if (profile?.name) setName(profile.name);
+                    const dob = profile?.profile?.dateOfBirth || profile?.dateOfBirth;
+                    if (dob) setDateOfBirth(new Date(dob).toISOString());
+                    const g = profile?.profile?.gender || profile?.gender;
+                    if (g) setGender(g);
+                    const w = profile?.profile?.weight ?? profile?.weight;
+                    if (w != null) setWeight(String(w));
+                    if (profile?.phone) setPhoneNumber(profile.phone);
+                    const conds = profile?.profile?.conditions || profile?.conditions;
+                    if (conds?.length) setConditions(JSON.stringify(conds));
+                    const caregiver = profile?.caregiverContacts?.[0];
+                    if (caregiver?.name) setEmergencyName(caregiver.name);
+                    if (caregiver?.phoneNumber) setEmergencyPhone(caregiver.phoneNumber);
+                    if (caregiver?.relation) setEmergencyRelation(caregiver.relation);
+                })
+                .catch(err => console.error('Failed to prefill Step 3:', err));
+        }
+    }, [name, dateOfBirth]);
+
+    // Cleanup debounce on unmount
+    useEffect(() => {
+        return () => {
+            if (debounceTimer.current) {
+                clearTimeout(debounceTimer.current);
+            }
+        };
+    }, []);
+
+    const performPhoneLookup = useCallback(async (digits: string) => {
+        setIsLookingUp(true);
+        setLookupStatus('checking');
+        try {
+            const result = await validateCaregiverPhone(digits);
+
+            console.log('Phone lookup result:', result);
+
+            if (result.success) {
+                setLookupStatus(result.data?.found ? 'found' : 'not-found');
+            } else {
+                setLookupStatus('not-found');
+            }
+        } finally {
+            setIsLookingUp(false);
+        }
+    }, []);
+
+    const validateAndLookup = useCallback((phone: string) => {
         setEmergencyPhone(phone);
         setPhoneError('');
         setLookupStatus('idle');
 
-        // Only digits
         const digits = phone.replace(/\D/g, '');
 
         if (digits.length === 0) {
@@ -64,76 +101,94 @@ export default function Step3Screen() {
         }
 
         if (digits.length < 10) {
-            setPhoneError(t('onboarding.step3.validation.tooShort'));
+            setPhoneError(t('onboarding.step3.validation.tooShort') || 'Phone number too short');
             return;
         }
 
         if (digits.length > 10) {
-            setPhoneError(t('onboarding.step3.validation.tooLong'));
+            setPhoneError(t('onboarding.step3.validation.tooLong') || 'Phone number too long');
             return;
         }
 
         if (!PHONE_REGEX.test(digits)) {
-            setPhoneError(t('onboarding.step3.validation.invalidFormat'));
+            setPhoneError(t('onboarding.step3.validation.invalidFormat') || 'Invalid phone format');
             return;
         }
 
         if (digits === phoneNumber) {
-            setPhoneError(t('onboarding.step3.validation.sameAsUser'));
+            setPhoneError(t('onboarding.step3.validation.sameAsUser') || 'Cannot use your own phone number');
             return;
         }
 
-        // Valid format — look up in system
-        setIsLookingUp(true);
-        setLookupStatus('checking');
-        try {
-            const result = await lookupCaregiverByPhone(digits);
-            setLookupStatus(result.found ? 'found' : 'not-found');
-        } catch {
-            setLookupStatus('not-found');
-        } finally {
-            setIsLookingUp(false);
+        // Debounce the lookup
+        if (debounceTimer.current) {
+            clearTimeout(debounceTimer.current);
         }
-    }, [phoneNumber, t]);
+        debounceTimer.current = setTimeout(() => {
+            performPhoneLookup(digits);
+        }, DEBOUNCE_DELAY);
+    }, [phoneNumber, t, performPhoneLookup]);
 
     const handleNext = async () => {
-        // Block if phone is entered but invalid
+        // Allow skipping caregiver info, but validate if provided
         if (emergencyPhone.trim().length > 0 && phoneError) {
+            Alert.alert('Invalid Phone', 'Please fix the phone number or clear it to skip');
             return;
         }
-        // Save progress to backend
-        const lang = await AsyncStorage.getItem('user-language');
-        await saveOnboardingProfile({
-            name,
-            dateOfBirth,
-            gender,
-            weight,
-            conditions: conditions ? JSON.parse(conditions) : [],
-            caregivers: emergencyName ? [{ name: emergencyName, phoneNumber: emergencyPhone, relation: emergencyRelation }] : [],
-            preferences: { reminderTimes: [], soundEnabled: true, vibrationEnabled: true, shareActivityWithCaregiver: true },
-            isOnboardingCompleted: false,
-            onboardingStep: 4,
-            languages: lang ? [lang] : [],
-        });
-        router.push({
-            pathname: '/(onboarding)/step4' as any,
-            params: {
-                name,
-                dateOfBirth,
-                gender,
-                weight,
-                conditions,
-                phoneNumber,
-                emergencyName,
-                emergencyPhone,
-                emergencyRelation,
-                caregiverVerified: lookupStatus === 'found' ? 'true' : 'false'
+
+        setIsSaving(true);
+        try {
+            // Parse conditions safely
+            const parsedConditions = conditions ? JSON.parse(conditions) : [];
+
+            // Build payload for step 3
+            const payload = buildOnboardingPayload(3, {
+                caregivers: emergencyName || emergencyPhone ? [{
+                    name: emergencyName.trim(),
+                    phone: emergencyPhone.trim(),
+                    relation: emergencyRelation.trim(),
+                }] : [],
+            });
+
+            console.log('Onboarding Step 3 payload:', payload);
+
+            // Save to backend
+            const result = await updateOnboardingProfile(payload);
+
+            if (!result.success) {
+                Alert.alert('Error', result.error || 'Failed to save. Please try again.');
+                return;
             }
-        });
+
+            // Update Redux
+            dispatch(updateOnboarding({ completed: false, step: 4 }));
+
+            router.push({
+                pathname: '/(onboarding)/step4' as any,
+                params: {
+                    name,
+                    dateOfBirth,
+                    gender,
+                    weight,
+                    conditions,
+                    phoneNumber,
+                    emergencyName,
+                    emergencyPhone,
+                    emergencyRelation,
+                    caregiverVerified: lookupStatus === 'found' ? 'true' : 'false',
+                }
+            });
+        } catch (error) {
+            console.error('Step 3 error:', error);
+            Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const hasCaregiverData = emergencyName.trim().length > 0 || emergencyPhone.trim().length > 0;
     const hasPhoneError = emergencyPhone.trim().length > 0 && phoneError.length > 0;
+    const isNextDisabled = hasPhoneError || isSaving;
 
     return (
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

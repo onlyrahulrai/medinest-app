@@ -13,7 +13,7 @@ export const authService = {
     },
 
     editProfile: async (data: Record<string, any>) => {
-        const response = await axiosInstance.post('/auth/edit-profile', data);
+        const response = await axiosInstance.put('/auth/edit-profile', data);
 
         return response.data;
     },

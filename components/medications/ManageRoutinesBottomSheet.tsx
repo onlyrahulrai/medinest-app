@@ -13,7 +13,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { getRoutines, createRoutine, deleteRoutine } from "../../services/api/routines";
+import { getRoutines, createRoutine, deleteRoutine, updateRoutine, Routine } from "../../services/api/routines";
+import moment from "moment";
 
 interface ManageRoutinesBottomSheetProps {
   visible: boolean;
@@ -23,11 +24,14 @@ interface ManageRoutinesBottomSheetProps {
 const { height } = Dimensions.get('window');
 
 const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomSheetProps) => {
-  const [routines, setRoutines] = useState<any[]>([]);
-  const [isAdding, setIsAdding] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newTime, setNewTime] = useState(new Date());
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  
+  // Custom Routine Modal (Step 4 Style)
+  const [showFormModal, setShowFormModal] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [routineName, setRoutineName] = useState("");
+  const [routineTime, setRoutineTime] = useState(new Date());
 
   useEffect(() => {
     if (visible) {
@@ -44,19 +48,37 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
     }
   };
 
-  const handleAdd = async () => {
-    if (!newName) {
-      Alert.alert("Error", "Please enter a routine name (e.g., Morning)");
+  const openAddModal = () => {
+    setEditId(null);
+    setRoutineName("");
+    setRoutineTime(moment('08:00', 'HH:mm').toDate());
+    setShowFormModal(true);
+  };
+
+  const openEditModal = (routine: Routine) => {
+    setEditId(routine._id);
+    setRoutineName(routine.name);
+    setRoutineTime(moment(routine.time, 'HH:mm').toDate());
+    setShowFormModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!routineName.trim()) {
+      Alert.alert("Error", "Please enter a routine name");
       return;
     }
     try {
-      const timeStr = `${newTime.getHours().toString().padStart(2, "0")}:${newTime.getMinutes().toString().padStart(2, "0")}`;
-      await createRoutine({ name: newName, time: timeStr });
-      setNewName("");
-      setIsAdding(false);
+      const timeStr = moment(routineTime).format('HH:mm');
+      if (editId) {
+        await updateRoutine(editId, { name: routineName, time: timeStr });
+      } else {
+        await createRoutine({ name: routineName, time: timeStr });
+      }
+      setShowFormModal(false);
+      setEditId(null);
       fetchRoutines();
     } catch (error) {
-      Alert.alert("Error", "Failed to add routine");
+      Alert.alert("Error", "Failed to save routine");
     }
   };
 
@@ -82,6 +104,11 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
     );
   };
 
+  const handleTimeChange = (event: any, selectedDate?: Date) => {
+    setShowTimePicker(false);
+    if (selectedDate) setRoutineTime(selectedDate);
+  };
+
   return (
     <Modal
       visible={visible}
@@ -101,83 +128,96 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
             {routines.map((r) => (
               <View key={r._id} style={styles.routineItem}>
-                <View>
+                <View style={styles.routineInfo}>
                   <Text style={styles.routineName}>{r.name}</Text>
-                  <Text style={styles.routineTime}>{r.time}</Text>
+                  <View style={styles.routineTimeRow}>
+                    <Ionicons name="time-outline" size={14} color="#64748B" />
+                    <Text style={styles.routineTime}>{moment(r.time, 'HH:mm').format('hh:mm A')}</Text>
+                  </View>
                 </View>
-                <TouchableOpacity onPress={() => handleDelete(r._id)}>
-                  <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                </TouchableOpacity>
+                <View style={styles.routineActions}>
+                  <TouchableOpacity onPress={() => openEditModal(r)} style={styles.actionBtn}>
+                    <Ionicons name="pencil-outline" size={20} color="#059669" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleDelete(r._id)} style={styles.actionBtn}>
+                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
 
-            {isAdding ? (
-              <View style={styles.addCard}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Routine name (e.g. Bedtime)"
-                  value={newName}
-                  onChangeText={setNewName}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={styles.timeSelect}
-                  onPress={() => setShowTimePicker(true)}
-                >
-                  <Ionicons name="time-outline" size={20} color="#666" />
-                  <Text style={styles.timeSelectText}>
-                    {newTime.getHours().toString().padStart(2, "0")}:{newTime.getMinutes().toString().padStart(2, "0")}
-                  </Text>
-                </TouchableOpacity>
-
-                <View style={styles.addActions}>
-                  <TouchableOpacity 
-                    style={[styles.btn, styles.cancelBtn]} 
-                    onPress={() => setIsAdding(false)}
-                  >
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.btn, styles.saveBtn]} 
-                    onPress={handleAdd}
-                  >
-                    <Text style={styles.saveBtnText}>Add</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={() => setIsAdding(true)}
-              >
-                <Ionicons name="add-circle-outline" size={24} color="#059669" />
-                <Text style={styles.addBtnText}>Add New Routine</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={openAddModal}
+            >
+              <Ionicons name="add-circle-outline" size={24} color="#059669" />
+              <Text style={styles.addBtnText}>Add New Routine</Text>
+            </TouchableOpacity>
           </ScrollView>
-
-          {showTimePicker && (
-            <DateTimePicker
-              value={newTime}
-              mode="time"
-              is24Hour={true}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, date) => {
-                setShowTimePicker(false);
-                if (date) setNewTime(date);
-              }}
-            />
-          )}
 
           <View style={styles.footer}>
              <TouchableOpacity 
                 style={styles.doneBtn} 
                 onPress={() => onClose(true)}
               >
-                <Text style={styles.doneBtnText}>Done</Text>
+                <Text style={styles.doneBtnText}>Close</Text>
              </TouchableOpacity>
           </View>
         </View>
+
+        {/* Step 4 Style Add/Edit Modal */}
+        <Modal visible={showFormModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>
+                {editId ? 'Edit Routine' : 'New Routine'}
+              </Text>
+
+              <Text style={styles.modalLabel}>Routine Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. Afternoon, Bedtime"
+                value={routineName}
+                onChangeText={setRoutineName}
+              />
+
+              <Text style={styles.modalLabel}>Occurrence Time</Text>
+              <TouchableOpacity style={styles.timeSelectBtn} onPress={() => setShowTimePicker(true)}>
+                <Ionicons name="time-outline" size={20} color="#4CAF50" />
+                <Text style={styles.timeSelectText}>
+                  {moment(routineTime).format('hh:mm A')}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity 
+                  style={styles.modalCancelBtn} 
+                  onPress={() => {
+                    setShowFormModal(false);
+                    setEditId(null);
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave}>
+                  <Text style={styles.modalSaveText}>
+                    {editId ? 'Update' : 'Add Routine'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {showTimePicker && (
+          <DateTimePicker
+            value={routineTime}
+            mode="time"
+            is24Hour={true}
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleTimeChange}
+          />
+        )}
       </View>
     </Modal>
   );
@@ -191,19 +231,19 @@ const styles = StyleSheet.create({
   },
   content: {
     backgroundColor: 'white',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 24,
-    maxHeight: height * 0.8,
+    maxHeight: height * 0.85,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   title: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#1E293B',
   },
@@ -217,92 +257,60 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 18,
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    borderRadius: 20,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  routineInfo: {
+    flex: 1,
   },
   routineName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#334155',
+    color: '#1E293B',
+  },
+  routineTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
   },
   routineTime: {
     fontSize: 14,
+    fontWeight: '600',
     color: '#64748B',
-    marginTop: 2,
   },
-  addBtn: {
+  routineActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    marginTop: 8,
+    gap: 8,
   },
-  addBtnText: {
-    marginLeft: 8,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#059669',
-  },
-  addCard: {
-    padding: 16,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 8,
-  },
-  input: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-    padding: 0,
-    marginBottom: 16,
-  },
-  timeSelect: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
+  actionBtn: {
+    padding: 10,
     backgroundColor: 'white',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  timeSelectText: {
-    marginLeft: 8,
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+    borderWidth: 2,
+    borderColor: '#059669',
+    borderStyle: 'dashed',
+    borderRadius: 20,
+    marginTop: 12,
+    backgroundColor: '#F0FDF4',
+  },
+  addBtnText: {
+    marginLeft: 10,
     fontSize: 16,
     fontWeight: '700',
-    color: '#334155',
-  },
-  addActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 20,
-    gap: 12,
-  },
-  btn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  cancelBtn: {
-    backgroundColor: '#F1F5F9',
-  },
-  cancelBtnText: {
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  saveBtn: {
-    backgroundColor: '#059669',
-  },
-  saveBtnText: {
-    color: 'white',
-    fontWeight: '700',
+    color: '#059669',
   },
   footer: {
     paddingTop: 16,
@@ -312,13 +320,99 @@ const styles = StyleSheet.create({
   doneBtn: {
     backgroundColor: '#1E293B',
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 18,
     alignItems: 'center',
   },
   doneBtnText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  // Modal Styles (Step 4 Consistency)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 30,
+    padding: 28,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    marginBottom: 24,
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  modalInput: {
+    backgroundColor: '#F8FAFC',
+    padding: 18,
+    borderRadius: 16,
+    fontSize: 17,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    color: '#1E293B',
+    fontWeight: '600',
+  },
+  timeSelectBtn: {
+    backgroundColor: '#F0FDF4',
+    padding: 18,
+    borderRadius: 16,
+    marginBottom: 28,
+    borderWidth: 1.5,
+    borderColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  timeSelectText: {
+    color: '#059669',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 14,
+  },
+  modalCancelBtn: {
+    padding: 16,
+  },
+  modalCancelText: {
+    color: '#64748B',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  modalSaveBtn: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    shadowColor: '#4CAF50',
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalSaveText: {
+    color: 'white',
+    fontWeight: '900',
+    fontSize: 17,
   },
 });
 

@@ -21,11 +21,13 @@ export default function LanguageSelectionScreen() {
   const handleLanguageSelect = async (code: string) => {
     setSelectedLanguage(code);
     await i18n.changeLanguage(code);
-    await AsyncStorage.setItem('user-language', code);
+    await AsyncStorage.setItem('language', code);
   };
 
   const handleNext = () => {
-    router.push('/(auth)/login');
+    // After language selection, go to login
+    // User will authenticate, then be directed to onboarding or home
+    router.replace('/(auth)/login');
   };
 
   return (

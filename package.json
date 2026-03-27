@@ -21,6 +21,8 @@
     "@react-native-community/datetimepicker": "^8.2.0",
     "@react-navigation/bottom-tabs": "^7.0.0",
     "@react-navigation/native": "^7.0.0",
+    "@reduxjs/toolkit": "^2.11.2",
+    "@tanstack/react-query": "^5.95.2",
     "axios": "^1.13.6",
     "crypto": "^1.0.1",
     "expo": "~52.0.49",
@@ -62,6 +64,7 @@
     "react-native-svg": "15.8.0",
     "react-native-web": "~0.19.13",
     "react-native-webview": "^13.12.5",
+    "react-redux": "^9.2.0",
     "viem": "^2.21.55"
   },
   "devDependencies": {

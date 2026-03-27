@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getInvitations, respondToInvitation } from '../services/api/caregivers';
+import { caregiverApi } from '../services/api/caregiverApi';
 import { getUserProfile } from '../utils/storage';
 import { useFocusEffect } from 'expo-router';
 
@@ -13,9 +13,11 @@ export default function CaregiverInvitationModal() {
     const checkInvitations = async () => {
         try {
             const profile = await getUserProfile();
+
             if (!profile?.phoneNumber) return;
 
-            const invitations = await getInvitations(profile.phoneNumber);
+            const invitations = await caregiverApi.getInvitations(profile.phoneNumber);
+            
             if (invitations && invitations.length > 0) {
                 setInvitation(invitations[0]); // Show the first one
                 setIsVisible(true);
@@ -28,17 +30,17 @@ export default function CaregiverInvitationModal() {
         }
     };
 
-    useEffect(() => {
-        const interval = setInterval(checkInvitations, 60000); // Check every minute
-        checkInvitations();
-        return () => clearInterval(interval);
-    }, []);
+    // useEffect(() => {
+    //     const interval = setInterval(checkInvitations, 60000); // Check every minute
+    //     checkInvitations();
+    //     return () => clearInterval(interval);
+    // }, []);
 
     const handleResponse = async (status: 'accepted' | 'rejected') => {
         if (!invitation) return;
         setLoading(true);
         try {
-            await respondToInvitation(invitation._id, status);
+            await caregiverApi.respondToInvitation(invitation._id, status);
             Alert.alert("Success", status === 'accepted' ? "You have accepted the invite." : "Invitation declined.");
             setIsVisible(false);
             setInvitation(null);

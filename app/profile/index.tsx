@@ -5,7 +5,8 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserProfile } from '../../utils/storage';
 import { fetchCurrentUserProfile, mapRemoteProfileToLocalProfile } from '../../services/api/profile';
-import { upsertInvitation, removeCaregiver as removeCaregiverApi, lookupCaregiverByPhone, getInvitations, respondToInvitation } from '../../services/api/caregivers';
+import { useCaregivers, useAddCaregiver, useDeleteCaregiver, useRespondInvitation, useCheckUserExists } from '../../hooks/useCaregiverHooks';
+import { caregiverApi } from '../../services/api/caregiverApi';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -19,21 +20,28 @@ export default function ProfileScreen() {
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
 
+    const { addCaregiver } = useAddCaregiver();
+    const { deleteCaregiver } = useDeleteCaregiver();
+    const { respondInvitation } = useRespondInvitation();
+    const { data: caregiversList, refetch: refetchCaregivers } = useCaregivers();
+    const { checkUser, isExistingUser, existsName, isLookupLoading } = useCheckUserExists();
+
     useFocusEffect(
         useCallback(() => {
             loadProfile();
-            loadInvitations();
+            // loadInvitations();
         }, [])
     );
 
-    const loadInvitations = async () => {
-        try {
-            const data = await getInvitations(profile?.phoneNumber || "");
-            setPendingInvitations(data);
-        } catch (error) {
-            console.error("Failed to load invitations", error);
-        }
-    };
+    // const loadInvitations = async () => {
+    //     try {
+    //         const data = await caregiverApi.getInvitations(profile?.phoneNumber || "");
+
+    //         setPendingInvitations(data);
+    //     } catch (error) {
+    //         console.error("Failed to load invitations", error);
+    //     }
+    // };
 
     const loadProfile = async () => {
         setIsLoading(true);
@@ -44,7 +52,10 @@ export default function ProfileScreen() {
             
             // Also load invitations once we have the phone number
             if (localProfile.phoneNumber) {
-                const invs = await getInvitations(localProfile.phoneNumber);
+                const invs = await caregiverApi.getInvitations(localProfile.phoneNumber);
+
+                console.log("Loaded caregiver invitations:", invs);
+
                 setPendingInvitations(invs);
             }
         } catch (error) {
@@ -57,14 +68,14 @@ export default function ProfileScreen() {
     const handleAcceptInvitation = async (invitationId: string) => {
         setIsActionLoading(true);
         try {
-            await respondToInvitation(invitationId, 'accepted');
+            await respondInvitation(invitationId, 'accepted');
             Alert.alert("Success", "Invitation accepted.");
             loadProfile();
-            loadInvitations();
+            // loadInvitations();
         } catch (error: any) {
             Alert.alert("Error", error?.message || "Failed to accept");
         } finally {
-            setIsActionLoading(true);
+            setIsActionLoading(false);
         }
     };
 
@@ -80,7 +91,7 @@ export default function ProfileScreen() {
                     onPress: async () => {
                         setIsActionLoading(true);
                         try {
-                            await respondToInvitation(invitationId, 'rejected');
+                            await respondInvitation(invitationId, 'rejected');
                             loadInvitations();
                         } catch (error: any) {
                             Alert.alert("Error", error?.message || "Failed to decline");
@@ -98,12 +109,9 @@ export default function ProfileScreen() {
         
         setIsActionLoading(true);
         try {
-            // First lookup to see if they exist
-            const lookup = await lookupCaregiverByPhone(newCaregiverPhone);
-            
-            await upsertInvitation({
-                name: newCaregiverName || lookup.name,
-                phoneNumber: newCaregiverPhone,
+            await addCaregiver({
+                caregiverName: newCaregiverName || existsName,
+                caregiverPhone: newCaregiverPhone,
                 relation: newCaregiverRelation || "Other"
             });
             
@@ -120,7 +128,7 @@ export default function ProfileScreen() {
         }
     };
 
-    const handleRemoveCaregiver = (name: string, phoneNumber: string) => {
+    const handleRemoveCaregiver = (name: string, relationId: string) => {
         Alert.alert(
             "Remove Caregiver",
             `Are you sure you want to remove ${name}? they will no longer be able to manage your medications.`,
@@ -131,7 +139,7 @@ export default function ProfileScreen() {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            await removeCaregiverApi(phoneNumber);
+                            await deleteCaregiver(relationId);
                             loadProfile();
                         } catch (error: any) {
                             Alert.alert("Error", error?.message || "Failed to remove caregiver");
@@ -144,10 +152,10 @@ export default function ProfileScreen() {
 
     const handleResendInvitation = async (caregiver: any) => {
         try {
-            await upsertInvitation({
-                name: caregiver.name,
-                phoneNumber: caregiver.phoneNumber,
-                relation: caregiver.relation
+            await addCaregiver({
+                caregiverName: caregiver.name,
+                caregiverPhone: caregiver.phoneNumber,
+                relation: caregiver.relation || "Other"
             });
             Alert.alert("Success", "Invitation resent successfully.");
         } catch (error: any) {
@@ -288,7 +296,7 @@ export default function ProfileScreen() {
                                                     </TouchableOpacity>
                                                 )}
                                                 <TouchableOpacity
-                                                    onPress={() => handleRemoveCaregiver(caregiver.name, caregiver.phoneNumber)}
+                                                    onPress={() => handleRemoveCaregiver(caregiver.name, caregiver.id)}
                                                     style={styles.removeBtn}
                                                 >
                                                     <Ionicons name="trash-outline" size={18} color="#f44336" />
@@ -428,7 +436,7 @@ export default function ProfileScreen() {
                         <TextInput style={styles.modalInput} placeholder="e.g. Jane Doe" value={newCaregiverName} onChangeText={setNewCaregiverName} placeholderTextColor="#999" />
 
                         <Text style={styles.inputLabel}>Phone Number</Text>
-                        <TextInput style={styles.modalInput} placeholder="e.g. 9876543210" value={newCaregiverPhone} onChangeText={setNewCaregiverPhone} keyboardType="phone-pad" placeholderTextColor="#999" />
+                        <TextInput style={styles.modalInput} placeholder="e.g. 9876543210" value={newCaregiverPhone} onChangeText={(text) => { setNewCaregiverPhone(text); checkUser(text); }} keyboardType="phone-pad" placeholderTextColor="#999" />
 
                         <Text style={styles.inputLabel}>Relation</Text>
                         <TextInput style={styles.modalInput} placeholder="e.g. Spouse" value={newCaregiverRelation} onChangeText={setNewCaregiverRelation} placeholderTextColor="#999" />

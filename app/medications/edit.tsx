@@ -111,6 +111,7 @@ export default function EditMedicationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const id = params.id as string;
+  const idsParam = params.ids as string;
 
   // Common group-level fields (including global schedule)
   const [schedule, setSchedule] = useState({
@@ -174,67 +175,74 @@ export default function EditMedicationScreen() {
     loadData();
   }, []);
 
+  const mapToEntry = (m: any) => ({
+    _id: m._id,
+    id: m._id,
+    name: m.name,
+    dosage: m.dosage?.amount || "",
+    dosageUnit: m.dosage?.unit || "mg",
+    perIntake: m.dosage?.perIntake?.toString() || "1",
+    type: m.type || "",
+    mealTiming: m.mealTiming || [],
+    prescribedBy: m.prescription?.prescribedBy || "",
+    purpose: m.prescription?.purpose || "",
+    color: m.color || "#4CAF50",
+    notes: m.notes || "",
+    refillReminder: m.refill?.refillReminder || false,
+    currentSupply: m.refill?.remainingQuantity?.toString() || "",
+    refillAt: m.refill?.refillAt?.toString() || "",
+    imageUrl: m.imageUrl,
+    customSchedule: m.customSchedule?.enabled || false,
+    routineIds: m.routineIds || [],
+    frequency: m.customSchedule?.frequency === 'as_needed' ? 'As needed' : (m.customSchedule?.frequency === 'weekly' ? 'Weekly' : (m.customSchedule?.times?.length === 4 ? 'Four times daily' : (m.customSchedule?.times?.length === 3 ? 'Three times daily' : (m.customSchedule?.times?.length === 2 ? 'Twice daily' : 'Once daily')))),
+    times: m.customSchedule?.times || ["09:00"],
+    duration: "Ongoing",
+    startDate: m.duration?.startDate ? new Date(m.duration.startDate) : new Date(),
+  });
+
   useEffect(() => {
     const loadMedicationData = async () => {
       try {
-        const med = await apiGetMedicineById(id);
-        if (!med) return;
-
-        // Fetch user profile and routines
-        const [profile, fetchedRoutines] = await Promise.all([
+        const [profile, fetchedRoutines, allMeds] = await Promise.all([
           getUserProfile(),
-          getRoutines().catch(() => [])
+          getRoutines().catch(() => []),
+          apiGetAllMedicines().catch(() => [])
         ]);
 
         setUserProfile(profile as any);
         setRoutines(fetchedRoutines);
 
-        const mapToEntry = (m: any) => ({
-          _id: m._id,
-          id: m._id,
-          name: m.name,
-          dosage: m.dosage?.amount || "",
-          dosageUnit: m.dosage?.unit || "mg",
-          perIntake: m.dosage?.perIntake?.toString() || "1",
-          type: m.type || "",
-          mealTiming: m.mealTiming || [],
-          prescribedBy: m.prescription?.prescribedBy || "",
-          purpose: m.prescription?.purpose || "",
-          color: m.color || "#4CAF50",
-          notes: m.notes || "",
-          refillReminder: m.refill?.refillReminder || false,
-          currentSupply: m.refill?.remainingQuantity?.toString() || "",
-          refillAt: m.refill?.refillAt?.toString() || "",
-          imageUrl: m.imageUrl,
-          customSchedule: m.customSchedule?.enabled || false,
-          routineIds: m.routineIds || [],
-          frequency: m.customSchedule?.frequency === 'as_needed' ? 'As needed' : (m.customSchedule?.frequency === 'weekly' ? 'Weekly' : (m.customSchedule?.times?.length === 4 ? 'Four times daily' : (m.customSchedule?.times?.length === 3 ? 'Three times daily' : (m.customSchedule?.times?.length === 2 ? 'Twice daily' : 'Once daily')))),
-          times: m.customSchedule?.times || ["09:00"],
-          duration: "Ongoing",
-          startDate: m.duration?.startDate ? new Date(m.duration.startDate) : new Date(),
-        });
+        let medsToEdit = [];
+        if (idsParam) {
+          const idList = idsParam.split(',');
+          medsToEdit = allMeds.filter((m: any) => idList.includes(m._id));
+        } else if (id) {
+          const med = allMeds.find((m: any) => m._id === id);
+          if (med) {
+            medsToEdit = [med];
+            if (med.scheduleGroupId) {
+              const groupMeds = allMeds.filter((m: any) => m.scheduleGroupId === med.scheduleGroupId);
+              if (groupMeds.length > 0) medsToEdit = groupMeds;
+            }
+          }
+        }
+
+        if (medsToEdit.length === 0) return;
 
         setSchedule({
-          reminderEnabled: med.reminderEnabled || true,
+          reminderEnabled: medsToEdit[0].reminderEnabled ?? true,
           ownerId: "self",
-          scheduleGroupId: med.scheduleGroupId,
+          scheduleGroupId: medsToEdit[0].scheduleGroupId,
           addedBy: "patient",
         });
-
-        let medsToEdit = [med];
-        if (med.scheduleGroupId) {
-          const allMeds = await apiGetAllMedicines();
-          const groupMeds = allMeds.filter((m: any) => m.scheduleGroupId === med.scheduleGroupId);
-          if (groupMeds.length > 0) medsToEdit = groupMeds;
-        }
 
         setMedicines(medsToEdit.map(mapToEntry));
       } catch (error) {
         console.error("Load error:", error);
       }
     };
-    if (id) loadMedicationData();
-  }, [id]);
+    if (id || idsParam) loadMedicationData();
+  }, [id, idsParam]);
 
   const updateMedicine = (index: number, updates: Partial<MedicineEntry>) => {
     setMedicines(prev => prev.map((med, i) => i === index ? { ...med, ...updates } : med));

@@ -1,12 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { saveOnboardingProfile, fetchCurrentUserProfile } from '../../services/api/profile';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useTranslation } from 'react-i18next';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import '../../utils/i18n';
+import React, { useState, useEffect } from "react";
+import { useDispatch } from "react-redux";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+  KeyboardAvoidingView,
+  Alert,
+} from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useTranslation } from "react-i18next";
+import { fetchCurrentUserProfile } from "../../services/api/profile";
+import {
+  updateOnboardingProfile,
+  buildOnboardingPayload,
+} from "../../utils/onboardingHelpers";
+import { updateOnboarding } from "../../reducers";
+import "../../utils/i18n";
 
 const PREDEFINED_CONDITIONS = [
   "Diabetes",
@@ -20,32 +35,45 @@ const PREDEFINED_CONDITIONS = [
 
 export default function Step2Screen() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const { t } = useTranslation();
   const params = useLocalSearchParams();
 
   // Params from Step 1
-  const [name, setName] = useState(params.name as string || '');
-  const [dateOfBirth, setDateOfBirth] = useState(params.dateOfBirth as string || '');
-  const [gender, setGender] = useState(params.gender as string || '');
-  const [weight, setWeight] = useState(params.weight as string || '');
-  const [phoneNumber, setPhoneNumber] = useState(params.phoneNumber as string || '');
+  const [name, setName] = useState((params.name as string) || "");
+  const [dateOfBirth, setDateOfBirth] = useState(
+    (params.dateOfBirth as string) || "",
+  );
+  const [gender, setGender] = useState((params.gender as string) || "");
+  const [weight, setWeight] = useState((params.weight as string) || "");
+  const [phoneNumber, setPhoneNumber] = useState(
+    (params.phoneNumber as string) || "",
+  );
 
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [otherCondition, setOtherCondition] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Pre-fill from saved profile if params are missing (e.g., app resumed)
+  // Pre-fill from saved profile if resuming onboarding
   useEffect(() => {
     if (!name && !dateOfBirth) {
-      fetchCurrentUserProfile().then((profile) => {
-        if (profile?.name) setName(profile.name);
-        if (profile?.dateOfBirth) setDateOfBirth(new Date(profile.dateOfBirth).toISOString());
-        if (profile?.gender) setGender(profile.gender);
-        if (profile?.weight != null) setWeight(String(profile.weight));
-        if (profile?.phone) setPhoneNumber(profile.phone);
-        if (profile?.conditions?.length) setSelectedConditions(profile.conditions);
-      }).catch(() => {});
+      fetchCurrentUserProfile()
+        .then((profile: any) => {
+          if (profile?.name) setName(profile.name);
+          const dob = profile?.profile?.dateOfBirth || profile?.dateOfBirth;
+          if (dob) setDateOfBirth(new Date(dob).toISOString());
+          const g = profile?.profile?.gender || profile?.gender;
+          if (g) setGender(g);
+          const w = profile?.profile?.weight ?? profile?.weight;
+          if (w != null) setWeight(String(w));
+          if (profile?.phone) setPhoneNumber(profile.phone);
+          const conds = profile?.profile?.conditions || profile?.conditions;
+          if (conds?.length) setSelectedConditions(conds);
+        })
+        .catch((err) => console.error("Failed to prefill Step 2:", err));
     }
-  }, []);
+  }, [name, dateOfBirth]);
+
   const toggleCondition = (condition: string) => {
     if (condition === "None") {
       setSelectedConditions(["None"]);
@@ -63,38 +91,58 @@ export default function Step2Screen() {
   };
 
   const handleNext = async () => {
-    if (selectedConditions.length === 0) return;
+    if (selectedConditions.length === 0) {
+      Alert.alert("Required", "Please select at least one condition");
+      return;
+    }
 
-    // Save progress to backend
-    const lang = await AsyncStorage.getItem('user-language');
-    await saveOnboardingProfile({
-      name,
-      dateOfBirth,
-      gender,
-      weight,
-      conditions: selectedConditions,
-      caregivers: [],
-      preferences: { reminderTimes: [], soundEnabled: true, vibrationEnabled: true, shareActivityWithCaregiver: true },
-      isOnboardingCompleted: false,
-      onboardingStep: 3,
-      languages: lang ? [lang] : [],
-    });
+    setIsSaving(true);
 
-    router.push({
-      pathname: "/(onboarding)/step3" as any,
-      params: {
-        name,
-        dateOfBirth,
-        gender,
-        weight,
-        phoneNumber,
-        otherCondition: otherCondition.trim(),
-        conditions: JSON.stringify(selectedConditions),
-      },
-    });
+    try {
+      // Build payload for step 2
+      // IMPORTANT: Do NOT send languages here - buildOnboardingPayload(2) doesn't include it
+      // This prevents accidentally overwriting the user's language preference
+      const payload = buildOnboardingPayload(2, {
+        conditions: selectedConditions,
+      });
+
+      console.log("Onboarding Step 2 payload:", payload);
+
+      // Save to backend
+      const result = await updateOnboardingProfile(payload);
+
+      if (!result.success) {
+        Alert.alert(
+          "Error",
+          result.error || "Failed to save. Please try again.",
+        );
+        return;
+      }
+
+      // Update Redux
+      dispatch(updateOnboarding({ completed: false, step: 3 }));
+
+      router.push({
+        pathname: "/(onboarding)/step3" as any,
+        params: {
+          name,
+          dateOfBirth,
+          gender,
+          weight,
+          phoneNumber,
+          otherCondition: otherCondition.trim(),
+          conditions: JSON.stringify(selectedConditions),
+        },
+      });
+    } catch (error) {
+      console.error("Step 2 error:", error);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const isNextDisabled = selectedConditions.length === 0;
+  const isNextDisabled = selectedConditions.length === 0 || isSaving;
 
   return (
     <KeyboardAvoidingView
@@ -122,8 +170,8 @@ export default function Step2Screen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>{t('onboarding.step2.title')}</Text>
-        <Text style={styles.subtitle}>{t('onboarding.step2.subtitle')}</Text>
+        <Text style={styles.title}>{t("onboarding.step2.title")}</Text>
+        <Text style={styles.subtitle}>{t("onboarding.step2.subtitle")}</Text>
 
         <View style={styles.conditionsGrid}>
           {PREDEFINED_CONDITIONS.map((condition) => {
@@ -151,10 +199,10 @@ export default function Step2Screen() {
         </View>
 
         <View>
-          <Text style={styles.label}>{t('onboarding.step2.other')}</Text>
+          <Text style={styles.label}>{t("onboarding.step2.other")}</Text>
           <TextInput
             style={styles.input}
-            placeholder={t('onboarding.step2.placeholder')}
+            placeholder={t("onboarding.step2.placeholder")}
             value={otherCondition}
             onChangeText={setOtherCondition}
             placeholderTextColor="#999"
@@ -183,7 +231,7 @@ export default function Step2Screen() {
                 isNextDisabled && styles.nextButtonTextDisabled,
               ]}
             >
-              {t('common.next')}
+              {t("common.next")}
             </Text>
             <Ionicons
               name="arrow-forward"

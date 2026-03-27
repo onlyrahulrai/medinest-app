@@ -643,19 +643,31 @@ export default function HomeScreen() {
                                       <Text style={styles.takenBadgeText}>Taken</Text>
                                     </View>
                                   ) : (
-                                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                                      <TouchableOpacity
-                                        style={styles.premiumTakeBtn}
-                                        onPress={() => handleTakeDose(log._id)}
-                                      >
-                                        <Text style={styles.premiumTakeBtnText}>Take</Text>
-                                      </TouchableOpacity>
-                                    </View>
+                                    <TouchableOpacity
+                                      style={styles.premiumTakeBtn}
+                                      onPress={() => handleTakeDose(log._id)}
+                                    >
+                                      <Text style={styles.premiumTakeBtnText}>Take</Text>
+                                    </TouchableOpacity>
                                   )}
                                 </View>
                               </View>
                             );
                           })}
+
+                          {/* Float Edit Button at Bottom Right */}
+                          <TouchableOpacity
+                            onPress={() => {
+                              const ids = Array.from(new Set(group.logs.map(l => l.medicineId?._id).filter(id => !!id))).join(',');
+                              router.push({
+                                pathname: '/medications/edit',
+                                params: { ids }
+                              });
+                            }}
+                            style={styles.floatingCardEditBtn}
+                          >
+                            <Ionicons name="pencil" size={18} color="#94A3B8" />
+                          </TouchableOpacity>
                         </View>
                       </View>
                     );
@@ -1455,6 +1467,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#059669",
+  },
+  floatingCardEditBtn: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   groupMedRow: {
     flexDirection: "row",

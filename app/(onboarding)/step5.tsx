@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Switch } from 'react-native';
+import { useDispatch } from 'react-redux';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Switch, Alert, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { saveUserProfile, UserProfile } from '../../utils/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { mapRemoteProfileToLocalProfile, saveOnboardingProfile, fetchCurrentUserProfile } from '../../services/api/profile';
+import { mapRemoteProfileToLocalProfile, fetchCurrentUserProfile } from '../../services/api/profile';
+import { updateOnboardingProfile, buildOnboardingPayload, getLanguagePreference } from '../../utils/onboardingHelpers';
+import { updateOnboarding } from '../../reducers';
 import '../../utils/i18n';
 
 export default function Step5Screen() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const { t } = useTranslation();
   const params = useLocalSearchParams();
 
@@ -30,32 +33,73 @@ export default function Step5Screen() {
   const [shareActivity, setShareActivity] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Pre-fill from saved profile if params are missing
+  // Pre-fill from saved profile if resuming
   useEffect(() => {
     if (!name && !dateOfBirth) {
-      fetchCurrentUserProfile().then((profile) => {
-        if (profile?.name) setName(profile.name);
-        if (profile?.dateOfBirth) setDateOfBirth(new Date(profile.dateOfBirth).toISOString());
-        if (profile?.gender) setGender(profile.gender);
-        if (profile?.weight != null) setWeight(String(profile.weight));
-        if (profile?.phone) setPhoneNumber(profile.phone);
-        if (profile?.conditions?.length) setConditionsString(JSON.stringify(profile.conditions));
-        const caregiver = profile?.caregiverContacts?.[0];
-        if (caregiver?.name) setEmergencyName(caregiver.name);
-        if (caregiver?.phoneNumber) setEmergencyPhone(caregiver.phoneNumber);
-        if (caregiver?.relation) setEmergencyRelation(caregiver.relation);
-        if (profile?.preferences?.soundEnabled !== undefined) setSoundEnabled(profile.preferences.soundEnabled);
-        if (profile?.preferences?.vibrationEnabled !== undefined) setVibrationEnabled(profile.preferences.vibrationEnabled);
-        if (profile?.preferences?.shareActivityWithCaregiver !== undefined) setShareActivity(profile.preferences.shareActivityWithCaregiver);
-      }).catch(() => { });
+      fetchCurrentUserProfile()
+        .then((profile: any) => {
+          if (profile?.name) setName(profile.name);
+          const dob = profile?.profile?.dateOfBirth || profile?.dateOfBirth;
+          if (dob) setDateOfBirth(new Date(dob).toISOString());
+          const g = profile?.profile?.gender || profile?.gender;
+          if (g) setGender(g);
+          const w = profile?.profile?.weight ?? profile?.weight;
+          if (w != null) setWeight(String(w));
+          if (profile?.phone) setPhoneNumber(profile.phone);
+          const conds = profile?.profile?.conditions || profile?.conditions;
+          if (conds?.length) setConditionsString(JSON.stringify(conds));
+          const caregiver = profile?.caregiverContacts?.[0];
+          if (caregiver?.name) setEmergencyName(caregiver.name);
+          if (caregiver?.phoneNumber) setEmergencyPhone(caregiver.phoneNumber);
+          if (caregiver?.relation) setEmergencyRelation(caregiver.relation);
+          if (profile?.preferences?.soundEnabled !== undefined) setSoundEnabled(profile.preferences.soundEnabled);
+          if (profile?.preferences?.vibrationEnabled !== undefined) setVibrationEnabled(profile.preferences.vibrationEnabled);
+          if (profile?.preferences?.shareActivityWithCaregiver !== undefined) setShareActivity(profile.preferences.shareActivityWithCaregiver);
+        })
+        .catch(err => console.error('Failed to prefill Step 5:', err));
     }
-  }, []);
+  }, [name, dateOfBirth]);
 
   const handleComplete = async () => {
     setIsSaving(true);
     try {
       const conditions = conditionsString ? JSON.parse(conditionsString) : [];
+      // Use the new helper to get language preference
+      const lang = await getLanguagePreference();
 
+      // Build final onboarding payload (step 5 = completed)
+      const payload = buildOnboardingPayload(5, {
+        name,
+        dateOfBirth,
+        gender,
+        weight,
+        conditions,
+        caregivers: emergencyName || emergencyPhone ? [{
+          name: emergencyName.trim(),
+          phoneNumber: emergencyPhone.trim(),
+          relation: emergencyRelation.trim(),
+        }] : [],
+        reminderTimes: ['08:00', '20:00'], // Default times, can be customized
+        soundEnabled,
+        vibrationEnabled,
+        shareActivityWithCaregiver: shareActivity,
+        languages: lang ? [lang] : [],
+      });
+
+      console.log('Onboarding Step 5 payload:', payload);
+
+      // Save to backend final completion
+      const result = await updateOnboardingProfile(payload);
+
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to complete onboarding. Please try again.');
+        return;
+      }
+
+      // Update Redux - mark onboarding as completed
+      dispatch(updateOnboarding({ completed: true, step: 5 }));
+
+      // Save local profile
       const profileData: UserProfile = {
         name,
         dateOfBirth,
@@ -69,41 +113,22 @@ export default function Step5Screen() {
           phoneNumber: emergencyPhone,
           relation: emergencyRelation
         }] : [],
-        managedPatients: [], // Initialize empty
-        reminderTimes: ['08:00', '20:00'], // Default reminder times, can be customized later
+        managedPatients: [],
+        reminderTimes: ['08:00', '20:00'],
         soundEnabled,
         vibrationEnabled,
         shareActivityWithCaregiver: shareActivity,
         isOnboardingCompleted: true,
       };
 
-      const lang = await AsyncStorage.getItem('user-language');
-      const remoteProfile = await saveOnboardingProfile({
-        name,
-        dateOfBirth,
-        gender,
-        weight,
-        conditions,
-        caregivers: emergencyName ? [{
-          name: emergencyName,
-          phoneNumber: emergencyPhone,
-          relation: emergencyRelation,
-        }] : [],
-        preferences: {
-          reminderTimes: ['08:00', '20:00'],
-          soundEnabled,
-          vibrationEnabled,
-          shareActivityWithCaregiver: shareActivity,
-        },
-        isOnboardingCompleted: true, // FINISH
-        languages: lang ? [lang] : [],
-      });
-
+      const remoteProfile = result?.data;
       await saveUserProfile(remoteProfile ? mapRemoteProfileToLocalProfile(remoteProfile) : profileData);
+
+      // Navigate to home
       router.replace('/(tabs)');
     } catch (error) {
-      console.error('Failed to save profile', error);
-      router.replace('/(tabs)');
+      console.error('Failed to complete onboarding:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     } finally {
       setIsSaving(false);
     }

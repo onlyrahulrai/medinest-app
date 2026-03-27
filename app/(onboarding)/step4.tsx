@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal, TextInput, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { setupOnboardingRoutines } from '../../services/api/routines';
+import { fetchCurrentUserProfile } from '../../services/api/profile';
+import { updateOnboardingProfile, buildOnboardingPayload } from '../../utils/onboardingHelpers';
+import { updateOnboarding } from '../../reducers';
 import moment from 'moment';
 
 const DEFAULT_ROUTINES = [
@@ -15,9 +18,27 @@ const DEFAULT_ROUTINES = [
 
 export default function Step4Screen() {
     const router = useRouter();
+    const dispatch = useDispatch();
     const params = useLocalSearchParams();
     const [routines, setRoutines] = useState(DEFAULT_ROUTINES);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Pre-fill from saved profile if resuming
+    useEffect(() => {
+        fetchCurrentUserProfile()
+            .then((profile: any) => {
+                const savedRoutines = profile?.preferences?.reminderTimes || [];
+                if (savedRoutines.length > 0) {
+                    // Convert time strings to routine format if needed
+                    const formattedRoutines = savedRoutines.map((time: string, idx: number) => ({
+                        name: `Reminder ${idx + 1}`,
+                        time: time,
+                    }));
+                    setRoutines(formattedRoutines);
+                }
+            })
+            .catch(err => console.error('Failed to prefill Step 4:', err));
+    }, []);
 
     // Modal & Picker State
     const [showAddModal, setShowAddModal] = useState(false);
@@ -61,19 +82,42 @@ export default function Step4Screen() {
     };
 
     const handleNext = async () => {
+        if (routines.length === 0) {
+            Alert.alert('Required', 'Please add at least one reminder time');
+            return;
+        }
+
         setIsSaving(true);
         try {
-            await setupOnboardingRoutines(routines);
+            // Extract times from routines
+            // Build payload for step 4
+            const payload = buildOnboardingPayload(4, {
+                routines,
+                soundEnabled: true,
+                vibrationEnabled: true,
+                shareActivityWithCaregiver: true,
+            });
+
+            console.log('Onboarding Step 4 payload:', payload);
+
+            // Save to backend
+            const result = await updateOnboardingProfile(payload);
+
+            if (!result.success) {
+                Alert.alert('Error', result.error || 'Failed to save. Please try again.');
+                return;
+            }
+
+            // Update Redux
+            dispatch(updateOnboarding({ completed: false, step: 5 }));
+
             router.push({
-                pathname: '/(onboarding)/step5',
+                pathname: '/(onboarding)/step5' as any,
                 params: { ...params }
             });
         } catch (error) {
-            console.error('Failed to setup routines', error);
-            router.push({
-                pathname: '/(onboarding)/step5',
-                params: { ...params }
-            });
+            console.error('Step 4 error:', error);
+            Alert.alert('Error', 'Failed to save routines. Please try again.');
         } finally {
             setIsSaving(false);
         }

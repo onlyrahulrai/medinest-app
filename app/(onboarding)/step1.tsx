@@ -1,33 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { saveOnboardingProfile, fetchCurrentUserProfile } from '../../services/api/profile';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { useDispatch } from 'react-redux';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { fetchCurrentUserProfile } from '../../services/api/profile';
+import { updateOnboardingProfile, buildOnboardingPayload, getLanguagePreference } from '../../utils/onboardingHelpers';
+import { updateOnboarding } from '../../reducers';
 import '../../utils/i18n';
 
 export default function Step1Screen() {
     const router = useRouter();
+    const dispatch = useDispatch();
     const { t } = useTranslation();
     const [name, setName] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
     const [gender, setGender] = useState('');
     const [weight, setWeight] = useState('');
     const [showDatePicker, setShowDatePicker] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const phoneNumber = useLocalSearchParams().phoneNumber as string;
 
-    // Pre-fill from saved profile
+    // Pre-fill from saved profile if resuming onboarding
     useEffect(() => {
-        fetchCurrentUserProfile().then((profile) => {
-            if (profile?.name) setName(profile.name);
-            if (profile?.dateOfBirth) setDateOfBirth(new Date(profile.dateOfBirth));
-            if (profile?.gender) setGender(profile.gender);
-            if (profile?.weight != null) setWeight(String(profile.weight));
-        }).catch(() => {});
+        fetchCurrentUserProfile()
+            .then((profile: any) => {
+                if (profile?.name) setName(profile.name);
+                const dob = profile?.profile?.dateOfBirth || profile?.dateOfBirth;
+                if (dob) setDateOfBirth(new Date(dob));
+                const g = profile?.profile?.gender || profile?.gender;
+                if (g) setGender(g);
+                const w = profile?.profile?.weight ?? profile?.weight;
+                if (w != null) setWeight(String(w));
+            })
+            .catch(err => console.error('Failed to prefill Step 1:', err));
     }, []);
 
     const formatDate = (date: Date) => {
@@ -48,31 +57,62 @@ export default function Step1Screen() {
     };
 
     const handleNext = async () => {
+        // Validation
         if (!name.trim() || !dateOfBirth || !gender) {
+            Alert.alert('Required Fields', 'Please fill in all required fields');
             return;
         }
-        // Save progress to backend
-        const lang = await AsyncStorage.getItem('user-language');
 
-        await saveOnboardingProfile({
-            name,
-            dateOfBirth: dateOfBirth.toISOString(),
-            gender,
-            weight,
-            conditions: [],
-            caregivers: [],
-            preferences: { reminderTimes: [], soundEnabled: true, vibrationEnabled: true, shareActivityWithCaregiver: true },
-            isOnboardingCompleted: false,
-            onboardingStep: 2,
-            languages: lang ? [lang] : [],
-        });
-        router.push({
-            pathname: '/(onboarding)/step2' as any,
-            params: { name, dateOfBirth: dateOfBirth.toISOString(), gender, weight, phoneNumber }
-        });
+        if (!weight.trim()) {
+            Alert.alert('Required Fields', 'Please enter your weight');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            // Get language preference using new helper
+            const lang = await getLanguagePreference();
+
+            // Build payload for step 1
+            const payload = buildOnboardingPayload(1, {
+                name: name.trim(),
+                dateOfBirth: dateOfBirth.toISOString(),
+                gender,
+                weight: weight.trim(),
+                languages: lang ? [lang] : [],
+            });
+
+            // Save to backend
+            const result = await updateOnboardingProfile(payload);
+
+            if (!result.success) {
+                Alert.alert('Error', result.error || 'Failed to save. Please try again.');
+                return;
+            }
+
+            // Update Redux
+            dispatch(updateOnboarding({ completed: false, step: 2 }));
+
+            // Navigate to next step
+            router.push({
+                pathname: '/(onboarding)/step2' as any,
+                params: {
+                    name,
+                    dateOfBirth: dateOfBirth.toISOString(),
+                    gender,
+                    weight,
+                    phoneNumber
+                }
+            });
+        } catch (error) {
+            console.error('Step 1 error:', error);
+            Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    const isNextDisabled = !name.trim() || !dateOfBirth || !gender || !weight.trim();
+    const isNextDisabled = !name.trim() || !dateOfBirth || !gender || !weight.trim() || isSaving;
 
     return (
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

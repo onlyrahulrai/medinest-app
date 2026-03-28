@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform, KeyboardAvoidingView, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getUserProfile, saveUserProfile, UserProfile } from '../../utils/storage';
-import { Image } from 'react-native';
+import { Image, ActivityIndicator } from 'react-native';
 
 const PREDEFINED_CONDITIONS = [
     'Diabetes',
@@ -34,30 +34,46 @@ export default function EditProfileScreen() {
     const [emergencyRelation, setEmergencyRelation] = useState('');
     const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
     const [weight, setWeight] = useState('');
+    const [height, setHeight] = useState('');
     const [image, setImage] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [showRelationModal, setShowRelationModal] = useState(false);
+
+    const RELATION_OPTIONS = [
+        { label: 'Father', value: 'Father' },
+        { label: 'Mother', value: 'Mother' },
+        { label: 'Brother', value: 'Brother' },
+        { label: 'Sister', value: 'Sister' },
+        { label: 'Spouse', value: 'Spouse' },
+        { label: 'Friend', value: 'Friend' },
+        { label: 'Other', value: 'Other' },
+    ];
 
     useEffect(() => {
         loadProfile();
     }, []);
 
     const loadProfile = async () => {
+        setIsLoading(true);
         const data = await getUserProfile();
         if (data) {
             setProfile(data);
-            setName(data.name);
+            setName(data.name || '');
             setDateOfBirth(data.dateOfBirth ? new Date(data.dateOfBirth) : null);
-            setGender(data.gender);
-            setWeight(data.weight || '');
-            setPhoneNumber(data.phoneNumber);
+            setGender(data.gender || '');
+            setWeight(String(data.weight || ''));
+            setHeight(String(data.height || ''));
+            setPhoneNumber(data.phoneNumber || '');
             setImage(data.image || null);
             if (data.caregivers && data.caregivers.length > 0) {
-                setEmergencyName(data.caregivers[0].name);
-                setEmergencyPhone(data.caregivers[0].phoneNumber);
-                setEmergencyRelation(data.caregivers[0].relation);
+                setEmergencyName(data.caregivers[0].name || '');
+                setEmergencyPhone(data.caregivers[0].phoneNumber || '');
+                setEmergencyRelation(data.caregivers[0].relation || '');
             }
             setSelectedConditions(data.conditions || []);
         }
+        setIsLoading(false);
     };
 
     const pickImage = async () => {
@@ -105,13 +121,15 @@ export default function EditProfileScreen() {
                 dateOfBirth: dateOfBirth.toISOString(),
                 gender,
                 weight,
+                height,
                 phoneNumber,
                 image: image || undefined,
                 caregivers: emergencyName ? [{
                     id: profile.caregivers && profile.caregivers[0]?.id ? profile.caregivers[0].id : Math.random().toString(36).substr(2, 9),
                     name: emergencyName,
                     phoneNumber: emergencyPhone,
-                    relation: emergencyRelation || "Other"
+                    relation: emergencyRelation || "Other",
+                    inviteStatus: (profile.caregivers && profile.caregivers[0]?.inviteStatus) ? profile.caregivers[0].inviteStatus : 'invite_sent'
                 }] : [],
                 conditions: selectedConditions,
             };
@@ -126,7 +144,26 @@ export default function EditProfileScreen() {
         }
     };
 
-    if (!profile) return <View style={styles.container} />;
+    if (isLoading) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color="#065F46" />
+                <Text style={{ marginTop: 12, color: '#666' }}>Loading profile...</Text>
+            </View>
+        );
+    }
+
+    if (!profile) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+                <Ionicons name="alert-circle-outline" size={60} color="#f44336" />
+                <Text style={{ fontSize: 18, fontWeight: '600', color: '#333', marginTop: 16 }}>Profile Not Found</Text>
+                <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 24, padding: 12, backgroundColor: '#065F46', borderRadius: 8 }}>
+                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -221,6 +258,15 @@ export default function EditProfileScreen() {
                         placeholderTextColor="#999"
                     />
 
+                    <Text style={styles.label}>Height (cm)</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={height}
+                        onChangeText={setHeight}
+                        keyboardType="number-pad"
+                        placeholderTextColor="#999"
+                    />
+
                     <Text style={styles.label}>Gender *</Text>
                     <View style={styles.genderContainer}>
                         {['Male', 'Female', 'Other'].map((g) => (
@@ -267,13 +313,64 @@ export default function EditProfileScreen() {
                     />
 
                     <Text style={styles.label}>Relation</Text>
-                    <TextInput
+                    <TouchableOpacity
                         style={styles.input}
-                        value={emergencyRelation}
-                        onChangeText={setEmergencyRelation}
-                        placeholderTextColor="#999"
-                    />
+                        onPress={() => setShowRelationModal(true)}
+                    >
+                        <View style={styles.dobRow}>
+                            <Text style={[styles.dobText, !emergencyRelation && styles.dobPlaceholder]}>
+                                {emergencyRelation || 'Select Relation'}
+                            </Text>
+                            <Ionicons name="chevron-down" size={20} color="#999" />
+                        </View>
+                    </TouchableOpacity>
                 </View>
+
+                <Modal
+                    visible={showRelationModal}
+                    transparent
+                    animationType="slide"
+                >
+                    <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setShowRelationModal(false)}
+                    >
+                        <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Select Relation</Text>
+                                <TouchableOpacity onPress={() => setShowRelationModal(false)}>
+                                    <Ionicons name="close" size={24} color="#333" />
+                                </TouchableOpacity>
+                            </View>
+                            <ScrollView>
+                                {RELATION_OPTIONS.map((option) => (
+                                    <TouchableOpacity
+                                        key={option.value}
+                                        style={[
+                                            styles.relationOption,
+                                            emergencyRelation === option.value && styles.relationOptionActive
+                                        ]}
+                                        onPress={() => {
+                                            setEmergencyRelation(option.value);
+                                            setShowRelationModal(false);
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.relationOptionText,
+                                            emergencyRelation === option.value && styles.relationOptionTextActive
+                                        ]}>
+                                            {option.label}
+                                        </Text>
+                                        {emergencyRelation === option.value && (
+                                            <Ionicons name="checkmark" size={20} color="#4CAF50" />
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
 
                 <View style={styles.formSection}>
                     <Text style={styles.sectionHeader}>Health Conditions</Text>
@@ -536,5 +633,50 @@ const styles = StyleSheet.create({
     },
     saveButtonTextDisabled: {
         color: '#999',
-    }
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        maxHeight: '60%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    relationOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    relationOptionActive: {
+        backgroundColor: '#E8F5E9',
+        borderRadius: 8,
+        borderBottomWidth: 0,
+    },
+    relationOptionText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    relationOptionTextActive: {
+        color: '#4CAF50',
+        fontWeight: 'bold',
+    },
 });

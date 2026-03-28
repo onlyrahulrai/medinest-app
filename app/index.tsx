@@ -89,6 +89,7 @@ function SplashScreen() {
       } else {
         // No internet: Navigate to a screen that can work offline or show an error
         console.log("No internet connection. Navigating to offline screen.");
+        router.replace("/(auth)/login");
       }
     })();
   }, []);

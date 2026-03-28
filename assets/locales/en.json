@@ -20,6 +20,7 @@
       "fullName": "Full Name",
       "age": "Age",
       "weight": "Weight (kg)",
+      "height": "Height (cm) (Optional)",
       "gender": "Gender"
     },
     "step2": {
@@ -37,7 +38,16 @@
         "title": "Primary Caregiver (Optional)",
         "name": "Name",
         "phone": "Phone Number",
-        "relation": "Relation"
+        "relation": "Relation",
+        "relations": {
+          "father": "Father",
+          "mother": "Mother",
+          "brother": "Brother",
+          "sister": "Sister",
+          "spouse": "Spouse",
+          "friend": "Friend",
+          "other": "Other"
+        }
       },
       "validation": {
         "tooShort": "Phone number must be 10 digits",

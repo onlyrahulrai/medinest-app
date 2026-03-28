@@ -65,6 +65,7 @@ export function createOnboardingPayload(
                     dateOfBirth: data.dateOfBirth,
                     gender: data.gender,
                     weight: data.weight,
+                    height: data.height
                 },
                 name: data.name,
             };

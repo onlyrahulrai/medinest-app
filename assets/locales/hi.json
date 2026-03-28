@@ -19,8 +19,9 @@
       "subtitle": "आपकी यादों को निजीकृत करने के लिए आइए हम आपको बेहतर तरीके से जानें।",
       "fullName": "पूरा नाम",
       "age": "आयु",
-      "weight": "वजन (किलो)",
-      "gender": "लिंग"
+      "weight": "vajan (kg)",
+      "height": "uunchai (cm) (vakalpik)",
+      "gender": "ling"
     },
     "step2": {
       "title": "स्वास्थ्य विवरण",
@@ -37,7 +38,16 @@
         "title": "प्राथमिक देखभालकर्ता (वैकल्पिक)",
         "name": "नाम",
         "phone": "फोन नंबर",
-        "relation": "संबंध"
+        "relation": "संबंध",
+        "relations": {
+          "father": "पिता (Father)",
+          "mother": "माता (Mother)",
+          "brother": "भाई (Brother)",
+          "sister": "बहन (Sister)",
+          "spouse": "जीवनसाथी (Spouse)",
+          "friend": "दोस्त (Friend)",
+          "other": "अन्य (Other)"
+        }
       },
       "validation": {
         "tooShort": "फोन नंबर 10 अंकों का होना चाहिए",

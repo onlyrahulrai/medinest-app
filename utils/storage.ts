@@ -26,6 +26,7 @@ export interface UserProfile {
   dateOfBirth: string; // ISO date string
   gender: string;
   weight: string;
+  height?: string;
   image?: string; // Profile image URI
   conditions: string[];
   phoneNumber: string;

@@ -60,6 +60,10 @@ export default function Layout() {
             name="settings/index"
             options={{ headerShown: false, animation: "slide_from_bottom" }}
           />
+          <Stack.Screen
+            name="profile/edit"
+            options={{ headerShown: false, title: "" }}
+          />
         </Stack>
       </Provider>
     </QueryClientProvider>

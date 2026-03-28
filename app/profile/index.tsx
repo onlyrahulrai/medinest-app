@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { UserProfile } from '../../utils/storage';
+import { UserProfile, saveUserProfile } from '../../utils/storage';
 import { fetchCurrentUserProfile, mapRemoteProfileToLocalProfile } from '../../services/api/profile';
 import { useCaregivers, useAddCaregiver, useDeleteCaregiver, useRespondInvitation, useCheckUserExists } from '../../hooks/useCaregiverHooks';
 import { caregiverApi } from '../../services/api/caregiverApi';
@@ -49,6 +49,10 @@ export default function ProfileScreen() {
             const remoteProfile = await fetchCurrentUserProfile();
             const localProfile = mapRemoteProfileToLocalProfile(remoteProfile);
             setProfile(localProfile);
+            
+            // Sync with local storage for other views (like edit profile)
+            await saveUserProfile(localProfile);
+            
             
             // Also load invitations once we have the phone number
             if (localProfile.phoneNumber) {

@@ -9,6 +9,7 @@ import { UserProfile } from '../../utils/storage';
 import { Image } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useAuth } from '@/hooks/useAuth';
+import { uploadFile } from '@/services/api/common';
 
 const PREDEFINED_CONDITIONS = [
     'Diabetes',
@@ -40,7 +41,7 @@ export default function EditProfileScreen() {
     const [address, setAddress] = useState("");
     const [weight, setWeight] = useState('');
     const [height, setHeight] = useState('');
-    const [image, setImage] = useState<string | null>(null);
+    const [pic, setPic] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [isSaving, setIsSaving] = useState(false);
     const user = useSelector((state: any) => state.auth.user);
@@ -63,7 +64,7 @@ export default function EditProfileScreen() {
             setBloodGroup(user?.profile?.bloodGroup || '');
             setBio(user?.profile?.bio || '');
             setAddress(user?.profile?.address || '');
-            setImage(user.image || null);
+            setPic(user?.profile?.pic || null);
             setSelectedConditions(user?.profile?.conditions || []);
         }
     };
@@ -77,7 +78,23 @@ export default function EditProfileScreen() {
         });
 
         if (!result.canceled) {
-            setImage(result.assets[0].uri);
+            const asset = result.assets[0];
+
+            const fileToUpload = {
+                uri: asset.uri,
+                name: asset.fileName || `image_${Date.now()}.jpg`,
+                type: asset.mimeType || 'image/jpeg',
+            };
+
+            try {
+                const res = await uploadFile({ type: "single", file: fileToUpload }) as any;
+                if (res.data?.file?.url) {
+                    setPic(res.data.file.url);
+                }
+            } catch (error) {
+                console.error("Failed to upload image", error);
+                Alert.alert("Upload Error", "Could not upload the profile image. Please try again.");
+            }
         }
     };
 
@@ -113,6 +130,7 @@ export default function EditProfileScreen() {
                 phone,
                 email,
                 profile: {
+                    pic,
                     bio,
                     dateOfBirth: dateOfBirth.toISOString(),
                     gender,
@@ -190,8 +208,8 @@ export default function EditProfileScreen() {
                 >
                     <View style={styles.imageSection}>
                         <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
-                            {image ? (
-                                <Image source={{ uri: image }} style={styles.profileImage} />
+                            {pic ? (
+                                <Image source={{ uri: pic }} style={styles.profileImage} />
                             ) : (
                                 <View style={styles.imagePlaceholder}>
                                     <Text style={styles.imagePlaceholderText}>{name.charAt(0).toUpperCase() || "U"}</Text>

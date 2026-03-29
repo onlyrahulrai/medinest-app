@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,7 +37,18 @@ export default function Step3Screen() {
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [emergencyRelation, setEmergencyRelation] = useState("");
+  const [showRelationModal, setShowRelationModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const RELATION_OPTIONS = [
+    { label: t("onboarding.step3.form.relations.father"), value: "Father" },
+    { label: t("onboarding.step3.form.relations.mother"), value: "Mother" },
+    { label: t("onboarding.step3.form.relations.brother"), value: "Brother" },
+    { label: t("onboarding.step3.form.relations.sister"), value: "Sister" },
+    { label: t("onboarding.step3.form.relations.spouse"), value: "Spouse" },
+    { label: t("onboarding.step3.form.relations.friend"), value: "Friend" },
+    { label: t("onboarding.step3.form.relations.other"), value: "Other" },
+  ];
 
   // Phone validation & lookup state
   const [phoneError, setPhoneError] = useState("");
@@ -309,23 +321,81 @@ export default function Step3Screen() {
           <Text style={styles.label}>
             {t("onboarding.step3.form.relation")}
           </Text>
-          <View style={styles.inputContainer}>
+          <TouchableOpacity
+            style={styles.inputContainer}
+            onPress={() => setShowRelationModal(true)}
+          >
             <Ionicons
               name="people-outline"
               size={20}
               color="#666"
               style={styles.inputIcon}
             />
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Spouse, Parent"
-              value={emergencyRelation}
-              onChangeText={setEmergencyRelation}
-              placeholderTextColor="#999"
-            />
-          </View>
+            <View style={styles.input}>
+              <Text
+                style={[
+                  styles.relationTextValue,
+                  !emergencyRelation && styles.dobPlaceholder,
+                ]}
+              >
+                {emergencyRelation || "Select Relation"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-down" size={20} color="#999" />
+          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showRelationModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRelationModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRelationModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Relation</Text>
+              <TouchableOpacity onPress={() => setShowRelationModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.relationsList}>
+              {RELATION_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.relationOption,
+                    emergencyRelation === option.value &&
+                      styles.relationOptionActive,
+                  ]}
+                  onPress={() => {
+                    setEmergencyRelation(option.value);
+                    setShowRelationModal(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.relationOptionText,
+                      emergencyRelation === option.value &&
+                        styles.relationOptionTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  {emergencyRelation === option.value && (
+                    <Ionicons name="checkmark" size={20} color="#4CAF50" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <View style={styles.footer}>
         <TouchableOpacity
@@ -472,6 +542,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
   },
+  dobPlaceholder: {
+    color: "#999",
+  },
   feedbackRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -536,5 +609,57 @@ const styles = StyleSheet.create({
   },
   nextButtonTextDisabled: {
     color: "#999",
+  },
+  relationTextValue: {
+    fontSize: 16,
+    color: "#333",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "70%",
+    padding: 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  relationsList: {
+    marginBottom: 20,
+  },
+  relationOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  relationOptionActive: {
+    backgroundColor: "#E8F5E9",
+    borderRadius: 8,
+    borderBottomWidth: 0,
+  },
+  relationOptionText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  relationOptionTextActive: {
+    color: "#4CAF50",
+    fontWeight: "bold",
   },
 });

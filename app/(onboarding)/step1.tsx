@@ -29,6 +29,7 @@ export default function Step1Screen() {
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [gender, setGender] = useState("");
   const [weight, setWeight] = useState("");
+  const [height, setHeight] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { editUserProfile } = useAuth();
@@ -38,6 +39,7 @@ export default function Step1Screen() {
     setName(user?.name || "");
     setGender(user?.profile?.gender || "");
     setWeight(user?.profile?.weight ? String(user.profile.weight) : "");
+    setHeight(user?.profile?.height ? String(user.profile.height) : "");
     if (user?.profile?.dateOfBirth) {
       setDateOfBirth(new Date(user.profile.dateOfBirth));
     }
@@ -81,6 +83,7 @@ export default function Step1Screen() {
         dateOfBirth: dateOfBirth.toISOString(),
         gender,
         weight: weight.trim(),
+        height: height.trim(),
         languages: app.language ? [app.language] : [],
         profile: user?.profile || {}, // Include existing profile to prevent overwriting
       });
@@ -189,6 +192,16 @@ export default function Step1Screen() {
             placeholder="e.g., 70"
             value={weight}
             onChangeText={setWeight}
+            keyboardType="number-pad"
+            placeholderTextColor="#999"
+          />
+
+          <Text style={styles.label}>{t("onboarding.step1.height")}</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., 170"
+            value={height}
+            onChangeText={setHeight}
             keyboardType="number-pad"
             placeholderTextColor="#999"
           />

@@ -1,8 +1,14 @@
 import axiosInstance from './base';
 
 export const caregiverApi = {
-  getCaregivers: async () => {
-    const res = await axiosInstance.get('/caregiver');
+  getCaregivers: async (params?: { type?: string }) => {
+    const res = await axiosInstance.get('/caregiver', { params });
+
+    return res.data;
+  },
+  getCaregiverRelations: async (params?: { role?: string }) => {
+    const res = await axiosInstance.get('/caregiver/relations', { params });
+
     return res.data;
   },
   addCaregiver: async (data: { caregiverName: string; caregiverPhone: string; relation: string; permissions?: any }) => {
@@ -17,10 +23,12 @@ export const caregiverApi = {
     const res = await axiosInstance.delete(`/caregiver/${id}`);
     return res.data;
   },
-  getInvitations: async (phone?: string) => {
-    console.log("Fetching caregiver invitations for phone:", phone);
 
-    const res = await axiosInstance.get('/caregiver/invitations', { params: { phone } });
+  getInvitations: async (params: Record<string, any>) => {
+    console.log("Fetching caregiver invitations for phone:", params);
+
+    const res = await axiosInstance.get('/caregiver/invitations', { params });
+
     return res.data;
   },
   respondToInvitation: async (id: string, status: 'accepted' | 'rejected') => {

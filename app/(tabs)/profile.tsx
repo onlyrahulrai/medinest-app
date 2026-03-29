@@ -3,20 +3,21 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { UserProfile, saveUserProfile } from '../../utils/storage';
-import { fetchCurrentUserProfile, mapRemoteProfileToLocalProfile } from '../../services/api/profile';
 import { useCaregivers, useAddCaregiver, useDeleteCaregiver, useRespondInvitation, useCheckUserExists } from '../../hooks/useCaregiverHooks';
-import { caregiverApi } from '../../services/api/caregiverApi';
+import { useSelector } from 'react-redux';
+import SentInvitations from '@/components/caregiver/SentInvitations';
+import ReceivedInvitations from '@/components/caregiver/ReceivedInvitations';
+import ManagedPatients from '@/components/caregiver/ManagedPatients';
 
 export default function ProfileScreen() {
     const router = useRouter();
-    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const user = useSelector((state: any) => state.auth.user);
     const [showAddCaregiver, setShowAddCaregiver] = useState(false);
     const [newCaregiverName, setNewCaregiverName] = useState("");
     const [newCaregiverPhone, setNewCaregiverPhone] = useState("");
     const [newCaregiverRelation, setNewCaregiverRelation] = useState("");
 
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
 
@@ -26,45 +27,11 @@ export default function ProfileScreen() {
     const { data: caregiversList, refetch: refetchCaregivers } = useCaregivers();
     const { checkUser, isExistingUser, existsName, isLookupLoading } = useCheckUserExists();
 
-    useFocusEffect(
-        useCallback(() => {
-            loadProfile();
-        }, [])
-    );
-
-    const loadProfile = async () => {
-        setIsLoading(true);
-        try {
-            const remoteProfile = await fetchCurrentUserProfile();
-            const localProfile = mapRemoteProfileToLocalProfile(remoteProfile);
-            setProfile(localProfile);
-            
-            // Sync with local storage for other views (like edit profile)
-            await saveUserProfile(localProfile);
-            
-            // Also load invitations once we have the phone number
-            if (localProfile.phoneNumber) {
-                try {
-                    const invs = await caregiverApi.getInvitations(localProfile.phoneNumber);
-                    console.log("Loaded caregiver invitations:", invs);
-                    setPendingInvitations(invs);
-                } catch (invError) {
-                    console.error("Failed to load invitations", invError);
-                }
-            }
-        } catch (error) {
-            console.error("Failed to load profile", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const handleAcceptInvitation = async (invitationId: string) => {
         setIsActionLoading(true);
         try {
             await respondInvitation(invitationId, 'accepted');
             Alert.alert("Success", "Invitation accepted.");
-            loadProfile();
         } catch (error: any) {
             Alert.alert("Error", error?.message || "Failed to accept");
         } finally {
@@ -85,7 +52,6 @@ export default function ProfileScreen() {
                         setIsActionLoading(true);
                         try {
                             await respondInvitation(invitationId, 'rejected');
-                            loadProfile(); // Refresh profile to update pending invitations
                         } catch (error: any) {
                             Alert.alert("Error", error?.message || "Failed to decline");
                         } finally {
@@ -98,8 +64,8 @@ export default function ProfileScreen() {
     };
 
     const handleAddCaregiver = async () => {
-        if (!newCaregiverPhone || !profile) return;
-        
+        if (!newCaregiverPhone) return;
+
         setIsActionLoading(true);
         try {
             await addCaregiver({
@@ -107,13 +73,12 @@ export default function ProfileScreen() {
                 caregiverPhone: newCaregiverPhone,
                 relation: newCaregiverRelation || "Other"
             });
-            
+
             Alert.alert("Success", "Caregiver invitation has been sent/updated.");
             setShowAddCaregiver(false);
             setNewCaregiverName("");
             setNewCaregiverPhone("");
             setNewCaregiverRelation("");
-            loadProfile();
         } catch (error: any) {
             Alert.alert("Error", error?.message || "Failed to add caregiver");
         } finally {
@@ -177,7 +142,7 @@ export default function ProfileScreen() {
         );
     }
 
-    if (!profile) {
+    if (!user) {
         return (
             <View style={styles.container}>
                 <LinearGradient
@@ -232,21 +197,21 @@ export default function ProfileScreen() {
             >
                 <View style={styles.avatarSection}>
                     <View style={styles.avatarPlaceholder}>
-                        {profile.image ? (
-                            <Image source={{ uri: profile.image }} style={styles.avatarImage} />
+                        {user?.profile?.pic ? (
+                            <Image source={{ uri: user.profile.pic }} style={styles.avatarImage} />
                         ) : (
-                            <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
+                            <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
                         )}
                     </View>
-                    <Text style={styles.name}>{profile.name}</Text>
+                    <Text style={styles.name}>{user.name}</Text>
                     <Text style={styles.subText}>{(() => {
-                        const dob = new Date(profile.dateOfBirth);
+                        const dob = new Date(user.profile.dateOfBirth);
                         const today = new Date();
                         let age = today.getFullYear() - dob.getFullYear();
                         const m = today.getMonth() - dob.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
                         return `${age} years`;
-                    })()} • {profile.gender} • {profile.weight} kg</Text>
+                    })()} • {user?.profile?.gender} • {user?.profile?.weight} kg</Text>
                 </View>
 
                 <View style={styles.section}>
@@ -256,7 +221,7 @@ export default function ProfileScreen() {
                             <Ionicons name="call-outline" size={22} color="#666" style={styles.icon} />
                             <View style={styles.rowContent}>
                                 <Text style={styles.rowLabel}>Phone Number</Text>
-                                <Text style={styles.rowText}>{profile.phoneNumber}</Text>
+                                <Text style={styles.rowText}>{user.phone}</Text>
                             </View>
                         </View>
                     </View>
@@ -269,131 +234,23 @@ export default function ProfileScreen() {
                             <Text style={styles.addCaregiverBtn}>+ Invite New</Text>
                         </TouchableOpacity>
                     </View>
-                    <View style={styles.card}>
-                        {profile.caregivers && profile.caregivers.length > 0 ? (
-                            profile.caregivers.map((caregiver, index) => (
-                                <View key={caregiver.id || index} style={[styles.row, index > 0 && styles.rowBorder]}>
-                                    <View style={[styles.icon, { justifyContent: 'center', alignItems: 'center' }]}>
-                                        <Ionicons name="person-outline" size={22} color="#666" />
-                                    </View>
-                                    <View style={styles.rowContent}>
-                                        <View style={styles.emergencyHeader}>
-                                            <Text style={styles.rowText}>{caregiver.name}</Text>
-                                            <View style={styles.actionButtons}>
-                                                {caregiver.inviteStatus !== 'accepted' && (
-                                                    <TouchableOpacity
-                                                        onPress={() => handleResendInvitation(caregiver)}
-                                                        style={styles.resendBtn}
-                                                    >
-                                                        <Ionicons name="refresh-outline" size={18} color="#4CAF50" />
-                                                    </TouchableOpacity>
-                                                )}
-                                                <TouchableOpacity
-                                                    onPress={() => handleRemoveCaregiver(caregiver.name, caregiver.id)}
-                                                    style={styles.removeBtn}
-                                                >
-                                                    <Ionicons name="trash-outline" size={18} color="#f44336" />
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                        <View style={styles.caregiverMeta}>
-                                            <Text style={styles.rowSubText}>{caregiver.phoneNumber} • {caregiver.relation}</Text>
-                                            <View style={[
-                                                styles.statusBadge,
-                                                caregiver.inviteStatus === 'accepted' ? styles.statusAccepted :
-                                                caregiver.inviteStatus === 'rejected' ? styles.statusRejected :
-                                                styles.statusPending
-                                            ]}>
-                                                <Text style={[
-                                                    styles.statusText,
-                                                    caregiver.inviteStatus === 'accepted' ? styles.statusTextAccepted :
-                                                    caregiver.inviteStatus === 'rejected' ? styles.statusTextRejected :
-                                                    styles.statusTextPending
-                                                ]}>
-                                                    {caregiver.inviteStatus === 'accepted' ? "Caregiver Connected" :
-                                                     caregiver.inviteStatus === 'rejected' ? "Request Declined" :
-                                                     "Invitation Sent"}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                </View>
-                            ))
-                        ) : (
-                            <View style={styles.emptyState}>
-                                <Ionicons name="people-outline" size={40} color="#ccc" />
-                                <Text style={styles.emptyText}>No caregivers added yet.</Text>
-                            </View>
-                        )}
-                    </View>
+
+                    <SentInvitations />
                 </View>
+
                 {/* Pending Caregiver Requests */}
-                {pendingInvitations.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Pending Caregiver Requests</Text>
-                        {pendingInvitations.map((inv) => (
-                            <View key={inv._id} style={styles.caregiverCard}>
-                                <View style={styles.caregiverInfo}>
-                                    <View style={styles.avatarPlaceholder}>
-                                        <Text style={styles.avatarText}>{inv.senderName?.charAt(0)}</Text>
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.caregiverName}>{inv.senderName}</Text>
-                                        <Text style={styles.caregiverRelation}>{inv.senderPhone}</Text>
-                                    </View>
-                                </View>
-                                <View style={styles.invitationActions}>
-                                    <TouchableOpacity 
-                                        style={[styles.smallActionBtn, styles.declineBtn]}
-                                        onPress={() => handleRejectInvitation(inv._id)}
-                                    >
-                                        <Text style={styles.declineBtnText}>Decline</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity 
-                                        style={[styles.smallActionBtn, styles.acceptBtn]}
-                                        onPress={() => handleAcceptInvitation(inv._id)}
-                                    >
-                                        <Text style={styles.acceptBtnText}>Accept</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        ))}
-                    </View>
-                )}
+                <ReceivedInvitations />
 
                 {/* People I Care For */}
-                {(profile?.managedPatients?.length ?? 0) > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>People I Care For</Text>
-                        {profile?.managedPatients.map((patient) => (
-                            <View key={patient.id} style={styles.caregiverCard}>
-                                <View style={styles.caregiverInfo}>
-                                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#E0F2FE' }]}>
-                                        <Text style={[styles.avatarText, { color: '#0369A1' }]}>{patient.name.charAt(0)}</Text>
-                                    </View>
-                                    <View>
-                                        <Text style={styles.caregiverName}>{patient.name}</Text>
-                                        <Text style={styles.caregiverRelation}>{patient.phoneNumber}</Text>
-                                    </View>
-                                </View>
-                                <TouchableOpacity 
-                                    style={styles.manageBtn}
-                                    onPress={() => router.push({ pathname: '/caregiver/activity', params: { patientId: patient.id, name: patient.name } })}
-                                >
-                                    <Text style={styles.manageBtnText}>View Activity</Text>
-                                </TouchableOpacity>
-                            </View>
-                        ))}
-                    </View>
-                )}
+                <ManagedPatients />
 
                 {/* App Settings */}
                 <View style={[styles.section, { marginBottom: 40 }]}>
                     <Text style={styles.sectionTitle}>App Settings</Text>
                     <View style={styles.card}>
-                        {profile.conditions && profile.conditions.length > 0 ? (
+                        {user?.profile?.conditions && user?.profile?.conditions.length > 0 ? (
                             <View style={styles.conditionsGrid}>
-                                {profile.conditions.map((condition, index) => (
+                                {user?.profile?.conditions.map((condition: string, index: number) => (
                                     <View key={index} style={styles.conditionChip}>
                                         <Text style={styles.conditionChipText}>{condition}</Text>
                                     </View>
@@ -434,8 +291,8 @@ export default function ProfileScreen() {
                         <Text style={styles.inputLabel}>Relation</Text>
                         <TextInput style={styles.modalInput} placeholder="e.g. Spouse" value={newCaregiverRelation} onChangeText={setNewCaregiverRelation} placeholderTextColor="#999" />
 
-                        <TouchableOpacity 
-                            style={[styles.saveBtn, (!newCaregiverPhone || isActionLoading) && styles.saveBtnDisabled]} 
+                        <TouchableOpacity
+                            style={[styles.saveBtn, (!newCaregiverPhone || isActionLoading) && styles.saveBtnDisabled]}
                             onPress={handleAddCaregiver}
                             disabled={!newCaregiverPhone || isActionLoading}
                         >

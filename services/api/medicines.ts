@@ -48,6 +48,7 @@ export interface Medicine {
   refill: MedicineRefill;
   reminderEnabled: boolean;
   scheduleGroupId?: string;
+  scheduleGroupName?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -69,6 +70,7 @@ export interface CreateMedicineInput {
   refill: MedicineRefill;
   reminderEnabled?: boolean;
   scheduleGroupId?: string;
+  scheduleGroupName?: string;
   patientId?: string;
 }
 

@@ -93,6 +93,7 @@ interface MedicineEntry {
   perIntake: string;
   // Per-medicine schedule override
   customSchedule: boolean;
+  useGroupDuration: boolean;
   routineIds: string[];
   frequency: string;
   times: string[];
@@ -116,6 +117,7 @@ const createEmptyMedicine = (): MedicineEntry => ({
   imageUri: "",
   perIntake: "1",
   customSchedule: false,
+  useGroupDuration: true,
   routineIds: [],
   frequency: "Once daily",
   times: ["09:00"],
@@ -131,6 +133,9 @@ export default function AddMedicationScreen() {
   const [schedule, setSchedule] = useState({
     reminderEnabled: true,
     ownerId: "self",
+    startDate: new Date(),
+    duration: "30 days",
+    name: "",
   });
 
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -252,7 +257,7 @@ export default function AddMedicationScreen() {
         medHasError = true;
       }
       // Validate per-medicine schedule
-      if (!med.duration) {
+      if (!med.useGroupDuration && !med.duration) {
         newErrors[`duration_${index}`] = "Duration is required";
         medHasError = true;
       }
@@ -310,10 +315,13 @@ export default function AddMedicationScreen() {
         if (med.frequency === "Custom") frequency = 'custom';
 
         // Calculate end date based on duration label
+        const actualDurationStr = med.useGroupDuration ? schedule.duration : med.duration;
+        const actualStartDate = med.useGroupDuration ? schedule.startDate : med.startDate;
+
         let endDate: string | undefined = undefined;
-        const durationValue = DURATIONS.find(d => d.label === med.duration)?.value;
+        const durationValue = DURATIONS.find(d => d.label === actualDurationStr)?.value;
         if (durationValue && durationValue > 0) {
-          const end = new Date(med.startDate);
+          const end = new Date(actualStartDate);
           end.setDate(end.getDate() + durationValue);
           endDate = end.toISOString();
         }
@@ -333,13 +341,13 @@ export default function AddMedicationScreen() {
             frequency: frequency,
           },
           duration: {
-            startDate: med.startDate.toISOString(),
+            startDate: actualStartDate.toISOString(),
             endDate,
           },
           mealTiming: med.mealTiming,
           prescription: {
             prescribedBy: med.prescribedBy,
-            purpose: med.purpose,
+            purpose: med.purpose || schedule.name,
           },
           notes: med.notes,
           imageUrl: med.imageUri || undefined,
@@ -351,6 +359,8 @@ export default function AddMedicationScreen() {
             refillAt: Number(med.refillAt) || 0,
           },
           reminderEnabled: schedule.reminderEnabled,
+          scheduleGroupId: groupId,
+          scheduleGroupName: schedule.name,
           patientId: schedule.ownerId === "self" ? undefined : schedule.ownerId,
         };
 
@@ -365,7 +375,7 @@ export default function AddMedicationScreen() {
             startDate: payload.duration.startDate,
             frequency: med.frequency,
             times: useCustom ? payload.customSchedule.times : routines.filter(r => payload.routineIds?.includes(r._id)).map(r => r.time),
-            duration: med.duration,
+            duration: actualDurationStr,
           } as any);
         }
 
@@ -678,24 +688,47 @@ export default function AddMedicationScreen() {
               )}
 
               <View style={{ marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
-                <Text style={styles.subSectionLabel}>4.3 For How Long?</Text>
-                {!!errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
-                {renderDurationOptions(index)}
-
-                <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>4.4 Start Date</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => {
-                    setActivePickerIndex(index);
-                    setShowDatePicker(true);
-                  }}
-                >
-                  <View style={styles.dateIconContainer}>
-                    <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                  <Text style={[styles.subSectionLabel, { marginBottom: 0, marginTop: 0 }]}>4.3 Duration Override</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13, color: '#666', marginRight: 8 }}>Use Group Duration</Text>
+                    <Switch
+                      value={med.useGroupDuration}
+                      onValueChange={(val) => updateMedicine(index, { useGroupDuration: val })}
+                      trackColor={{ false: "#ddd", true: theme.accent }}
+                      thumbColor="white"
+                    />
                   </View>
-                  <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
-                  <Ionicons name="chevron-forward" size={20} color="#666" />
-                </TouchableOpacity>
+                </View>
+                {!med.useGroupDuration && (
+                  <>
+                    <Text style={styles.subSectionLabel}>For How Long?</Text>
+                    {!!errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
+                    {renderDurationOptions(index)}
+
+                    <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>Start Date</Text>
+                    <TouchableOpacity
+                      style={styles.dateButton}
+                      onPress={() => {
+                        setActivePickerIndex(index);
+                        setShowDatePicker(true);
+                      }}
+                    >
+                      <View style={styles.dateIconContainer}>
+                        <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                      </View>
+                      <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
+                      <Ionicons name="chevron-forward" size={20} color="#666" />
+                    </TouchableOpacity>
+                  </>
+                )}
+                {med.useGroupDuration && (
+                  <View style={{ padding: 12, backgroundColor: '#f9fafb', borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' }}>
+                    <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center' }}>
+                      Inheriting Group Duration: {schedule.duration} starting from {schedule.startDate.toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -928,6 +961,58 @@ export default function AddMedicationScreen() {
             </View>
           )}
 
+          {/* ======= GROUP DETAILS SECTION ======= */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="folder-outline" size={18} color={theme.accent} />
+              {" Group Details"}
+            </Text>
+            <View style={styles.card}>
+              <Text style={styles.subSectionLabel}>Group Name / Purpose (Optional)</Text>
+              <View style={[styles.inputContainer, { marginBottom: 20 }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Fever, Pain, Supplements..."
+                  value={schedule.name}
+                  onChangeText={(text) => setSchedule(prev => ({ ...prev, name: text }))}
+                />
+              </View>
+
+              <Text style={styles.subSectionLabel}>For How Long?</Text>
+              <View style={styles.optionsGrid}>
+                {DURATIONS.map((d) => (
+                  <TouchableOpacity
+                    key={d.id}
+                    style={[styles.optionCard, { width: (width - 98) / 2 }, schedule.duration === d.label && styles.selectedOptionCard]}
+                    onPress={() => setSchedule(prev => ({ ...prev, duration: d.label }))}
+                  >
+                    <Text style={[styles.durationNumber, schedule.duration === d.label && styles.selectedDurationNumber]}>
+                      {d.value > 0 ? d.value : "∞"}
+                    </Text>
+                    <Text style={[styles.optionLabel, schedule.duration === d.label && styles.selectedOptionLabel]}>
+                      {d.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>Start Date</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => {
+                  setActivePickerIndex(-1);
+                  setShowDatePicker(true);
+                }}
+              >
+                <View style={styles.dateIconContainer}>
+                  <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                </View>
+                <Text style={styles.dateButtonText}>Starts {schedule.startDate.toLocaleDateString()}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* ======= MEDICINES SECTION ======= */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
@@ -981,12 +1066,16 @@ export default function AddMedicationScreen() {
 
           {showDatePicker && (
             <DateTimePicker
-              value={activePickerIndex !== null ? medicines[activePickerIndex].startDate : new Date()}
+              value={activePickerIndex === -1 ? schedule.startDate : (activePickerIndex !== null ? medicines[activePickerIndex].startDate : new Date())}
               mode="date"
               onChange={(event, date) => {
                 setShowDatePicker(false);
-                if (date && activePickerIndex !== null) {
-                  updateMedicine(activePickerIndex, { startDate: date });
+                if (date) {
+                  if (activePickerIndex === -1) {
+                    setSchedule(prev => ({ ...prev, startDate: date }));
+                  } else if (activePickerIndex !== null) {
+                    updateMedicine(activePickerIndex, { startDate: date });
+                  }
                 }
               }}
             />
@@ -1045,7 +1134,7 @@ export default function AddMedicationScreen() {
         onClose={async (updated) => {
           setShowManageRoutines(false);
           if (updated) {
-            const fetchedRoutines = await getRoutines().catch(() => []);
+            const fetchedRoutines = await RoutineService.getRoutines().catch(() => []);
             setRoutines(fetchedRoutines);
           }
         }}

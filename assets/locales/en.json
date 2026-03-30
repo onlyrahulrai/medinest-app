@@ -4,7 +4,54 @@
     "back": "Back",
     "continue": "Continue",
     "welcome": "Welcome!",
-    "getStarted": "Get Started"
+    "getStarted": "Get Started",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "save": "Save",
+    "error": "Error",
+    "success": "Success",
+    "loading": "Loading..."
+  },
+  "profile": {
+    "title": "My Profile",
+    "editProfile": "Edit Profile",
+    "setupProfile": "Setup Profile",
+    "noProfileFound": "No Profile Found",
+    "noProfileHint": "Please complete your setup to view your profile.",
+    "contactInfo": "Contact Information",
+    "phoneNumber": "Phone Number",
+    "caregiverStatus": "Caregiver Status",
+    "inviteNew": "Invite New",
+    "healthConditions": "Health Conditions",
+    "noConditions": "No existing conditions reported.",
+    "settings": "Preferences & Settings"
+  },
+  "caregiver": {
+    "pendingRequests": "Pending Requests",
+    "awaitingResponse": "Awaiting Response",
+    "peopleICareFor": "People I Care For",
+    "activeCaregiver": "Active Caregiver",
+    "accept": "Accept",
+    "decline": "Decline",
+    "accepted": "You've accepted the caregiver request. They can now manage your medications.",
+    "declineConfirm": "Are you sure you want to decline the request from {{name}}?",
+    "viewActivity": "Activity",
+    "wantsToBe": "wants to be added as your caregiver to help manage your medications."
+  },
+  "routines": {
+    "title": "My Routines",
+    "noRoutines": "No Routines Yet",
+    "noRoutinesHint": "Set up daily routines to stay on track with your medication schedule",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?",
+    "active": "active",
+    "showAll": "Show All ({{count}})",
+    "showLess": "Show Less"
+  },
+  "language": {
+    "title": "Language",
+    "selectLanguage": "Select Language",
+    "selectHint": "Choose your preferred language for the app",
+    "change": "Change"
   },
   "onboarding": {
     "language": {

@@ -1,101 +1,23 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Modal, TextInput, Alert, Image, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useCaregivers, useAddCaregiver, useDeleteCaregiver, useRespondInvitation } from '../../hooks/useCaregiverHooks';
+import { useDeleteCaregiver } from '../../hooks/useCaregiverHooks';
 import { openAddCaregiverSheet } from '../../utils/events';
 import { useSelector } from 'react-redux';
 import SentInvitations from '@/components/caregiver/SentInvitations';
 import ReceivedInvitations from '@/components/caregiver/ReceivedInvitations';
 import ManagedPatients from '@/components/caregiver/ManagedPatients';
+import ProfileRoutinesSection from '@/components/profile/ProfileRoutinesSection';
+import LanguageSelector from '@/components/profile/LanguageSelector';
 
 export default function ProfileScreen() {
     const router = useRouter();
     const user = useSelector((state: any) => state.auth.user);
-
-
     const [isLoading, setIsLoading] = useState(false);
-    const [isActionLoading, setIsActionLoading] = useState(false);
-    const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
 
-    const { addCaregiver } = useAddCaregiver();
     const { deleteCaregiver } = useDeleteCaregiver();
-    const { respondInvitation } = useRespondInvitation();
-    const { data: caregiversList, refetch: refetchCaregivers } = useCaregivers();
-
-    const handleAcceptInvitation = async (invitationId: string) => {
-        setIsActionLoading(true);
-        try {
-            await respondInvitation(invitationId, 'accepted');
-            Alert.alert("Success", "Invitation accepted.");
-        } catch (error: any) {
-            Alert.alert("Error", error?.message || "Failed to accept");
-        } finally {
-            setIsActionLoading(false);
-        }
-    };
-
-    const handleRejectInvitation = async (invitationId: string) => {
-        Alert.alert(
-            "Decline Request",
-            "Are you sure you want to decline this request?",
-            [
-                { text: "Cancel", style: 'cancel' },
-                {
-                    text: "Decline",
-                    style: 'destructive',
-                    onPress: async () => {
-                        setIsActionLoading(true);
-                        try {
-                            await respondInvitation(invitationId, 'rejected');
-                        } catch (error: any) {
-                            Alert.alert("Error", error?.message || "Failed to decline");
-                        } finally {
-                            setIsActionLoading(false);
-                        }
-                    }
-                }
-            ]
-        );
-    };
-
-
-
-    const handleRemoveCaregiver = (name: string, relationId: string) => {
-        Alert.alert(
-            "Remove Caregiver",
-            `Are you sure you want to remove ${name}? they will no longer be able to manage your medications.`,
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Remove",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            await deleteCaregiver(relationId);
-                            loadProfile();
-                        } catch (error: any) {
-                            Alert.alert("Error", error?.message || "Failed to remove caregiver");
-                        }
-                    }
-                }
-            ]
-        );
-    };
-
-    const handleResendInvitation = async (caregiver: any) => {
-        try {
-            await addCaregiver({
-                caregiverName: caregiver.name,
-                caregiverPhone: caregiver.phoneNumber,
-                relation: caregiver.relation || "Other"
-            });
-            Alert.alert("Success", "Invitation resent successfully.");
-        } catch (error: any) {
-            Alert.alert("Error", error?.message || "Failed to resend invitation");
-        }
-    };
 
     if (isLoading) {
         return (
@@ -171,6 +93,7 @@ export default function ProfileScreen() {
                 contentContainerStyle={styles.scrollContent}
                 bounces={true}
             >
+                {/* Avatar Section */}
                 <View style={styles.avatarSection}>
                     <View style={styles.avatarPlaceholder}>
                         {user?.profile?.pic ? (
@@ -190,8 +113,16 @@ export default function ProfileScreen() {
                     })()} • {user?.profile?.gender} • {user?.profile?.weight} kg</Text>
                 </View>
 
+                {/* Contact Information */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Contact Information</Text>
+                    <View style={styles.sectionHeaderRow}>
+                        <View style={styles.sectionTitleRow}>
+                            <View style={[styles.sectionIconContainer, { backgroundColor: '#F0FDF4' }]}>
+                                <Ionicons name="call" size={14} color="#059669" />
+                            </View>
+                            <Text style={styles.sectionTitle}>Contact Information</Text>
+                        </View>
+                    </View>
                     <View style={styles.card}>
                         <View style={styles.row}>
                             <Ionicons name="call-outline" size={22} color="#666" style={styles.icon} />
@@ -203,14 +134,24 @@ export default function ProfileScreen() {
                     </View>
                 </View>
 
+                {/* Caregiver Status (Sent Invitations) */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionTitle}>Caregiver Status</Text>
-                        <TouchableOpacity onPress={openAddCaregiverSheet}>
-                            <Text style={styles.addCaregiverBtn}>+ Invite New</Text>
+                        <View style={styles.sectionTitleRow}>
+                            <View style={[styles.sectionIconContainer, { backgroundColor: '#F0FDF4' }]}>
+                                <Ionicons name="people" size={14} color="#059669" />
+                            </View>
+                            <Text style={styles.sectionTitle}>Caregiver Status</Text>
+                        </View>
+                        <TouchableOpacity
+                            onPress={openAddCaregiverSheet}
+                            style={styles.inviteButton}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="add-circle-outline" size={16} color="#059669" />
+                            <Text style={styles.inviteButtonText}>Invite New</Text>
                         </TouchableOpacity>
                     </View>
-
                     <SentInvitations />
                 </View>
 
@@ -220,9 +161,22 @@ export default function ProfileScreen() {
                 {/* People I Care For */}
                 <ManagedPatients />
 
-                {/* App Settings */}
-                <View style={[styles.section, { marginBottom: 40 }]}>
-                    <Text style={styles.sectionTitle}>App Settings</Text>
+                {/* Routines Section */}
+                <ProfileRoutinesSection />
+
+                {/* Language Section */}
+                <LanguageSelector />
+
+                {/* Health Conditions */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeaderRow}>
+                        <View style={styles.sectionTitleRow}>
+                            <View style={[styles.sectionIconContainer, { backgroundColor: '#FEF2F2' }]}>
+                                <Ionicons name="fitness" size={14} color="#EF4444" />
+                            </View>
+                            <Text style={styles.sectionTitle}>Health Conditions</Text>
+                        </View>
+                    </View>
                     <View style={styles.card}>
                         {user?.profile?.conditions && user?.profile?.conditions.length > 0 ? (
                             <View style={styles.conditionsGrid}>
@@ -238,17 +192,19 @@ export default function ProfileScreen() {
                     </View>
                 </View>
 
+                {/* Settings Button */}
                 <TouchableOpacity
                     style={styles.settingsButton}
                     onPress={() => router.push('/settings')}
+                    activeOpacity={0.7}
                 >
-                    <Ionicons name="settings-outline" size={24} color="#333" />
+                    <View style={[styles.sectionIconContainer, { backgroundColor: '#F3F4F6' }]}>
+                        <Ionicons name="settings-outline" size={16} color="#6B7280" />
+                    </View>
                     <Text style={styles.settingsButtonText}>Preferences & Settings</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#ccc" style={{ marginLeft: 'auto' }} />
+                    <Ionicons name="chevron-forward" size={18} color="#D1D5DB" style={{ marginLeft: 'auto' }} />
                 </TouchableOpacity>
             </ScrollView>
-
-
         </View>
     );
 }
@@ -330,12 +286,47 @@ const styles = StyleSheet.create({
     section: {
         marginBottom: 24,
     },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 12,
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 14,
         marginLeft: 4,
+        marginRight: 4,
+    },
+    sectionTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    sectionIconContainer: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    sectionTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: '#1F2937',
+        letterSpacing: -0.3,
+    },
+    inviteButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        backgroundColor: '#F0FDF4',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#BBF7D0',
+    },
+    inviteButtonText: {
+        color: '#059669',
+        fontWeight: '600',
+        fontSize: 13,
     },
     card: {
         backgroundColor: 'white',
@@ -351,12 +342,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 8,
-    },
-    rowBorder: {
-        borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
-        marginTop: 8,
-        paddingTop: 16,
     },
     icon: {
         width: 40,
@@ -374,29 +359,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
         fontWeight: '500',
-    },
-    rowSubText: {
-        fontSize: 14,
-        color: '#666',
-        marginTop: 2,
-    },
-    emergencyHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 2,
-    },
-    relationChip: {
-        backgroundColor: '#FFF0F0',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 8,
-    },
-    relationText: {
-        color: '#f44336',
-        fontSize: 10,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
     },
     conditionsGrid: {
         flexDirection: 'row',
@@ -425,6 +387,7 @@ const styles = StyleSheet.create({
     settingsButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 12,
         backgroundColor: 'white',
         padding: 16,
         borderRadius: 16,
@@ -439,192 +402,5 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: '#333',
-        marginLeft: 12,
     },
-    // Caregiver Styles
-    sectionHeaderRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-        marginLeft: 4,
-        marginRight: 4,
-    },
-    addCaregiverBtn: {
-        color: '#4CAF50',
-        fontWeight: '600',
-        fontSize: 16,
-    },
-    // Modal Styles
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    modalContent: {
-        backgroundColor: 'white',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 24,
-        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    inputLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
-        marginTop: 12,
-    },
-    modalInput: {
-        backgroundColor: '#f5f5f5',
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 16,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-    },
-    saveBtn: {
-        backgroundColor: '#4CAF50',
-        borderRadius: 12,
-        padding: 16,
-        alignItems: 'center',
-        marginTop: 24,
-    },
-    saveBtnText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    removeBtn: {
-        padding: 4,
-    },
-    removeBtnText: {
-        color: '#DC2626',
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    caregiverCard: {
-        backgroundColor: 'white',
-        borderRadius: 16,
-        padding: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#F3F4F6',
-    },
-    caregiverInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    caregiverName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#111827',
-    },
-    caregiverRelation: {
-        fontSize: 14,
-        color: '#6B7280',
-        marginTop: 2,
-    },
-    invitationActions: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    smallActionBtn: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
-    },
-    declineBtn: {
-        backgroundColor: '#FEE2E2',
-    },
-    acceptBtn: {
-        backgroundColor: '#065F46',
-    },
-    declineBtnText: {
-        color: '#DC2626',
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    acceptBtnText: {
-        color: 'white',
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    manageBtn: {
-        backgroundColor: '#F0F9FF',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#BAE6FD',
-    },
-    manageBtnText: {
-        color: '#0369A1',
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    actionButtons: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    resendBtn: {
-        padding: 4,
-    },
-    caregiverMeta: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginTop: 4,
-    },
-    statusBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 8,
-    },
-    statusPending: {
-        backgroundColor: '#FFF8E1',
-    },
-    statusAccepted: {
-        backgroundColor: '#E8F5E9',
-    },
-    statusRejected: {
-        backgroundColor: '#FFEBEE',
-    },
-    statusText: {
-        fontSize: 11,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-    },
-    statusTextPending: {
-        color: '#F57F17',
-    },
-    statusTextAccepted: {
-        color: '#2E7D32',
-    },
-    statusTextRejected: {
-        color: '#D32F2F',
-    },
-    emptyState: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 20,
-    },
-    saveBtnDisabled: {
-        backgroundColor: '#ccc',
-    }
 });

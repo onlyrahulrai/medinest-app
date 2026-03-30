@@ -34,7 +34,7 @@ import {
   type UpdateMedicineInput,
   type CreateMedicineInput
 } from "../../services/api/medicines";
-import { getRoutines, Routine } from "../../services/api/routines";
+import RoutineService, { type Routine } from "../../services/api/routine";
 
 // Top-level width calculation moved into the component for better reliability.
 
@@ -99,6 +99,7 @@ interface MedicineEntry {
   isNew?: boolean;
   // Per-medicine schedule override
   customSchedule: boolean;
+  useGroupDuration: boolean;
   routineIds: string[];
   frequency: string;
   times: string[];
@@ -119,6 +120,9 @@ export default function EditMedicationScreen() {
     ownerId: "self",
     scheduleGroupId: undefined as string | undefined,
     addedBy: undefined as 'patient' | 'caregiver' | undefined,
+    startDate: new Date(),
+    duration: "Ongoing",
+    name: "",
   });
 
   // Picker management
@@ -175,44 +179,55 @@ export default function EditMedicationScreen() {
     loadData();
   }, []);
 
-  const mapToEntry = (m: any) => ({
-    _id: m._id,
-    id: m._id,
-    name: m.name,
-    dosage: m.dosage?.amount || "",
-    dosageUnit: m.dosage?.unit || "mg",
-    perIntake: m.dosage?.perIntake?.toString() || "1",
-    type: m.type || "",
-    mealTiming: m.mealTiming || [],
-    prescribedBy: m.prescription?.prescribedBy || "",
-    purpose: m.prescription?.purpose || "",
-    color: m.color || "#4CAF50",
-    notes: m.notes || "",
-    refillReminder: m.refill?.refillReminder || false,
-    currentSupply: m.refill?.remainingQuantity?.toString() || "",
-    refillAt: m.refill?.refillAt?.toString() || "",
-    imageUrl: m.imageUrl,
-    customSchedule: m.customSchedule?.enabled || false,
-    routineIds: m.routineIds || [],
-    frequency: m.customSchedule?.frequency === 'as_needed' ? 'As needed' : (m.customSchedule?.frequency === 'weekly' ? 'Weekly' : (m.customSchedule?.times?.length === 4 ? 'Four times daily' : (m.customSchedule?.times?.length === 3 ? 'Three times daily' : (m.customSchedule?.times?.length === 2 ? 'Twice daily' : 'Once daily')))),
-    times: m.customSchedule?.times || ["09:00"],
-    duration: "Ongoing",
-    startDate: m.duration?.startDate ? new Date(m.duration.startDate) : new Date(),
-  });
+  const mapToEntry = (m: any) => {
+    let dur = "Ongoing";
+    const start = m.duration?.startDate ? new Date(m.duration.startDate) : new Date();
+    if (m.duration?.endDate) {
+       const days = Math.round((new Date(m.duration.endDate).getTime() - start.getTime()) / (1000 * 3600 * 24));
+       const match = DURATIONS.find(d => d.value === days);
+       if (match) dur = match.label;
+    }
+    return {
+      _id: m._id,
+      id: m._id,
+      name: m.name,
+      dosage: m.dosage?.amount || "",
+      dosageUnit: m.dosage?.unit || "mg",
+      perIntake: m.dosage?.perIntake?.toString() || "1",
+      type: m.type || "",
+      mealTiming: m.mealTiming || [],
+      prescribedBy: m.prescription?.prescribedBy || "",
+      purpose: m.prescription?.purpose || "",
+      color: m.color || "#4CAF50",
+      notes: m.notes || "",
+      refillReminder: m.refill?.refillReminder || false,
+      currentSupply: m.refill?.remainingQuantity?.toString() || "",
+      refillAt: m.refill?.refillAt?.toString() || "",
+      imageUrl: m.imageUrl,
+      customSchedule: m.customSchedule?.enabled || false,
+      useGroupDuration: true,
+      routineIds: m.routineIds || [],
+      frequency: m.customSchedule?.frequency === 'as_needed' ? 'As needed' : (m.customSchedule?.frequency === 'weekly' ? 'Weekly' : (m.customSchedule?.times?.length === 4 ? 'Four times daily' : (m.customSchedule?.times?.length === 3 ? 'Three times daily' : (m.customSchedule?.times?.length === 2 ? 'Twice daily' : 'Once daily')))),
+      times: m.customSchedule?.times || ["09:00"],
+      duration: dur,
+      startDate: start,
+    };
+  };
 
   useEffect(() => {
     const loadMedicationData = async () => {
       try {
         const [profile, fetchedRoutines, allMeds] = await Promise.all([
           getUserProfile(),
-          getRoutines().catch(() => []),
+          RoutineService.getRoutines().catch(() => []),
           apiGetAllMedicines().catch(() => [])
         ]);
 
         setUserProfile(profile as any);
         setRoutines(fetchedRoutines);
 
-        let medsToEdit = [];
+        let medsToEdit: any[] = [];
+
         if (idsParam) {
           const idList = idsParam.split(',');
           medsToEdit = allMeds.filter((m: any) => idList.includes(m._id));
@@ -229,11 +244,22 @@ export default function EditMedicationScreen() {
 
         if (medsToEdit.length === 0) return;
 
+        let initialDuration = "Ongoing";
+        let initialStartDate = medsToEdit[0].duration?.startDate ? new Date(medsToEdit[0].duration.startDate) : new Date();
+        if (medsToEdit[0].duration?.endDate) {
+           const days = Math.round((new Date(medsToEdit[0].duration.endDate).getTime() - initialStartDate.getTime()) / (1000 * 3600 * 24));
+           const match = DURATIONS.find(d => d.value === days);
+           if (match) initialDuration = match.label;
+        }
+
         setSchedule({
           reminderEnabled: medsToEdit[0].reminderEnabled ?? true,
           ownerId: "self",
           scheduleGroupId: medsToEdit[0].scheduleGroupId,
           addedBy: "patient",
+          name: medsToEdit[0].scheduleGroupName || "",
+          startDate: initialStartDate,
+          duration: initialDuration,
         });
 
         setMedicines(medsToEdit.map(mapToEntry));
@@ -256,6 +282,7 @@ export default function EditMedicationScreen() {
       refillReminder: false, currentSupply: "", refillAt: "", isNew: true,
       perIntake: "1",
       customSchedule: false,
+      useGroupDuration: true,
       routineIds: [],
       frequency: "Once daily", times: ["09:00"], duration: "30 days", startDate: new Date(),
     }]);
@@ -354,7 +381,7 @@ export default function EditMedicationScreen() {
         medHasError = true;
       }
       // Validate per-medicine schedule
-      if (!med.duration) {
+      if (!med.useGroupDuration && !med.duration) {
         newErrors[`duration_${index}`] = "Duration is required";
         medHasError = true;
       }
@@ -421,10 +448,13 @@ export default function EditMedicationScreen() {
         if (med.frequency === "Custom") frequency = 'custom';
 
         // Calculate end date based on duration label
+        const actualDurationStr = med.useGroupDuration ? schedule.duration : med.duration;
+        const actualStartDate = med.useGroupDuration ? schedule.startDate : med.startDate;
+
         let endDate: string | undefined = undefined;
-        const durationValue = DURATIONS.find(d => d.label === med.duration)?.value;
+        const durationValue = DURATIONS.find(d => d.label === actualDurationStr)?.value;
         if (durationValue && durationValue > 0) {
-          const end = new Date(med.startDate);
+          const end = new Date(actualStartDate);
           end.setDate(end.getDate() + durationValue);
           endDate = end.toISOString();
         }
@@ -444,13 +474,13 @@ export default function EditMedicationScreen() {
             frequency: frequency,
           },
           duration: {
-            startDate: med.startDate.toISOString(),
+            startDate: actualStartDate.toISOString(),
             endDate,
           },
           mealTiming: med.mealTiming,
           prescription: {
             prescribedBy: med.prescribedBy,
-            purpose: med.purpose,
+            purpose: med.purpose || schedule.name,
           },
           notes: med.notes,
           imageUrl: med.imageUrl,
@@ -462,6 +492,8 @@ export default function EditMedicationScreen() {
             refillAt: Number(med.refillAt) || 0,
           },
           reminderEnabled: schedule.reminderEnabled,
+          scheduleGroupId: groupId,
+          scheduleGroupName: schedule.name,
           patientId: schedule.ownerId === "self" ? undefined : schedule.ownerId,
         };
 
@@ -482,7 +514,7 @@ export default function EditMedicationScreen() {
             startDate: payload.duration.startDate,
             frequency: med.frequency,
             times: useCustom ? payload.customSchedule.times : routines.filter(r => payload.routineIds?.includes(r._id)).map(r => r.time),
-            duration: med.duration,
+            duration: actualDurationStr,
           } as any);
         }
       }
@@ -755,24 +787,47 @@ export default function EditMedicationScreen() {
               )}
 
               <View style={{ marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
-                <Text style={styles.subSectionLabel}>4.3 For How Long?</Text>
-                {!!errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
-                {renderDurationOptions(index)}
-
-                <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>4.4 Start Date</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => {
-                    setActivePickerIndex(index);
-                    setShowDatePicker(true);
-                  }}
-                >
-                  <View style={[styles.dateIconContainer, { backgroundColor: theme.lightAccent }]}>
-                    <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                  <Text style={[styles.subSectionLabel, { marginBottom: 0, marginTop: 0 }]}>4.3 Duration Override</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13, color: '#666', marginRight: 8 }}>Sync with Plan Duration</Text>
+                    <Switch
+                      value={med.useGroupDuration}
+                      onValueChange={(val) => updateMedicine(index, { useGroupDuration: val })}
+                      trackColor={{ false: "#ddd", true: theme.accent }}
+                      thumbColor="white"
+                    />
                   </View>
-                  <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
-                  <Ionicons name="chevron-forward" size={20} color="#666" />
-                </TouchableOpacity>
+                </View>
+                {!med.useGroupDuration && (
+                  <>
+                    <Text style={styles.subSectionLabel}>For How Long?</Text>
+                    {!!errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
+                    {renderDurationOptions(index)}
+
+                    <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>Start Date</Text>
+                    <TouchableOpacity
+                      style={styles.dateButton}
+                      onPress={() => {
+                        setActivePickerIndex(index);
+                        setShowDatePicker(true);
+                      }}
+                    >
+                      <View style={[styles.dateIconContainer, { backgroundColor: theme.lightAccent }]}>
+                        <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                      </View>
+                      <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
+                      <Ionicons name="chevron-forward" size={20} color="#666" />
+                    </TouchableOpacity>
+                  </>
+                )}
+                {med.useGroupDuration && (
+                  <View style={{ padding: 12, backgroundColor: '#f9fafb', borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' }}>
+                    <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center' }}>
+                      Shared Plan Duration: {schedule.duration} starting from {schedule.startDate.toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -961,6 +1016,58 @@ export default function EditMedicationScreen() {
             </View>
           </View>
 
+          {/* ======= TREATMENT PLAN SECTION ======= */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="folder-outline" size={18} color={theme.accent} />
+              {" Treatment Plan"}
+            </Text>
+            <View style={styles.card}>
+              <Text style={styles.subSectionLabel}>Plan Name / Purpose (Optional)</Text>
+              <View style={[styles.inputContainer, { marginBottom: 20 }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Fever, Pain, Supplements..."
+                  value={schedule.name}
+                  onChangeText={(text) => setSchedule(prev => ({ ...prev, name: text }))}
+                />
+              </View>
+
+              <Text style={styles.subSectionLabel}>For How Long?</Text>
+              <View style={styles.optionsGrid}>
+                {DURATIONS.map((d) => (
+                  <TouchableOpacity
+                    key={d.id}
+                    style={[styles.optionCard, { width: (width - 98) / 2 }, schedule.duration === d.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                    onPress={() => setSchedule(prev => ({ ...prev, duration: d.label }))}
+                  >
+                    <Text style={[styles.durationNumber, schedule.duration === d.label && { color: "white" }]}>
+                      {d.value > 0 ? d.value : "∞"}
+                    </Text>
+                    <Text style={[styles.optionLabel, schedule.duration === d.label && styles.selectedOptionLabel]}>
+                      {d.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>Start Date</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => {
+                  setActivePickerIndex(-1);
+                  setShowDatePicker(true);
+                }}
+              >
+                <View style={[styles.dateIconContainer, { backgroundColor: theme.lightAccent }]}>
+                  <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                </View>
+                <Text style={styles.dateButtonText}>Starts {schedule.startDate.toLocaleDateString()}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Medicines Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
@@ -1009,12 +1116,16 @@ export default function EditMedicationScreen() {
           <View style={{ height: 100 }} />
           {showDatePicker && (
             <DateTimePicker
-              value={activePickerIndex !== null ? medicines[activePickerIndex].startDate : new Date()}
+              value={activePickerIndex === -1 ? schedule.startDate : (activePickerIndex !== null && activePickerIndex >= 0 ? medicines[activePickerIndex].startDate : new Date())}
               mode="date"
               onChange={(event, date) => {
                 setShowDatePicker(false);
-                if (date && activePickerIndex !== null) {
-                  updateMedicine(activePickerIndex, { startDate: date });
+                if (date) {
+                  if (activePickerIndex === -1) {
+                    setSchedule(prev => ({ ...prev, startDate: date }));
+                  } else if (activePickerIndex !== null) {
+                    updateMedicine(activePickerIndex, { startDate: date });
+                  }
                 }
               }}
             />
@@ -1065,7 +1176,7 @@ export default function EditMedicationScreen() {
         onClose={async (updated) => {
           setShowManageRoutines(false);
           if (updated) {
-            const fetchedRoutines = await getRoutines().catch(() => []);
+            const fetchedRoutines = await RoutineService.getRoutines().catch(() => []);
             setRoutines(fetchedRoutines);
           }
         }}

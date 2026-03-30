@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { caregiverApi } from '../services/api/caregiverApi';
+import InvitationService from '../services/api/invitation';
 import { getUserProfile } from '../utils/storage';
 import { useFocusEffect } from 'expo-router';
 
@@ -16,8 +16,8 @@ export default function CaregiverInvitationModal() {
 
             if (!profile?.phoneNumber) return;
 
-            const invitations = await caregiverApi.getInvitations(profile.phoneNumber);
-            
+            const invitations = await InvitationService.getInvitations({ type: "incoming" });
+
             if (invitations && invitations.length > 0) {
                 setInvitation(invitations[0]); // Show the first one
                 setIsVisible(true);
@@ -40,7 +40,7 @@ export default function CaregiverInvitationModal() {
         if (!invitation) return;
         setLoading(true);
         try {
-            await caregiverApi.respondToInvitation(invitation._id, status);
+            await invitation.respondToInvitation(invitation._id, status);
             Alert.alert("Success", status === 'accepted' ? "You have accepted the invite." : "Invitation declined.");
             setIsVisible(false);
             setInvitation(null);
@@ -74,18 +74,18 @@ export default function CaregiverInvitationModal() {
                             <Text style={styles.inviteMessage}>"{invitation.message}"</Text>
                         </View>
                     )}
-                    
+
                     <View style={styles.buttonRow}>
-                        <TouchableOpacity 
-                            style={[styles.button, styles.rejectButton]} 
+                        <TouchableOpacity
+                            style={[styles.button, styles.rejectButton]}
                             onPress={() => handleResponse('rejected')}
                             disabled={loading}
                         >
                             <Text style={styles.rejectText}>Decline</Text>
                         </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                            style={[styles.button, styles.acceptButton]} 
+
+                        <TouchableOpacity
+                            style={[styles.button, styles.acceptButton]}
                             onPress={() => handleResponse('accepted')}
                             disabled={loading}
                         >

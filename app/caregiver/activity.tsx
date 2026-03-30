@@ -124,13 +124,16 @@ export default function CaregiverActivityView() {
 
   const loadPatientData = useCallback(async () => {
     if (!patientId) return;
+
     setLoading(true);
+
     try {
       // In a real app, this would fetch the patient's profile from the server
       // For now, we'll try to find them in managedPatients or use mock data
       const profile = await getUserProfile();
+
       const patient = profile?.managedPatients.find(p => p.id === patientId);
-      
+
       if (patient) {
         // Mocking the patient's privacy preference and metrics
         // In reality, this would be part of the patient's sync'd data

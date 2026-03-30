@@ -49,7 +49,7 @@ export default function CalendarScreen() {
 
       // Filter meds by patient if needed (if backend returns all, currently scoped to self)
       // For now, patientId 'self' is the only one fully supported by the standard getAllMedicines
-      
+
       const mapped: Medication[] = allMeds.map(m => ({
         id: m._id!,
         name: m.name,
@@ -73,16 +73,16 @@ export default function CalendarScreen() {
   }, [selectedDate, patientId]);
 
   // Initial load + reload when selectedDate or patientId changes
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // useEffect(() => {
+  //   loadData();
+  // }, [loadData]);
 
   // Also reload when screen regains focus (e.g. navigating back from edit)
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData])
-  );
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     loadData();
+  //   }, [loadData])
+  // );
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -97,12 +97,12 @@ export default function CalendarScreen() {
   const isDoseTaken = (medicationId: string) => {
     const med = medications.find(m => m.id === medicationId);
     if (!med) return false;
-    
+
     const dateStr = selectedDate.toDateString();
     const logs = (med as any).logs || [];
-    
-    return logs.some((log: any) => 
-      log.status === 'taken' && 
+
+    return logs.some((log: any) =>
+      log.status === 'taken' &&
       new Date(log.takenAt).toDateString() === dateStr
     );
   };
@@ -139,8 +139,8 @@ export default function CalendarScreen() {
       );
       const isToday = new Date().toDateString() === date.toDateString();
       const isSelected = selectedDate.toDateString() === date.toDateString();
-      const hasDoses = medications.some(med => 
-        (med as any).logs?.some((log: any) => 
+      const hasDoses = medications.some(med =>
+        (med as any).logs?.some((log: any) =>
           new Date(log.takenAt).toDateString() === date.toDateString()
         )
       );

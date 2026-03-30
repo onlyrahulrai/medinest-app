@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { getRoutines, createRoutine, deleteRoutine, updateRoutine, Routine } from "../../services/api/routines";
+import RoutineService, { type Routine } from "../../services/api/routine";
 import moment from "moment";
 
 interface ManageRoutinesBottomSheetProps {
@@ -25,7 +25,7 @@ const { height } = Dimensions.get('window');
 
 const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomSheetProps) => {
   const [routines, setRoutines] = useState<Routine[]>([]);
-  
+
   // Custom Routine Modal (Step 4 Style)
   const [showFormModal, setShowFormModal] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -41,7 +41,7 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
 
   const fetchRoutines = async () => {
     try {
-      const data = await getRoutines();
+      const data = await RoutineService.getRoutines();
       setRoutines(data);
     } catch (error) {
       console.error("Error fetching routines:", error);
@@ -70,9 +70,9 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
     try {
       const timeStr = moment(routineTime).format('HH:mm');
       if (editId) {
-        await updateRoutine(editId, { name: routineName, time: timeStr });
+        await RoutineService.updateRoutine(editId, { name: routineName, time: timeStr });
       } else {
-        await createRoutine({ name: routineName, time: timeStr });
+        await RoutineService.createRoutine({ name: routineName, time: timeStr });
       }
       setShowFormModal(false);
       setEditId(null);
@@ -93,7 +93,7 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteRoutine(id);
+              await RoutineService.deleteRoutine(id);
               fetchRoutines();
             } catch (error) {
               Alert.alert("Error", "Failed to delete routine");
@@ -156,12 +156,12 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
           </ScrollView>
 
           <View style={styles.footer}>
-             <TouchableOpacity 
-                style={styles.doneBtn} 
-                onPress={() => onClose(true)}
-              >
-                <Text style={styles.doneBtnText}>Close</Text>
-             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.doneBtn}
+              onPress={() => onClose(true)}
+            >
+              <Text style={styles.doneBtnText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -190,8 +190,8 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
               </TouchableOpacity>
 
               <View style={styles.modalActions}>
-                <TouchableOpacity 
-                  style={styles.modalCancelBtn} 
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
                   onPress={() => {
                     setShowFormModal(false);
                     setEditId(null);

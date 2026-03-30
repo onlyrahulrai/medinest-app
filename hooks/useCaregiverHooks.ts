@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { caregiverApi } from '../services/api/caregiverApi';
+import { useState, useCallback, useRef } from 'react';
+import InvitationService from '../services/api/invitation';
 import { userApi } from '../services/api/userApi';
-import { Alert } from 'react-native';
+import RelationService from '@/services/api/relation';
 
 export function useCaregivers() {
   const [data, setData] = useState<any[]>([]);
@@ -10,7 +10,7 @@ export function useCaregivers() {
   const fetchCaregivers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await caregiverApi.getCaregivers();
+      const result = await InvitationService.getInvitations();
       setData(result || []);
     } catch (err: any) {
       console.error(err);
@@ -27,7 +27,7 @@ export function useAddCaregiver() {
   const addCaregiver = async (payload: { caregiverName: string; caregiverPhone: string; relation: string }) => {
     setIsSubmitting(true);
     try {
-      const result = await caregiverApi.addCaregiver(payload);
+      const result = await InvitationService.createInvitation(payload);
       return result;
     } catch (error: any) {
       throw error?.response?.data || error;
@@ -43,7 +43,7 @@ export function useUpdateCaregiver() {
   const updateCaregiver = async (id: string, payload: any) => {
     setIsSubmitting(true);
     try {
-      const result = await caregiverApi.updateCaregiver(id, payload);
+      const result = await RelationService.updateRelation(id, payload);
       return result;
     } catch (error: any) {
       throw error?.response?.data || error;
@@ -59,7 +59,7 @@ export function useDeleteCaregiver() {
   const deleteCaregiver = async (id: string) => {
     setIsSubmitting(true);
     try {
-      const result = await caregiverApi.removeCaregiver(id);
+      const result = await InvitationService.deleteInvitation(id);
       return result;
     } catch (error: any) {
       throw error?.response?.data || error;
@@ -75,7 +75,7 @@ export function useRespondInvitation() {
   const respondInvitation = async (id: string, status: 'accepted' | 'rejected') => {
     setIsSubmitting(true);
     try {
-      const result = await caregiverApi.respondToInvitation(id, status);
+      const result = await InvitationService.respondToInvitation(id, status);
       return result;
     } catch (error: any) {
       throw error?.response?.data || error;

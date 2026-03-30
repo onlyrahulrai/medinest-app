@@ -30,9 +30,7 @@ import {
   scheduleMedicationReminder,
 } from "../../utils/notifications";
 import { getTodaysLogs, updateLogStatus, type MedicineLog } from "../../services/api/medicineLogs";
-import { getRoutines, type Routine } from "../../services/api/routines";
-
-const { width } = Dimensions.get("window");
+import RoutineService, { type Routine } from "../../services/api/routine";
 
 // Create animated circle component
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -257,7 +255,7 @@ export default function HomeScreen() {
         profileService.fetchCurrentUserProfile(),
         medicineService.getAllMedicines('active', undefined, activePatientId || undefined),
         getTodaysLogs(activePatientId || undefined),
-        getRoutines().catch(() => [])
+        RoutineService.getRoutines().catch(() => [])
       ]);
 
       const profile = mapRemoteProfileToLocalProfile(remoteProfile);

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider } from "react-redux";
 import { Stack } from "expo-router";
 import CaregiverInvitationModal from "../components/CaregiverInvitationModal";
+import GlobalAddCaregiverBottomSheet from "../components/caregiver/GlobalAddCaregiverBottomSheet";
 import { store } from "../store";
 
 const queryClient = new QueryClient();
@@ -15,6 +16,7 @@ export default function Layout() {
         {/* <AuthSync /> */}
         <StatusBar style="light" />
         <CaregiverInvitationModal />
+        <GlobalAddCaregiverBottomSheet />
         <Stack
           screenOptions={{
             headerShown: false,

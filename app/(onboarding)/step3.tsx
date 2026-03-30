@@ -23,15 +23,12 @@ import {
 } from "../../utils/onboardingHelpers";
 import "../../utils/i18n";
 import { useAuth } from "@/hooks/useAuth";
-
-const PHONE_REGEX = /^[6-9]\d{9}$/;
-const DEBOUNCE_DELAY = 400; // ms
+import { useCaregiverValidation } from "../../hooks/useCaregiverValidation";
 
 export default function Step3Screen() {
   const router = useRouter();
   const { t } = useTranslation();
   const user = useSelector((state: any) => state.auth.user);
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const { editUserProfile } = useAuth();
 
   const [emergencyName, setEmergencyName] = useState("");
@@ -50,91 +47,14 @@ export default function Step3Screen() {
     { label: t("onboarding.step3.form.relations.other"), value: "Other" },
   ];
 
-  // Phone validation & lookup state
-  const [phoneError, setPhoneError] = useState("");
-  const [lookupStatus, setLookupStatus] = useState<
-    "idle" | "checking" | "found" | "not-found"
-  >("idle");
-  const [isLookingUp, setIsLookingUp] = useState(false);
+  const {
+    phoneError,
+    lookupStatus,
+    isLookingUp,
+    validateAndLookup,
+  } = useCaregiverValidation();
 
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
-    };
-  }, []);
 
-  const performPhoneLookup = useCallback(async (digits: string) => {
-    setIsLookingUp(true);
-    setLookupStatus("checking");
-    try {
-      const result = await validateCaregiverPhone(digits);
-
-      if (result.success) {
-        setLookupStatus(result.data?.found ? "found" : "not-found");
-      } else {
-        setLookupStatus("not-found");
-      }
-    } finally {
-      setIsLookingUp(false);
-    }
-  }, []);
-
-  const validateAndLookup = useCallback(
-    (phone: string) => {
-      setEmergencyPhone(phone);
-      setPhoneError("");
-      setLookupStatus("idle");
-
-      const digits = phone.replace(/\D/g, "");
-
-      if (digits.length === 0) {
-        return;
-      }
-
-      if (digits.length < 10) {
-        setPhoneError(
-          t("onboarding.step3.validation.tooShort") || "Phone number too short",
-        );
-        return;
-      }
-
-      if (digits.length > 10) {
-        setPhoneError(
-          t("onboarding.step3.validation.tooLong") || "Phone number too long",
-        );
-        return;
-      }
-
-      if (!PHONE_REGEX.test(digits)) {
-        setPhoneError(
-          t("onboarding.step3.validation.invalidFormat") ||
-          "Invalid phone format",
-        );
-        return;
-      }
-
-      if (digits === user?.phone) {
-        setPhoneError(
-          t("onboarding.step3.validation.sameAsUser") ||
-          "Cannot use your own phone number",
-        );
-        return;
-      }
-
-      // Debounce the lookup
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
-
-      debounceTimer.current = setTimeout(() => {
-        performPhoneLookup(digits);
-      }, DEBOUNCE_DELAY);
-    },
-    [user?.phone, t, performPhoneLookup],
-  );
 
   const handleNext = async () => {
     // Allow skipping caregiver info, but validate if provided
@@ -271,7 +191,7 @@ export default function Step3Screen() {
               style={styles.input}
               placeholder="e.g. 9876543211"
               value={emergencyPhone}
-              onChangeText={validateAndLookup}
+              onChangeText={(text) => validateAndLookup(text, setEmergencyPhone)}
               keyboardType="phone-pad"
               maxLength={10}
               placeholderTextColor="#999"

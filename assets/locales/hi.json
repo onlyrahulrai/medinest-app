@@ -4,7 +4,54 @@
     "back": "पीछे",
     "continue": "जारी रखें",
     "welcome": "नमस्ते!",
-    "getStarted": "शुरू करें"
+    "getStarted": "शुरू करें",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "save": "सहेजें",
+    "error": "त्रुटि",
+    "success": "सफल",
+    "loading": "लोड हो रहा है..."
+  },
+  "profile": {
+    "title": "मेरी प्रोफ़ाइल",
+    "editProfile": "प्रोफ़ाइल संपादित करें",
+    "setupProfile": "प्रोफ़ाइल सेटअप",
+    "noProfileFound": "कोई प्रोफ़ाइल नहीं मिली",
+    "noProfileHint": "कृपया अपनी प्रोफ़ाइल देखने के लिए सेटअप पूरा करें।",
+    "contactInfo": "संपर्क जानकारी",
+    "phoneNumber": "फोन नंबर",
+    "caregiverStatus": "देखभालकर्ता स्थिति",
+    "inviteNew": "नया आमंत्रण",
+    "healthConditions": "स्वास्थ्य स्थितियां",
+    "noConditions": "कोई मौजूदा स्थिति रिपोर्ट नहीं की गई।",
+    "settings": "प्राथमिकताएं और सेटिंग्स"
+  },
+  "caregiver": {
+    "pendingRequests": "लंबित अनुरोध",
+    "awaitingResponse": "प्रतिक्रिया की प्रतीक्षा",
+    "peopleICareFor": "जिनकी मैं देखभाल करता/करती हूं",
+    "activeCaregiver": "सक्रिय देखभालकर्ता",
+    "accept": "स्वीकार करें",
+    "decline": "अस्वीकार करें",
+    "accepted": "आपने देखभालकर्ता अनुरोध स्वीकार कर लिया है। वे अब आपकी दवाओं का प्रबंधन कर सकते हैं।",
+    "declineConfirm": "क्या आप वाकई {{name}} के अनुरोध को अस्वीकार करना चाहते हैं?",
+    "viewActivity": "गतिविधि",
+    "wantsToBe": "आपकी दवाओं के प्रबंधन में मदद के लिए आपके देखभालकर्ता के रूप में जोड़ा जाना चाहता/चाहती है।"
+  },
+  "routines": {
+    "title": "मेरी दिनचर्या",
+    "noRoutines": "अभी कोई दिनचर्या नहीं",
+    "noRoutinesHint": "अपनी दवा अनुसूची के साथ ट्रैक पर रहने के लिए दैनिक दिनचर्या सेट करें",
+    "deleteConfirm": "क्या आप वाकई \"{{name}}\" को हटाना चाहते हैं?",
+    "active": "सक्रिय",
+    "showAll": "सभी दिखाएं ({{count}})",
+    "showLess": "कम दिखाएं"
+  },
+  "language": {
+    "title": "भाषा",
+    "selectLanguage": "भाषा चुनें",
+    "selectHint": "ऐप के लिए अपनी पसंदीदा भाषा चुनें",
+    "change": "बदलें"
   },
   "onboarding": {
     "language": {
@@ -19,9 +66,9 @@
       "subtitle": "आपकी यादों को निजीकृत करने के लिए आइए हम आपको बेहतर तरीके से जानें।",
       "fullName": "पूरा नाम",
       "age": "आयु",
-      "weight": "vajan (kg)",
-      "height": "uunchai (cm) (vakalpik)",
-      "gender": "ling"
+      "weight": "वजन (kg)",
+      "height": "ऊंचाई (cm) (वैकल्पिक)",
+      "gender": "लिंग"
     },
     "step2": {
       "title": "स्वास्थ्य विवरण",

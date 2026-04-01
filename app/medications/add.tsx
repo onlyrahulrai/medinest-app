@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import moment from "moment";
 import {
   View,
@@ -20,10 +20,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import ManageRoutinesBottomSheet from "../../components/medications/ManageRoutinesBottomSheet";
 import {
-  getUserProfile,
   ManagedPatient,
   UserProfile
 } from "../../utils/storage";
+import RelationService from "../../services/api/relation";
 import { useEffect } from "react";
 import {
   scheduleMedicationReminder,
@@ -31,98 +31,62 @@ import {
 } from "../../utils/notifications";
 import { createMedicine, type CreateMedicineInput } from "../../services/api/medicines";
 import RoutineService, { type Routine } from "../../services/api/routine";
+import { MEDICATION_TYPES, MEAL_TIMINGS, DOSAGE_UNITS, MEDICINE_COLORS, FREQUENCIES, DURATIONS } from "../../constants/medicine";
+import { useSelector } from "react-redux";
 
 // Top-level width calculation moved into the component for better reliability with Expo Go/Bridgeless mode.
 
-const MEDICATION_TYPES = [
-  { id: "tablet", label: "Tablet", icon: "tablet-portrait-outline" as const },
-  { id: "capsule", label: "Capsule", icon: "ellipse-outline" as const },
-  { id: "liquid", label: "Liquid", icon: "water-outline" as const },
-  { id: "injection", label: "Injection", icon: "fitness-outline" as const },
-  { id: "drops", label: "Drops", icon: "eyedrop-outline" as const },
-  { id: "inhaler", label: "Inhaler", icon: "cloud-outline" as const },
-  { id: "cream", label: "Cream", icon: "bandage-outline" as const },
-  { id: "patch", label: "Patch", icon: "square-outline" as const },
-];
-
-const MEAL_TIMINGS = [
-  { id: "before", label: "Before Meal", icon: "time-outline" as const },
-  { id: "after", label: "After Meal", icon: "restaurant-outline" as const },
-  { id: "with", label: "With Meal", icon: "fast-food-outline" as const },
-  { id: "empty", label: "Empty Stomach", icon: "moon-outline" as const },
-  { id: "any", label: "Any Time", icon: "sunny-outline" as const },
-];
-
-const DOSAGE_UNITS = ["mg", "ml", "mcg", "IU", "drops", "puffs", "units"];
-
-const MEDICINE_COLORS = [
-  "#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0",
-  "#00BCD4", "#FF5722", "#607D8B", "#795548", "#F44336",
-];
-
-const FREQUENCIES = [
-  { id: "1", label: "Once daily", icon: "sunny-outline" as const, times: ["09:00"] },
-  { id: "2", label: "Twice daily", icon: "sync-outline" as const, times: ["09:00", "21:00"] },
-  { id: "3", label: "Three times daily", icon: "time-outline" as const, times: ["09:00", "15:00", "21:00"] },
-  { id: "4", label: "Four times daily", icon: "repeat-outline" as const, times: ["09:00", "13:00", "17:00", "21:00"] },
-  { id: "5", label: "As needed", icon: "calendar-outline" as const, times: [] },
-];
-
-const DURATIONS = [
-  { id: "1", label: "7 days", value: 7 },
-  { id: "2", label: "14 days", value: 14 },
-  { id: "3", label: "30 days", value: 30 },
-  { id: "4", label: "90 days", value: 90 },
-  { id: "5", label: "Ongoing", value: -1 },
-];
-
 interface MedicineEntry {
+  _id?: string;
   name: string;
-  dosage: string;
-  dosageUnit: string;
-  type: string;
-  mealTiming: string[];
-  prescribedBy: string;
-  purpose: string;
-  color: string;
-  notes: string;
-  refillReminder: boolean;
-  currentSupply: string;
-  refillAt: string;
-  imageUri: string;
-  perIntake: string;
-  // Per-medicine schedule override
-  customSchedule: boolean;
-  useGroupDuration: boolean;
+  dosage: {
+    amount: string;
+    unit: string;
+    perIntake: string;
+  };
   routineIds: string[];
-  frequency: string;
-  times: string[];
-  duration: string;
-  startDate: Date;
+  customSchedule: {
+    enabled: boolean;
+    times: string[];
+    frequency: string;
+  };
+  mealTiming: string[];
+  duration: {
+    startDate: Date;
+    forHowLong: string;
+    isOngoing: boolean;
+  };
+  isDurationInherited: boolean;
+  refill: {
+    remainingQuantity: string;
+    refillAt: string;
+    refillReminderEnabled: boolean;
+  };
+  purpose: string;
+  notes: string;
+  meta: {
+    color: string;
+    photo: string;
+    type: string;
+  };
+  reminderEnabled: boolean;
+  isNew?: boolean;
 }
 
 const createEmptyMedicine = (): MedicineEntry => ({
+  _id: Math.random().toString(36).substr(2, 9),
   name: "",
-  dosage: "",
-  dosageUnit: "mg",
-  type: "",
-  mealTiming: [],
-  prescribedBy: "",
-  purpose: "",
-  color: "#4CAF50",
-  notes: "",
-  refillReminder: false,
-  currentSupply: "",
-  refillAt: "",
-  imageUri: "",
-  perIntake: "1",
-  customSchedule: false,
-  useGroupDuration: true,
+  dosage: { amount: "", unit: "mg", perIntake: "1" },
   routineIds: [],
-  frequency: "Once daily",
-  times: ["09:00"],
-  duration: "30 days",
-  startDate: new Date(),
+  customSchedule: { enabled: false, frequency: "Once daily", times: ["09:00"] },
+  mealTiming: [],
+  duration: { startDate: new Date(), forHowLong: "30 days", isOngoing: false },
+  isDurationInherited: true,
+  refill: { remainingQuantity: "", refillAt: "", refillReminderEnabled: false },
+  purpose: "",
+  notes: "",
+  meta: { color: "#4CAF50", photo: "", type: "" },
+  reminderEnabled: false,
 });
 
 export default function AddMedicationScreen() {
@@ -130,15 +94,24 @@ export default function AddMedicationScreen() {
   const router = useRouter();
 
   // Common group-level fields (including global schedule)
+  const params = useLocalSearchParams();
+  const patientId = Array.isArray(params.patientId) ? params.patientId[0] : params.patientId;
+
   const [schedule, setSchedule] = useState({
     reminderEnabled: true,
-    ownerId: "self",
-    startDate: new Date(),
-    duration: "30 days",
+    ownerId: patientId || "self",
+    duration: {
+      startDate: new Date(),
+      forHowLong: "30 days",
+      isOngoing: false
+    },
     name: "",
+    prescribedBy: "",
+    groupNotes: "",
   });
 
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [apiManagedPatients, setApiManagedPatients] = useState<ManagedPatient[]>([]);
 
   // Per-medicine fields
   const [medicines, setMedicines] = useState<MedicineEntry[]>([createEmptyMedicine()]);
@@ -147,10 +120,15 @@ export default function AddMedicationScreen() {
   // Picker management
   const [activePickerIndex, setActivePickerIndex] = useState<number | null>(null);
   const [activeTimeIndex, setActiveTimeIndex] = useState<number>(0);
+  const userProfile = useSelector((state: any) => state.auth.user);
+  const reduxManagedPatients: ManagedPatient[] = userProfile?.managedPatients || [];
 
-  const { patientId } = useLocalSearchParams<{ patientId: string }>();
-  const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  // Merge Redux and API patients
+  const managedPatients = [...reduxManagedPatients, ...apiManagedPatients].reduce((acc: ManagedPatient[], curr) => {
+    const exists = acc.find(p => p.id === curr.id);
+    if (!exists) acc.push(curr);
+    return acc;
+  }, []);
 
   const THEMES = {
     self: {
@@ -169,42 +147,62 @@ export default function AddMedicationScreen() {
 
   const getPatientName = () => {
     if (schedule.ownerId === "self") return userProfile?.name || "Me";
-    const patient = managedPatients.find(p => p.id === schedule.ownerId);
-    return patient ? patient.name : "Patient";
+    const patient = managedPatients.find(p => (p as any).id === schedule.ownerId || (p as any)._id === schedule.ownerId);
+    return patient ? (patient as any).name : "Patient";
   };
 
   const getPatientAvatar = () => {
     if (schedule.ownerId === "self") return userProfile?.image;
-    const patient = managedPatients.find(p => p.id === schedule.ownerId);
+    const patient = managedPatients.find(p => (p as any).id === schedule.ownerId || (p as any)._id === schedule.ownerId);
     return patient?.image;
   };
 
   useEffect(() => {
     const loadInitialData = async () => {
-      const [profile, fetchedRoutines] = await Promise.all([
-        getUserProfile(),
-        RoutineService.getRoutines().catch(() => [])
+      const [fetchedRoutines, relations] = await Promise.all([
+        RoutineService.getRoutines().catch(() => []),
+        RelationService.getRelations({ role: "caregiver" }).catch(() => [])
       ]);
-      setUserProfile(profile as any);
-      setManagedPatients(profile?.managedPatients || []);
+
       setRoutines(fetchedRoutines);
-      if (patientId) {
-        setSchedule(prev => ({ ...prev, ownerId: patientId }));
+
+      if (relations && Array.isArray(relations)) {
+        const mappedRelations: ManagedPatient[] = relations.map((rel: any) => ({
+          id: rel.user.id || rel.user._id,
+          name: rel.user.name,
+          image: rel.user.image || `https://xsgames.co/randomusers/avatar.php?g=pixel&r=${rel.user.id}`,
+          phoneNumber: rel.user.phone || "",
+          relation: rel.relation
+        }));
+        setApiManagedPatients(mappedRelations);
       }
     };
     loadInitialData();
-  }, [patientId]);
+  }, []);
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedFrequency, setSelectedFrequency] = useState("");
-  const [selectedDuration, setSelectedDuration] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showManageRoutines, setShowManageRoutines] = useState(false);
 
-  const updateMedicine = (index: number, updates: Partial<MedicineEntry>) => {
-    setMedicines(prev => prev.map((med, i) => i === index ? { ...med, ...updates } : med));
+  const updateMedicine = (index: number, updates: any) => {
+    setMedicines(prev => prev.map((med, i) => {
+      if (i !== index) return med;
+      const newMed = { ...med };
+      if (updates.dosage) newMed.dosage = { ...med.dosage, ...updates.dosage };
+      if (updates.customSchedule) newMed.customSchedule = { ...med.customSchedule, ...updates.customSchedule };
+      if (updates.duration) newMed.duration = { ...med.duration, ...updates.duration };
+      if (updates.refill) newMed.refill = { ...med.refill, ...updates.refill };
+      if (updates.meta) newMed.meta = { ...med.meta, ...updates.meta };
+
+      for (const key of Object.keys(updates)) {
+        if (!['dosage', 'customSchedule', 'duration', 'refill', 'meta'].includes(key)) {
+          (newMed as any)[key] = updates[key];
+        }
+      }
+      return newMed;
+    }));
   };
 
   const addAnotherMedicine = () => {
@@ -229,7 +227,7 @@ export default function AddMedicationScreen() {
         quality: 0.5,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        updateMedicine(medIndex, { imageUri: result.assets[0].uri });
+        updateMedicine(medIndex, { meta: { photo: result.assets[0].uri } });
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -248,35 +246,35 @@ export default function AddMedicationScreen() {
         newErrors[`name_${index}`] = "Medication name is required";
         medHasError = true;
       }
-      if (!med.dosage.trim()) {
+      if (!med.dosage.amount.trim()) {
         newErrors[`dosage_${index}`] = "Dosage is required";
         medHasError = true;
       }
-      if (!med.type) {
+      if (!med.meta.type) {
         newErrors[`type_${index}`] = "Selection required";
         medHasError = true;
       }
       // Validate per-medicine schedule
-      if (!med.useGroupDuration && !med.duration) {
+      if (!med.isDurationInherited && !med.duration.forHowLong) {
         newErrors[`duration_${index}`] = "Duration is required";
         medHasError = true;
       }
-      if (med.customSchedule) {
-        if (!med.frequency) {
+      if (med.customSchedule.enabled) {
+        if (!med.customSchedule.frequency) {
           newErrors[`frequency_${index}`] = "Frequency is required";
           medHasError = true;
         }
       }
-      if (med.refillReminder) {
-        if (!med.currentSupply) {
+      if (med.refill.refillReminderEnabled) {
+        if (!med.refill.remainingQuantity) {
           newErrors[`currentSupply_${index}`] = "Required";
           medHasError = true;
         }
-        if (!med.refillAt) {
+        if (!med.refill.refillAt) {
           newErrors[`refillAt_${index}`] = "Required";
           medHasError = true;
         }
-        if (med.currentSupply && med.refillAt && Number(med.refillAt) >= Number(med.currentSupply)) {
+        if (med.refill.remainingQuantity && med.refill.refillAt && Number(med.refill.refillAt) >= Number(med.refill.remainingQuantity)) {
           newErrors[`refillAt_${index}`] = "Alert must be less than supply";
           medHasError = true;
         }
@@ -295,100 +293,68 @@ export default function AddMedicationScreen() {
   };
 
   const handleSubmit = async () => {
+    console.log("medicines and schedule", medicines, schedule);
+
     try {
       if (!validateForm()) {
         Alert.alert("Error", "Please fill in all required fields. Missing fields are highlighted in red.");
         return;
       }
+
       if (isSubmitting) return;
+
       setIsSubmitting(true);
 
-      const groupId = medicines.length > 1 ? Math.random().toString(36).substr(2, 9) : undefined;
-
-      for (const med of medicines) {
-        const useCustom = med.customSchedule;
-
-        // Map frequency
-        let frequency: 'daily' | 'weekly' | 'custom' | 'as_needed' = 'daily';
-        if (med.frequency.includes("Weekly")) frequency = 'weekly';
-        if (med.frequency === "As needed") frequency = 'as_needed';
-        if (med.frequency === "Custom") frequency = 'custom';
-
-        // Calculate end date based on duration label
-        const actualDurationStr = med.useGroupDuration ? schedule.duration : med.duration;
-        const actualStartDate = med.useGroupDuration ? schedule.startDate : med.startDate;
-
-        let endDate: string | undefined = undefined;
-        const durationValue = DURATIONS.find(d => d.label === actualDurationStr)?.value;
-        if (durationValue && durationValue > 0) {
-          const end = new Date(actualStartDate);
-          end.setDate(end.getDate() + durationValue);
-          endDate = end.toISOString();
-        }
-
-        const payload: CreateMedicineInput = {
+      const payload = {
+        user: schedule.ownerId === "self" ? (userProfile as any)?.id || (userProfile as any)?._id || "self" : schedule.ownerId,
+        name: schedule.name,
+        duration: {
+          startDate: schedule.duration.startDate.toISOString(),
+          forHowLong: schedule.duration.forHowLong,
+          isOngoing: schedule.duration.isOngoing || false,
+        },
+        groupNotes: schedule.groupNotes,
+        prescribedBy: schedule.prescribedBy,
+        reminderEnabled: schedule.reminderEnabled,
+        medicines: medicines.map((med) => ({
           name: med.name,
-          type: med.type,
           dosage: {
-            amount: med.dosage,
-            unit: med.dosageUnit,
-            perIntake: Number(med.perIntake) || 1
+            amount: med.dosage.amount,
+            unit: med.dosage.unit,
+            perIntake: Number(med.dosage.perIntake) || 1
           },
-          routineIds: useCustom ? [] : med.routineIds,
+          routines: med.customSchedule.enabled ? [] : med.routineIds,
           customSchedule: {
-            enabled: useCustom,
-            times: useCustom ? med.times : [],
-            frequency: frequency,
+            enabled: med.customSchedule.enabled,
+            times: med.customSchedule.enabled ? med.customSchedule.times : [],
+            frequency: med.customSchedule.frequency,
           },
+          mealTiming: med.mealTiming.join(', '),
           duration: {
-            startDate: actualStartDate.toISOString(),
-            endDate,
+            startDate: med.duration.startDate.toISOString(),
+            forHowLong: med.duration.forHowLong,
+            isOngoing: med.duration.isOngoing || false,
           },
-          mealTiming: med.mealTiming,
-          prescription: {
-            prescribedBy: med.prescribedBy,
-            purpose: med.purpose || schedule.name,
-          },
-          notes: med.notes,
-          imageUrl: med.imageUri || undefined,
-          color: med.color,
+          isDurationInherited: med.isDurationInherited,
           refill: {
-            refillReminder: med.refillReminder,
-            remainingQuantity: Number(med.currentSupply) || 0,
-            totalQuantity: Number(med.currentSupply) || 0,
-            refillAt: Number(med.refillAt) || 0,
+            remainingQuantity: Number(med.refill.remainingQuantity) || 0,
+            refillReminderEnabled: med.refill.refillReminderEnabled,
+            refillAt: med.refill.refillAt || "0",
           },
-          reminderEnabled: schedule.reminderEnabled,
-          scheduleGroupId: groupId,
-          scheduleGroupName: schedule.name,
-          patientId: schedule.ownerId === "self" ? undefined : schedule.ownerId,
-        };
+          purpose: med.purpose || schedule.name,
+          notes: med.notes || schedule.groupNotes,
+          meta: {
+            color: med.meta.color,
+            photo: med.meta.photo || "",
+            type: med.meta.type,
+          },
+          reminderEnabled: med.reminderEnabled || schedule.reminderEnabled,
+        })),
+      };
 
-        const savedMedicine = await createMedicine(payload);
+      console.log("Payload: ", JSON.stringify(payload));
 
-        // Schedule local reminders for the newly created medicine
-        if (payload.reminderEnabled) {
-          await scheduleMedicationReminder({
-            ...payload,
-            id: savedMedicine._id, // Use backend ID
-            ownerId: schedule.ownerId,
-            startDate: payload.duration.startDate,
-            frequency: med.frequency,
-            times: useCustom ? payload.customSchedule.times : routines.filter(r => payload.routineIds?.includes(r._id)).map(r => r.time),
-            duration: actualDurationStr,
-          } as any);
-        }
-
-        if (payload.refill.refillReminder) {
-          await scheduleRefillReminder({
-            ...payload,
-            id: savedMedicine._id,
-          } as any);
-        }
-      }
-
-      // Also sync to local storage for offline support/caching if needed
-      // (Optional, but let's stick to API first as requested)
+      await createMedicine(payload as any);
 
       Alert.alert(
         "Success",
@@ -407,9 +373,9 @@ export default function AddMedicationScreen() {
   };
 
   const renderFrequencyOptions = (medIndex: number) => {
-    const freq = medicines[medIndex].frequency;
+    const freq = medicines[medIndex].customSchedule.frequency;
     const setFreq = (label: string, times: string[]) => {
-      updateMedicine(medIndex, { frequency: label, times });
+      updateMedicine(medIndex, { customSchedule: { frequency: label, times } });
     };
     return (
       <View style={styles.optionsGrid}>
@@ -432,9 +398,9 @@ export default function AddMedicationScreen() {
   };
 
   const renderDurationOptions = (medIndex: number) => {
-    const dur = medicines[medIndex].duration;
+    const dur = medicines[medIndex].duration.forHowLong;
     const setDur = (label: string) => {
-      updateMedicine(medIndex, { duration: label });
+      updateMedicine(medIndex, { duration: { forHowLong: label } });
     };
     return (
       <View style={styles.optionsGrid}>
@@ -467,15 +433,15 @@ export default function AddMedicationScreen() {
           style={styles.medicineCardHeader}
           onPress={() => setExpandedMedicine(isExpanded ? -1 : index)}
         >
-          <View style={[styles.medicineNumberBadge, { backgroundColor: med.color || theme.accent }]}>
+          <View style={[styles.medicineNumberBadge, { backgroundColor: med.meta.color || theme.accent }]}>
             <Text style={styles.medicineNumberText}>{index + 1}</Text>
           </View>
           <View style={styles.medicineHeaderInfo}>
             <Text style={styles.medicineHeaderTitle}>
               {med.name || `Medicine ${index + 1}`}
             </Text>
-            {med.dosage ? (
-              <Text style={styles.medicineHeaderSubtitle}>{med.dosage} {med.dosageUnit}</Text>
+            {med.dosage.amount ? (
+              <Text style={styles.medicineHeaderSubtitle}>{med.dosage.amount} {med.dosage.unit}</Text>
             ) : null}
           </View>
           <View style={styles.medicineHeaderActions}>
@@ -495,8 +461,8 @@ export default function AddMedicationScreen() {
             <View style={[styles.innerSection, { borderBottomWidth: 0 }]}>
               <View style={{ alignItems: "center" }}>
                 <TouchableOpacity style={styles.imageContainerSmall} onPress={() => pickImage(index)}>
-                  {med.imageUri ? (
-                    <Image source={{ uri: med.imageUri }} style={styles.medicationImage} />
+                  {med.meta.photo ? (
+                    <Image source={{ uri: med.meta.photo }} style={styles.medicationImage} />
                   ) : (
                     <View style={styles.imagePlaceholder}>
                       <Ionicons name="camera-outline" size={28} color={theme.accent} />
@@ -536,9 +502,9 @@ export default function AddMedicationScreen() {
                   style={[styles.mainInput, !!errors[`dosage_${index}`] && styles.inputError]}
                   placeholder="Dosage (e.g. 500)"
                   placeholderTextColor="#999"
-                  value={med.dosage}
+                  value={med.dosage.amount}
                   onChangeText={(text) => {
-                    updateMedicine(index, { dosage: text });
+                    updateMedicine(index, { dosage: { amount: text } });
                     if (errors[`dosage_${index}`]) setErrors(prev => {
                       const newErrs = { ...prev };
                       delete newErrs[`dosage_${index}`];
@@ -552,10 +518,10 @@ export default function AddMedicationScreen() {
                 {DOSAGE_UNITS.map((unit) => (
                   <TouchableOpacity
                     key={unit}
-                    style={[styles.unitChip, med.dosageUnit === unit && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                    onPress={() => updateMedicine(index, { dosageUnit: unit })}
+                    style={[styles.unitChip, med.dosage.unit === unit && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                    onPress={() => updateMedicine(index, { dosage: { unit: unit } })}
                   >
-                    <Text style={[styles.unitChipText, med.dosageUnit === unit && { color: "white" }]}>
+                    <Text style={[styles.unitChipText, med.dosage.unit === unit && { color: "white" }]}>
                       {unit}
                     </Text>
                   </TouchableOpacity>
@@ -567,8 +533,8 @@ export default function AddMedicationScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="1"
-                  value={med.perIntake}
-                  onChangeText={(text) => updateMedicine(index, { perIntake: text })}
+                  value={med.dosage.perIntake}
+                  onChangeText={(text) => updateMedicine(index, { dosage: { perIntake: text } })}
                   keyboardType="numeric"
                 />
               </View>
@@ -581,20 +547,20 @@ export default function AddMedicationScreen() {
               {/* Schedule Type Selector */}
               <View style={styles.scheduleTypeContainer}>
                 <TouchableOpacity
-                  style={[styles.scheduleTypeBtn, !med.customSchedule && { backgroundColor: theme.accent }]}
-                  onPress={() => updateMedicine(index, { customSchedule: false })}
+                  style={[styles.scheduleTypeBtn, !med.customSchedule.enabled && { backgroundColor: theme.accent }]}
+                  onPress={() => updateMedicine(index, { customSchedule: { enabled: false } })}
                 >
-                  <Text style={[styles.scheduleTypeBtnText, !med.customSchedule && { color: 'white' }]}>Routines</Text>
+                  <Text style={[styles.scheduleTypeBtnText, !med.customSchedule.enabled && { color: 'white' }]}>Routines</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.scheduleTypeBtn, med.customSchedule && { backgroundColor: theme.accent }]}
-                  onPress={() => updateMedicine(index, { customSchedule: true })}
+                  style={[styles.scheduleTypeBtn, med.customSchedule.enabled && { backgroundColor: theme.accent }]}
+                  onPress={() => updateMedicine(index, { customSchedule: { enabled: true } })}
                 >
-                  <Text style={[styles.scheduleTypeBtnText, med.customSchedule && { color: 'white' }]}>Custom</Text>
+                  <Text style={[styles.scheduleTypeBtnText, med.customSchedule.enabled && { color: 'white' }]}>Custom</Text>
                 </TouchableOpacity>
               </View>
 
-              {!med.customSchedule ? (
+              {!med.customSchedule.enabled ? (
                 <View style={{ marginTop: 15 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <Text style={styles.subSectionLabel}>Select Routines</Text>
@@ -606,7 +572,7 @@ export default function AddMedicationScreen() {
                   {routines.length > 0 ? (
                     <View style={styles.routinesGrid}>
                       {routines.map((r) => {
-                        const isSelected = med.routineIds.includes(r._id);
+                        const isSelected = med.routineIds?.includes(r._id) || false;
                         return (
                           <TouchableOpacity
                             key={r._id}
@@ -615,9 +581,10 @@ export default function AddMedicationScreen() {
                               isSelected && { borderColor: theme.accent, borderWidth: 2, backgroundColor: '#F0FDF4' }
                             ]}
                             onPress={() => {
+                              const currentIds = med.routineIds || [];
                               const newIds = isSelected
-                                ? med.routineIds.filter(id => id !== r._id)
-                                : [...med.routineIds, r._id];
+                                ? currentIds.filter(id => id !== r._id)
+                                : [...currentIds, r._id];
                               updateMedicine(index, { routineIds: newIds });
                             }}
                           >
@@ -654,7 +621,7 @@ export default function AddMedicationScreen() {
                 <View style={{ marginTop: 15 }}>
                   <Text style={styles.subSectionLabel}>Medication Time</Text>
                   <View style={styles.routinesGrid}>
-                    {med.times.map((time, tIndex) => (
+                    {med.customSchedule.times.map((time, tIndex) => (
                       <TouchableOpacity
                         key={tIndex}
                         style={styles.routineChipLarge}
@@ -693,14 +660,14 @@ export default function AddMedicationScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Text style={{ fontSize: 13, color: '#666', marginRight: 8 }}>Sync with Plan Duration</Text>
                     <Switch
-                      value={med.useGroupDuration}
-                      onValueChange={(val) => updateMedicine(index, { useGroupDuration: val })}
+                      value={med.isDurationInherited}
+                      onValueChange={(val) => updateMedicine(index, { isDurationInherited: val })}
                       trackColor={{ false: "#ddd", true: theme.accent }}
                       thumbColor="white"
                     />
                   </View>
                 </View>
-                {!med.useGroupDuration && (
+                {!med.isDurationInherited && (
                   <>
                     <Text style={styles.subSectionLabel}>For How Long?</Text>
                     {!!errors[`duration_${index}`] && <Text style={styles.errorText}>{errors[`duration_${index}`]}</Text>}
@@ -717,15 +684,15 @@ export default function AddMedicationScreen() {
                       <View style={styles.dateIconContainer}>
                         <Ionicons name="calendar-outline" size={20} color={theme.accent} />
                       </View>
-                      <Text style={styles.dateButtonText}>Starts {med.startDate.toLocaleDateString()}</Text>
+                      <Text style={styles.dateButtonText}>Starts {med.duration.startDate?.toLocaleDateString()}</Text>
                       <Ionicons name="chevron-forward" size={20} color="#666" />
                     </TouchableOpacity>
                   </>
                 )}
-                {med.useGroupDuration && (
+                {med.isDurationInherited && (
                   <View style={{ padding: 12, backgroundColor: '#f9fafb', borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' }}>
                     <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center' }}>
-                      Shared Plan Duration: {schedule.duration} starting from {schedule.startDate.toLocaleDateString()}
+                      Shared Plan Duration: {schedule.duration.forHowLong} starting from {schedule.duration.startDate?.toLocaleDateString()}
                     </Text>
                   </View>
                 )}
@@ -740,13 +707,13 @@ export default function AddMedicationScreen() {
                 {MEDICATION_TYPES.map((medType) => (
                   <TouchableOpacity
                     key={medType.id}
-                    style={[styles.typeChip, med.type === medType.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                    onPress={() => updateMedicine(index, { type: medType.label })}
+                    style={[styles.typeChip, med.meta.type === medType.label && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                    onPress={() => updateMedicine(index, { meta: { type: medType.label } })}
                   >
-                    <View style={[styles.typeIconContainer, med.type === medType.label && { backgroundColor: theme.accent }]}>
-                      <Ionicons name={medType.icon} size={20} color={med.type === medType.label ? "white" : theme.accent} />
+                    <View style={[styles.typeIconContainer, med.meta.type === medType.label && { backgroundColor: theme.accent }]}>
+                      <Ionicons name={medType.icon} size={20} color={med.meta.type === medType.label ? "white" : theme.accent} />
                     </View>
-                    <Text style={[styles.typeChipLabel, med.type === medType.label && { color: "white" }]}>
+                    <Text style={[styles.typeChipLabel, med.meta.type === medType.label && { color: "white" }]}>
                       {medType.label}
                     </Text>
                   </TouchableOpacity>
@@ -761,10 +728,10 @@ export default function AddMedicationScreen() {
                 {MEDICINE_COLORS.map((color) => (
                   <TouchableOpacity
                     key={color}
-                    style={[styles.colorCircle, { backgroundColor: color }, med.color === color && styles.colorCircleActive]}
-                    onPress={() => updateMedicine(index, { color })}
+                    style={[styles.colorCircle, { backgroundColor: color }, med.meta.color === color && styles.colorCircleActive]}
+                    onPress={() => updateMedicine(index, { meta: { color } })}
                   >
-                    {med.color === color && <Ionicons name="checkmark" size={20} color="white" />}
+                    {med.meta.color === color && <Ionicons name="checkmark" size={20} color="white" />}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -774,25 +741,26 @@ export default function AddMedicationScreen() {
             <View style={styles.innerSection}>
               <Text style={styles.innerSectionTitle}>7. When to Take</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealTimingScroller}>
-                {MEAL_TIMINGS.map((timing) => (
-                  <TouchableOpacity
-                    key={timing.id}
-                    style={[styles.mealChip, med.mealTiming.includes(timing.label) && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                    onPress={() => {
-                      const newTimings = med.mealTiming.includes(timing.label)
-                        ? med.mealTiming.filter(t => t !== timing.label)
-                        : [...med.mealTiming, timing.label];
-                      updateMedicine(index, { mealTiming: newTimings });
-                    }}
-                  >
-                    <View style={[styles.mealChipIcon, med.mealTiming.includes(timing.label) && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                      <Ionicons name={timing.icon} size={20} color={med.mealTiming.includes(timing.label) ? "white" : theme.accent} />
-                    </View>
-                    <Text style={[styles.mealChipText, med.mealTiming.includes(timing.label) && { color: "white" }]}>
-                      {timing.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {MEAL_TIMINGS.map((timing) => {
+                  const isSelected = med.mealTiming?.includes(timing.label) || false;
+                  return (
+                    <TouchableOpacity
+                      key={timing.id}
+                      style={[styles.mealChip, isSelected && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                      onPress={() => {
+                        const newTimings = isSelected ? [] : [timing.label];
+                        updateMedicine(index, { mealTiming: newTimings });
+                      }}
+                    >
+                      <View style={[styles.mealChipIcon, isSelected && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                        <Ionicons name={timing.icon} size={20} color={isSelected ? "white" : theme.accent} />
+                      </View>
+                      <Text style={[styles.mealChipText, isSelected && { color: "white" }]}>
+                        {timing.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
 
@@ -801,13 +769,13 @@ export default function AddMedicationScreen() {
               <View style={styles.switchRow}>
                 <Text style={styles.innerSectionTitle}>8. Refill Tracking</Text>
                 <Switch
-                  value={med.refillReminder}
-                  onValueChange={(val) => updateMedicine(index, { refillReminder: val })}
+                  value={med.refill.refillReminderEnabled}
+                  onValueChange={(val) => updateMedicine(index, { refill: { refillReminderEnabled: val } })}
                   trackColor={{ false: "#ddd", true: theme.accent }}
                   thumbColor="white"
                 />
               </View>
-              {med.refillReminder && (
+              {med.refill.refillReminderEnabled && (
                 <View style={{ marginTop: 10 }}>
                   <View style={styles.inputRow}>
                     <View style={styles.flex1}>
@@ -816,8 +784,8 @@ export default function AddMedicationScreen() {
                         <TextInput
                           style={styles.input}
                           placeholder="0"
-                          value={med.currentSupply}
-                          onChangeText={(text) => updateMedicine(index, { currentSupply: text })}
+                          value={med.refill.remainingQuantity}
+                          onChangeText={(text) => updateMedicine(index, { refill: { remainingQuantity: text } })}
                           keyboardType="numeric"
                         />
                       </View>
@@ -828,8 +796,8 @@ export default function AddMedicationScreen() {
                         <TextInput
                           style={styles.input}
                           placeholder="0"
-                          value={med.refillAt}
-                          onChangeText={(text) => updateMedicine(index, { refillAt: text })}
+                          value={med.refill.refillAt}
+                          onChangeText={(text) => updateMedicine(index, { refill: { refillAt: text } })}
                           keyboardType="numeric"
                         />
                       </View>
@@ -839,18 +807,6 @@ export default function AddMedicationScreen() {
               )}
             </View>
 
-            {/* 9. Prescribed By */}
-            <View style={styles.innerSection}>
-              <Text style={styles.innerSectionTitle}>9. Prescribed By</Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Doctor's Name"
-                  value={med.prescribedBy}
-                  onChangeText={(text) => updateMedicine(index, { prescribedBy: text })}
-                />
-              </View>
-            </View>
 
             {/* 10. Purpose */}
             <View style={styles.innerSection}>
@@ -883,6 +839,7 @@ export default function AddMedicationScreen() {
       </View>
     );
   };
+
 
   return (
     <View style={styles.container}>
@@ -935,28 +892,32 @@ export default function AddMedicationScreen() {
                     <Text style={[styles.patientChipText, schedule.ownerId === "self" && styles.patientChipTextActive]}>Me</Text>
                   </View>
                 </TouchableOpacity>
-                {managedPatients.map((patient) => (
-                  <TouchableOpacity
-                    key={patient.id}
-                    style={[styles.patientChip, schedule.ownerId === patient.id && { backgroundColor: theme.accent, borderColor: theme.accent }]}
-                    onPress={() => setSchedule(prev => ({ ...prev, ownerId: patient.id }))}
-                  >
-                    <View style={styles.patientChipContent}>
-                      {patient.image ? (
-                        <Image source={{ uri: patient.image }} style={styles.patientAvatarMini} />
-                      ) : (
-                        <View style={[styles.patientAvatarMini, { backgroundColor: schedule.ownerId === patient.id ? "rgba(255,255,255,0.2)" : theme.lightAccent }]}>
-                          <Text style={[styles.patientAvatarMiniText, { color: schedule.ownerId === patient.id ? "white" : theme.accent }]}>
-                            {patient.name.charAt(0)}
-                          </Text>
-                        </View>
-                      )}
-                      <Text style={[styles.patientChipText, schedule.ownerId === patient.id && styles.patientChipTextActive]}>
-                        {patient.name}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                {managedPatients.map((patient: any) => {
+                  const pId = patient.id || patient._id;
+                  const isSelected = schedule.ownerId === pId;
+                  return (
+                    <TouchableOpacity
+                      key={pId}
+                      style={[styles.patientChip, isSelected && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                      onPress={() => setSchedule(prev => ({ ...prev, ownerId: pId }))}
+                    >
+                      <View style={styles.patientChipContent}>
+                        {patient.image ? (
+                          <Image source={{ uri: patient.image }} style={styles.patientAvatarMini} />
+                        ) : (
+                          <View style={[styles.patientAvatarMini, { backgroundColor: isSelected ? "rgba(255,255,255,0.2)" : theme.lightAccent }]}>
+                            <Text style={[styles.patientAvatarMiniText, { color: isSelected ? "white" : theme.accent }]}>
+                              {patient.name.charAt(0)}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={[styles.patientChipText, isSelected && styles.patientChipTextActive]}>
+                          {patient.name}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
           )}
@@ -978,18 +939,39 @@ export default function AddMedicationScreen() {
                 />
               </View>
 
+              <Text style={styles.subSectionLabel}>Prescribed By (Optional)</Text>
+              <View style={[styles.inputContainer, { marginBottom: 20 }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Doctor's Name"
+                  value={schedule.prescribedBy}
+                  onChangeText={(text) => setSchedule(prev => ({ ...prev, prescribedBy: text }))}
+                />
+              </View>
+
+              <Text style={styles.subSectionLabel}>Group Notes (Optional)</Text>
+              <View style={[styles.inputContainer, { marginBottom: 20 }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="General instructions for this treatment..."
+                  multiline
+                  value={schedule.groupNotes}
+                  onChangeText={(text) => setSchedule(prev => ({ ...prev, groupNotes: text }))}
+                />
+              </View>
+
               <Text style={styles.subSectionLabel}>For How Long?</Text>
               <View style={styles.optionsGrid}>
                 {DURATIONS.map((d) => (
                   <TouchableOpacity
                     key={d.id}
-                    style={[styles.optionCard, { width: (width - 98) / 2 }, schedule.duration === d.label && styles.selectedOptionCard]}
-                    onPress={() => setSchedule(prev => ({ ...prev, duration: d.label }))}
+                    style={[styles.optionCard, { width: (width - 98) / 2 }, schedule.duration.forHowLong === d.label && styles.selectedOptionCard]}
+                    onPress={() => setSchedule(prev => ({ ...prev, duration: { ...prev.duration, forHowLong: d.label } }))}
                   >
-                    <Text style={[styles.durationNumber, schedule.duration === d.label && styles.selectedDurationNumber]}>
+                    <Text style={[styles.durationNumber, schedule.duration.forHowLong === d.label && styles.selectedDurationNumber]}>
                       {d.value > 0 ? d.value : "∞"}
                     </Text>
-                    <Text style={[styles.optionLabel, schedule.duration === d.label && styles.selectedOptionLabel]}>
+                    <Text style={[styles.optionLabel, schedule.duration.forHowLong === d.label && styles.selectedOptionLabel]}>
                       {d.label}
                     </Text>
                   </TouchableOpacity>
@@ -997,6 +979,7 @@ export default function AddMedicationScreen() {
               </View>
 
               <Text style={[styles.subSectionLabel, { marginTop: 15 }]}>Start Date</Text>
+
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => {
@@ -1007,7 +990,7 @@ export default function AddMedicationScreen() {
                 <View style={styles.dateIconContainer}>
                   <Ionicons name="calendar-outline" size={20} color={theme.accent} />
                 </View>
-                <Text style={styles.dateButtonText}>Starts {schedule.startDate.toLocaleDateString()}</Text>
+                <Text style={styles.dateButtonText}>Starts {schedule.duration?.startDate?.toLocaleDateString()}</Text>
                 <Ionicons name="chevron-forward" size={20} color="#666" />
               </TouchableOpacity>
             </View>
@@ -1066,15 +1049,15 @@ export default function AddMedicationScreen() {
 
           {showDatePicker && (
             <DateTimePicker
-              value={activePickerIndex === -1 ? schedule.startDate : (activePickerIndex !== null ? medicines[activePickerIndex].startDate : new Date())}
+              value={activePickerIndex === -1 ? schedule.duration.startDate : (activePickerIndex !== null ? medicines[activePickerIndex].duration.startDate : new Date())}
               mode="date"
               onChange={(event, date) => {
                 setShowDatePicker(false);
                 if (date) {
                   if (activePickerIndex === -1) {
-                    setSchedule(prev => ({ ...prev, startDate: date }));
+                    setSchedule(prev => ({ ...prev, duration: { ...prev.duration, startDate: date } }));
                   } else if (activePickerIndex !== null) {
-                    updateMedicine(activePickerIndex, { startDate: date });
+                    updateMedicine(activePickerIndex, { duration: { startDate: date } });
                   }
                 }
               }}
@@ -1084,7 +1067,7 @@ export default function AddMedicationScreen() {
           {showTimePicker && (
             <DateTimePicker
               value={(() => {
-                const times = activePickerIndex !== null ? medicines[activePickerIndex].times : ["09:00"];
+                const times = activePickerIndex !== null ? medicines[activePickerIndex].customSchedule.times : ["09:00"];
                 const timeStr = times[activeTimeIndex] || "09:00";
                 const [hours, minutes] = timeStr.split(":").map(Number);
                 const date = new Date();
@@ -1095,12 +1078,12 @@ export default function AddMedicationScreen() {
               onChange={(event, date) => {
                 setShowTimePicker(false);
                 if (date && activePickerIndex !== null) {
-                  const newTime = date.toLocaleTimeString("default", {
+                  const newTime = date?.toLocaleTimeString("default", {
                     hour: "2-digit", minute: "2-digit", hour12: false,
                   });
-                  const newTimes = [...medicines[activePickerIndex].times];
+                  const newTimes = [...medicines[activePickerIndex].customSchedule.times];
                   newTimes[activeTimeIndex] = newTime;
-                  updateMedicine(activePickerIndex, { times: newTimes });
+                  updateMedicine(activePickerIndex, { customSchedule: { times: newTimes } });
                 }
               }}
             />
@@ -1128,6 +1111,7 @@ export default function AddMedicationScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
       {/* Manage Routines Bottom Sheet */}
       <ManageRoutinesBottomSheet
         visible={showManageRoutines}

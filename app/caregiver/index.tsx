@@ -20,6 +20,7 @@ import FamilyAvatarList, {
 } from "../../components/caregiver/FamilyAvatar";
 
 import FloatingAddButton from "../../components/caregiver/FloatingAddButton";
+import RelationshipService from "../../services/api/relation";
 import { mockStats } from "../../components/caregiver/mockStats";
 import { 
   getUserProfile, 
@@ -64,12 +65,32 @@ export default function CaregiverDashboard() {
 
   const loadData = useCallback(async () => {
     await checkMissedDoses(); // Update missed status first
-    const profile = await getUserProfile();
-    const patients = profile?.managedPatients || [];
-    setManagedPatients(patients);
     
-    if (patients.length > 0 && !selectedMember) {
-      setSelectedMember(patients[0].id);
+    // Fetch both local and relation-based managed patients
+    const [profile, relations] = await Promise.all([
+      getUserProfile(),
+      RelationshipService.getRelations({ role: "caregiver" }).catch(() => [])
+    ]);
+
+    // Map relations to ManagedPatient format
+    const relationPatients: ManagedPatient[] = relations.map((rel: any) => ({
+      id: rel.user.id || rel.user._id,
+      name: rel.user.name,
+      image: rel.user.image || `https://xsgames.co/randomusers/avatar.php?g=pixel&r=${rel.user.id}`,
+      relation: rel.relation
+    }));
+
+    const allPatients = [...(profile?.managedPatients || []), ...relationPatients];
+    
+    // Remove duplicates by ID
+    const uniquePatientsMap = new Map();
+    allPatients.forEach(p => uniquePatientsMap.set(p.id, p));
+    const finalPatients = Array.from(uniquePatientsMap.values());
+
+    setManagedPatients(finalPatients);
+    
+    if (finalPatients.length > 0 && !selectedMember) {
+      setSelectedMember(finalPatients[0].id);
     }
 
     const [meds, history, alerts] = await Promise.all([
@@ -98,6 +119,7 @@ export default function CaregiverDashboard() {
       id: Math.random().toString(36).substr(2, 9),
       name: newMemberName.trim(),
       image: newMemberAvatar || `https://xsgames.co/randomusers/avatar.php?g=pixel&r=${Math.random()}`,
+      phoneNumber: "",
     };
     
     await addManagedPatient(newMember);

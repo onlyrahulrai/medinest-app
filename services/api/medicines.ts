@@ -54,7 +54,7 @@ export interface Medicine {
   updatedAt: string;
 }
 
-export interface CreateMedicineInput {
+export interface CreateMedicineInput { // Keeping for backward compatibility if any
   name: string;
   type: string;
   dosage: MedicineDosage;
@@ -74,13 +74,58 @@ export interface CreateMedicineInput {
   patientId?: string;
 }
 
+export interface CreateMedicineScheduleInput {
+  user: string;
+  name: string;
+  startDate: string;
+  groupForHowLong: string;
+  groupNotes: string;
+  prescribedBy: string;
+  reminderEnabled: boolean;
+  medicines: {
+    name: string;
+    dosage: {
+      amount: string;
+      unit: string;
+      perIntake: number;
+    };
+    routineIds: string[];
+    customSchedule: {
+      enabled: boolean;
+      times: string[];
+      frequency: string;
+    };
+    mealTiming: string;
+    duration: {
+      startDate: string;
+      durationInDays: string;
+      isOngoing: boolean;
+    };
+    isDurationInherited: boolean;
+    refill: {
+      totalQuantity: number;
+      remainingQuantity: number;
+      refillReminderEnabled: boolean;
+      refillAt: string;
+    };
+    purpose: string;
+    notes: string;
+    meta: {
+      color: string;
+      photo: string;
+      type: string;
+    };
+    reminderEnabled: boolean;
+  }[];
+}
+
 export interface UpdateMedicineInput extends Partial<CreateMedicineInput> {
   isActive?: boolean;
 }
 
 export const medicineService = {
-  createMedicine: async (data: CreateMedicineInput): Promise<Medicine> => {
-    const response = await axiosInstance.post<Medicine>('/medicines', data);
+  createMedicine: async (data: CreateMedicineScheduleInput | CreateMedicineInput): Promise<any> => {
+    const response = await axiosInstance.post<any>('/medicines', data);
     return response.data;
   },
 
@@ -107,7 +152,7 @@ export const medicineService = {
   },
 };
 
-export async function createMedicine(data: CreateMedicineInput) {
+export async function createMedicine(data: CreateMedicineScheduleInput | CreateMedicineInput) {
   return medicineService.createMedicine(data);
 }
 

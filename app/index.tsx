@@ -1,6 +1,6 @@
+import { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useRef } from "react";
 import { useDispatch } from "react-redux";
 import * as Network from "expo-network";
 import AsyncStorage from "@react-native-async-storage/async-storage";

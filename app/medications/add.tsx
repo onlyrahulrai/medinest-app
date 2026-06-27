@@ -32,6 +32,7 @@ import {
 import { createMedicine, type CreateMedicineInput } from "../../services/api/medicines";
 import RoutineService, { type Routine } from "../../services/api/routine";
 import { MEDICATION_TYPES, MEAL_TIMINGS, DOSAGE_UNITS, MEDICINE_COLORS, FREQUENCIES, DURATIONS } from "../../constants/medicine";
+import { getSampleMedicationFormData } from "../../constants/medicineSampleData";
 import { useSelector } from "react-redux";
 
 // Top-level width calculation moved into the component for better reliability with Expo Go/Bridgeless mode.
@@ -64,6 +65,9 @@ interface MedicineEntry {
   };
   purpose: string;
   notes: string;
+  expiryDate: Date | null;
+  isPharmacyInherited: boolean;
+  pharmacyName: string;
   meta: {
     color: string;
     photo: string;
@@ -85,6 +89,9 @@ const createEmptyMedicine = (): MedicineEntry => ({
   refill: { remainingQuantity: "", refillAt: "", refillReminderEnabled: false },
   purpose: "",
   notes: "",
+  expiryDate: null,
+  isPharmacyInherited: true,
+  pharmacyName: "",
   meta: { color: "#4CAF50", photo: "", type: "" },
   reminderEnabled: false,
 });
@@ -107,6 +114,7 @@ export default function AddMedicationScreen() {
     },
     name: "",
     prescribedBy: "",
+    pharmacyName: "",
     groupNotes: "",
   });
 
@@ -183,6 +191,7 @@ export default function AddMedicationScreen() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<"startDate" | "expiryDate">("startDate");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showManageRoutines, setShowManageRoutines] = useState(false);
 
@@ -216,6 +225,21 @@ export default function AddMedicationScreen() {
     if (expandedMedicine >= medicines.length - 1) {
       setExpandedMedicine(Math.max(0, medicines.length - 2));
     }
+  };
+
+  const fillWithSampleData = () => {
+    const sample = getSampleMedicationFormData(routines.map((r) => r._id));
+    setSchedule((prev) => ({
+      ...prev,
+      ...sample.schedule,
+    }));
+    setMedicines(sample.medicines);
+    setExpandedMedicine(0);
+    setErrors({});
+    Alert.alert(
+      "Sample data loaded",
+      "2 medicines filled in (Paracetamol + Amoxicillin). Review and tap Add Medication to save."
+    );
   };
 
   const pickImage = async (medIndex: number) => {
@@ -315,6 +339,7 @@ export default function AddMedicationScreen() {
         },
         groupNotes: schedule.groupNotes,
         prescribedBy: schedule.prescribedBy,
+        pharmacyName: schedule.pharmacyName || undefined,
         reminderEnabled: schedule.reminderEnabled,
         medicines: medicines.map((med) => ({
           name: med.name,
@@ -336,6 +361,9 @@ export default function AddMedicationScreen() {
             isOngoing: med.duration.isOngoing || false,
           },
           isDurationInherited: med.isDurationInherited,
+          expiryDate: med.expiryDate ? med.expiryDate.toISOString() : undefined,
+          isPharmacyInherited: med.isPharmacyInherited,
+          pharmacyName: med.isPharmacyInherited ? undefined : (med.pharmacyName || undefined),
           refill: {
             remainingQuantity: Number(med.refill.remainingQuantity) || 0,
             refillReminderEnabled: med.refill.refillReminderEnabled,
@@ -677,6 +705,7 @@ export default function AddMedicationScreen() {
                     <TouchableOpacity
                       style={styles.dateButton}
                       onPress={() => {
+                        setDatePickerMode("startDate");
                         setActivePickerIndex(index);
                         setShowDatePicker(true);
                       }}
@@ -807,10 +836,73 @@ export default function AddMedicationScreen() {
               )}
             </View>
 
-
-            {/* 10. Purpose */}
+            {/* 9. Expiry Date */}
             <View style={styles.innerSection}>
-              <Text style={styles.innerSectionTitle}>10. Purpose</Text>
+              <Text style={styles.innerSectionTitle}>9. Expiry Date (Optional)</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => {
+                  setDatePickerMode("expiryDate");
+                  setActivePickerIndex(index);
+                  setShowDatePicker(true);
+                }}
+              >
+                <View style={styles.dateIconContainer}>
+                  <Ionicons name="calendar-outline" size={20} color={theme.accent} />
+                </View>
+                <Text style={styles.dateButtonText}>
+                  {med.expiryDate ? `Expires ${med.expiryDate.toLocaleDateString()}` : "Set expiry date"}
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color="#666" />
+              </TouchableOpacity>
+              {med.expiryDate && (
+                <TouchableOpacity
+                  style={styles.clearDateBtn}
+                  onPress={() => updateMedicine(index, { expiryDate: null })}
+                >
+                  <Text style={[styles.clearDateBtnText, { color: theme.accent }]}>Clear expiry date</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* 10. Pharmacy */}
+            <View style={styles.innerSection}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                <Text style={[styles.innerSectionTitle, { marginBottom: 0 }]}>10. Pharmacy</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#666', marginRight: 8 }}>Use plan pharmacy</Text>
+                  <Switch
+                    value={med.isPharmacyInherited}
+                    onValueChange={(val) => updateMedicine(index, { isPharmacyInherited: val })}
+                    trackColor={{ false: "#ddd", true: theme.accent }}
+                    thumbColor="white"
+                  />
+                </View>
+              </View>
+              {med.isPharmacyInherited ? (
+                <View style={{ padding: 12, backgroundColor: '#f9fafb', borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' }}>
+                  <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center' }}>
+                    {schedule.pharmacyName
+                      ? `Plan Pharmacy: ${schedule.pharmacyName}`
+                      : "No plan pharmacy set — add one in Treatment Plan above"}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Local Chemist, Walgreens..."
+                    value={med.pharmacyName}
+                    onChangeText={(text) => updateMedicine(index, { pharmacyName: text })}
+                  />
+                </View>
+              )}
+            </View>
+
+
+            {/* 11. Purpose */}
+            <View style={styles.innerSection}>
+              <Text style={styles.innerSectionTitle}>11. Purpose</Text>
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.input}
@@ -821,9 +913,9 @@ export default function AddMedicationScreen() {
               </View>
             </View>
 
-            {/* 11. Notes */}
+            {/* 12. Notes */}
             <View style={[styles.innerSection, { borderBottomWidth: 0 }]}>
-              <Text style={styles.innerSectionTitle}>11. Notes</Text>
+              <Text style={styles.innerSectionTitle}>12. Notes</Text>
               <View style={styles.textAreaContainer}>
                 <TextInput
                   style={styles.textArea}
@@ -851,7 +943,17 @@ export default function AddMedicationScreen() {
           <Text style={styles.headerTitle}>
             {schedule.ownerId === "self" ? "Your Schedule" : `${getPatientName()}'s Plan`}
           </Text>
-          <View style={{ width: 44 }} />
+          {__DEV__ ? (
+            <TouchableOpacity
+              onPress={fillWithSampleData}
+              style={styles.sampleDataBtn}
+              accessibilityLabel="Fill sample data"
+            >
+              <Ionicons name="flask-outline" size={22} color="white" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 44 }} />
+          )}
         </View>
       </LinearGradient>
 
@@ -949,6 +1051,17 @@ export default function AddMedicationScreen() {
                 />
               </View>
 
+              <Text style={styles.subSectionLabel}>Pharmacy Name (Optional)</Text>
+              <Text style={styles.fieldHint}>Default pharmacy for all medicines in this plan. Override per medicine if needed.</Text>
+              <View style={[styles.inputContainer, { marginBottom: 20 }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Apollo Pharmacy, CVS..."
+                  value={schedule.pharmacyName}
+                  onChangeText={(text) => setSchedule(prev => ({ ...prev, pharmacyName: text }))}
+                />
+              </View>
+
               <Text style={styles.subSectionLabel}>Group Notes (Optional)</Text>
               <View style={[styles.inputContainer, { marginBottom: 20 }]}>
                 <TextInput
@@ -983,6 +1096,7 @@ export default function AddMedicationScreen() {
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => {
+                  setDatePickerMode("startDate");
                   setActivePickerIndex(-1);
                   setShowDatePicker(true);
                 }}
@@ -1049,12 +1163,21 @@ export default function AddMedicationScreen() {
 
           {showDatePicker && (
             <DateTimePicker
-              value={activePickerIndex === -1 ? schedule.duration.startDate : (activePickerIndex !== null ? medicines[activePickerIndex].duration.startDate : new Date())}
+              value={
+                datePickerMode === "expiryDate" && activePickerIndex !== null
+                  ? (medicines[activePickerIndex]?.expiryDate || new Date())
+                  : activePickerIndex === -1
+                    ? schedule.duration.startDate
+                    : (activePickerIndex !== null ? medicines[activePickerIndex].duration.startDate : new Date())
+              }
               mode="date"
+              minimumDate={datePickerMode === "expiryDate" ? new Date() : undefined}
               onChange={(event, date) => {
                 setShowDatePicker(false);
                 if (date) {
-                  if (activePickerIndex === -1) {
+                  if (datePickerMode === "expiryDate" && activePickerIndex !== null) {
+                    updateMedicine(activePickerIndex, { expiryDate: date });
+                  } else if (activePickerIndex === -1) {
                     setSchedule(prev => ({ ...prev, duration: { ...prev.duration, startDate: date } }));
                   } else if (activePickerIndex !== null) {
                     updateMedicine(activePickerIndex, { duration: { startDate: date } });
@@ -1133,6 +1256,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, marginTop: -60 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24, zIndex: 1 },
   backButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", alignItems: "center" },
+  sampleDataBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.15)", justifyContent: "center", alignItems: "center" },
   headerTitle: { fontSize: 20, fontWeight: "800", color: "white", letterSpacing: 0.5 },
   formContainer: { flex: 1 },
   formContentContainer: { padding: 20 },
@@ -1339,6 +1463,9 @@ const styles = StyleSheet.create({
   },
   patientAvatarMiniText: { fontSize: 10, fontWeight: "700", color: "#666" },
   subSectionLabel: { fontSize: 13, fontWeight: "600", color: "#666", marginBottom: 8, marginTop: 4 },
+  fieldHint: { fontSize: 12, color: "#94A3B8", marginBottom: 8, marginTop: -4 },
+  clearDateBtn: { marginTop: 10, alignSelf: "flex-start" },
+  clearDateBtnText: { fontSize: 13, fontWeight: "600" },
   scheduleTypeContainer: { flexDirection: 'row', backgroundColor: '#f0f0f0', borderRadius: 12, padding: 4, marginBottom: 15 },
   scheduleTypeBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
   scheduleTypeBtnText: { fontSize: 14, fontWeight: '600', color: '#666' },

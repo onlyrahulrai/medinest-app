@@ -67,6 +67,10 @@ export interface CreateMedicineInput { // Keeping for backward compatibility if 
   instructions?: string;
   color?: string;
   imageUrl?: string;
+  expiryDate?: string;
+  isPharmacyInherited?: boolean;
+  pharmacyName?: string;
+  planPharmacyName?: string;
   refill: MedicineRefill;
   reminderEnabled?: boolean;
   scheduleGroupId?: string;
@@ -81,6 +85,7 @@ export interface CreateMedicineScheduleInput {
   groupForHowLong: string;
   groupNotes: string;
   prescribedBy: string;
+  pharmacyName?: string;
   reminderEnabled: boolean;
   medicines: {
     name: string;
@@ -102,6 +107,9 @@ export interface CreateMedicineScheduleInput {
       isOngoing: boolean;
     };
     isDurationInherited: boolean;
+    expiryDate?: string;
+    isPharmacyInherited?: boolean;
+    pharmacyName?: string;
     refill: {
       totalQuantity: number;
       remainingQuantity: number;

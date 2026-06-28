@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal, 
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '@/components/common/AppDateTimePicker';
 import moment from 'moment';
 import { createOnboardingPayload } from '@/utils/onboardingHelpers';
 import { useAuth } from '@/hooks/useAuth';
@@ -31,15 +31,14 @@ export default function Step4Screen() {
     // Modal & Picker State
     const [showAddModal, setShowAddModal] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
+    const [pickerDraftTime, setPickerDraftTime] = useState(new Date());
     const [newRoutineName, setNewRoutineName] = useState('');
     const [newRoutineTime, setNewRoutineTime] = useState(new Date());
     const [editIndex, setEditIndex] = useState<number | null>(null);
 
-    const handleTimeChange = (event: any, selectedDate?: Date) => {
-        setShowTimePicker(false);
-        if (selectedDate) {
-            setNewRoutineTime(selectedDate);
-        }
+    const openTimePicker = () => {
+        setPickerDraftTime(newRoutineTime);
+        setShowTimePicker(true);
     };
 
     const openEditModal = (index: number) => {
@@ -164,15 +163,17 @@ export default function Step4Screen() {
                 </View>
             </ScrollView>
 
-            {showTimePicker && (
-                <DateTimePicker
-                    value={newRoutineTime}
-                    mode="time"
-                    is24Hour={true}
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={handleTimeChange}
-                />
-            )}
+            <AppDateTimePicker
+                visible={showTimePicker}
+                mode="time"
+                value={pickerDraftTime}
+                title="Select time"
+                onConfirm={(date) => {
+                    setNewRoutineTime(date);
+                    setShowTimePicker(false);
+                }}
+                onCancel={() => setShowTimePicker(false)}
+            />
 
             <Modal visible={showAddModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
@@ -190,7 +191,7 @@ export default function Step4Screen() {
                         />
 
                         <Text style={styles.modalLabel}>Occurrence Time</Text>
-                        <TouchableOpacity style={styles.timeSelectBtn} onPress={() => setShowTimePicker(true)}>
+                        <TouchableOpacity style={styles.timeSelectBtn} onPress={openTimePicker}>
                             <Ionicons name="time-outline" size={20} color="#4CAF50" />
                             <Text style={styles.timeSelectText}>
                                 {moment(newRoutineTime).format('hh:mm A')}

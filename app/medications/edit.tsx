@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import moment from "moment";
 import {
   View,
@@ -12,10 +12,11 @@ import {
   Platform,
   Alert,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import AppDateTimePicker from "../../components/common/AppDateTimePicker";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import ManageRoutinesBottomSheet from "../../components/medications/ManageRoutinesBottomSheet";
@@ -26,16 +27,27 @@ import {
 } from "../../utils/storage";
 import RelationService from "../../services/api/relation";
 import { scheduleMedicationReminder } from "../../utils/notifications";
-import {
-  getMedicineById as apiGetMedicineById,
-  updateMedicine as apiUpdateMedicine,
-  deleteMedicine as apiDeleteMedicine,
-  createMedicine as apiCreateMedicine,
-  getAllMedicines as apiGetAllMedicines,
-  type UpdateMedicineInput,
-  type CreateMedicineInput
-} from "../../services/api/medicines";
+import { getAllMedicines as apiGetAllMedicines, deleteMedicine as apiDeleteMedicine } from "../../services/api/medicines";
+import { getMedicineGroupById, updateMedicineGroup } from "../../services/api/medicineGroups";
 import RoutineService, { type Routine } from "../../services/api/routine";
+import {
+  mapMedicineGroupToEditForm,
+  resolveGroupIdFromMedicine,
+  type EditMedicineFormEntry,
+} from "../../utils/medicineFormMapping";
+import {
+  buildUpdateMedicineGroupPayload,
+  validateMedicineGroupEditForm,
+} from "../../utils/medicineEditPayload";
+import { extractApiErrorMessage } from "../../utils/apiErrors";
+import { useSelector } from "react-redux";
+import {
+  getCurrentUserId,
+  getMedicationTheme,
+  isSelfCreatedGroup,
+  isSelfOwner,
+  MEDICATION_THEMES,
+} from "../../constants/medicationTheme";
 
 // Top-level width calculation moved into the component for better reliability.
 
@@ -81,45 +93,7 @@ const DURATIONS = [
   { id: "5", label: "Ongoing", value: -1 },
 ];
 
-interface MedicineEntry {
-  id?: string;
-  name: string;
-  dosage: {
-    amount: string;
-    unit: string;
-    perIntake: string;
-  };
-  routineIds: string[];
-  customSchedule: {
-    enabled: boolean;
-    frequency: string;
-    times: string[];
-  };
-  mealTiming: string[];
-  isDurationInherited: boolean;
-  duration: {
-    startDate: Date;
-    durationLabel: string;
-    isOngoing: boolean;
-  };
-  refill: {
-    remainingQuantity: string;
-    refillAt: string;
-    refillReminderEnabled: boolean;
-  };
-  notes: string;
-  meta: {
-    color: string;
-    photo: string;
-    type: string;
-  };
-  reminderEnabled: boolean;
-  purpose: string;
-  expiryDate: Date | null;
-  isPharmacyInherited: boolean;
-  pharmacyName: string;
-  isNew?: boolean;
-}
+interface MedicineEntry extends EditMedicineFormEntry {}
 
 export default function EditMedicationScreen() {
   const { width } = Dimensions.get("window");
@@ -127,6 +101,7 @@ export default function EditMedicationScreen() {
   const params = useLocalSearchParams();
   const id = params.id as string;
   const idsParam = params.ids as string;
+  const groupIdParam = params.groupId as string;
 
   // Common group-level fields (including global schedule)
   const [schedule, setSchedule] = useState({
@@ -155,39 +130,46 @@ export default function EditMedicationScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<"startDate" | "expiryDate">("startDate");
-  const [selectedFrequency, setSelectedFrequency] = useState("");
-  const [selectedDuration, setSelectedDuration] = useState("");
+  const [pickerDraftDate, setPickerDraftDate] = useState(new Date());
+  const [pickerDraftTime, setPickerDraftTime] = useState(new Date());
+  const pickerContextRef = useRef<{
+    mode: "startDate" | "expiryDate";
+    index: number | null;
+  }>({ mode: "startDate", index: null });
+  const timePickerContextRef = useRef<{ index: number; timeIndex: number }>({
+    index: 0,
+    timeIndex: 0,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showManageRoutines, setShowManageRoutines] = useState(false);
   const [managedPatients, setManagedPatients] = useState<ManagedPatient[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [apiManagedPatients, setApiManagedPatients] = useState<ManagedPatient[]>([]);
+  const [isSelfCreatedPlan, setIsSelfCreatedPlan] = useState(true);
+
+  const authUser = useSelector((state: any) => state.auth.user);
+  const currentUserId =
+    getCurrentUserId(userProfile as Record<string, any>) ?? getCurrentUserId(authUser);
+  const isSelfSchedule =
+    isSelfCreatedPlan || isSelfOwner(schedule.ownerId, currentUserId);
+  const theme = isSelfSchedule
+    ? MEDICATION_THEMES.self
+    : getMedicationTheme(schedule.ownerId, currentUserId);
 
   const getPatientName = () => {
-    if (schedule.ownerId === "self") return userProfile?.name || "Me";
+    if (isSelfSchedule) return userProfile?.name || "Me";
     const patient = [...managedPatients, ...apiManagedPatients].find(p => p.id === schedule.ownerId || (p as any)._id === schedule.ownerId);
     return patient ? patient.name : "Patient";
   };
 
   const getPatientAvatar = () => {
-    if (schedule.ownerId === "self") return userProfile?.image;
+    if (isSelfSchedule) return userProfile?.image;
     const patient = [...managedPatients, ...apiManagedPatients].find(p => p.id === schedule.ownerId || (p as any)._id === schedule.ownerId);
     return patient?.image;
   };
-
-  const THEMES = {
-    self: {
-      primary: "#065F46", secondary: "#064E3B", accent: "#059669",
-      lightAccent: "#D1FAE5", headerColors: ["#065F46", "#064E3B"] as const,
-    },
-    other: {
-      primary: "#1E40AF", secondary: "#1E3A8A", accent: "#2563EB",
-      lightAccent: "#DBEAFE", headerColors: ["#1E40AF", "#1E3A8A"] as const,
-    }
-  };
-
-  const theme = schedule.ownerId === "self" ? THEMES.self : THEMES.other;
 
   useEffect(() => {
     const loadData = async () => {
@@ -213,113 +195,83 @@ export default function EditMedicationScreen() {
     loadData();
   }, []);
 
-  const mapToEntry = (m: any) => {
-    let dur = "Ongoing";
-    const start = m.duration?.startDate ? new Date(m.duration.startDate) : new Date();
-    if (m.duration?.endDate) {
-       const days = Math.round((new Date(m.duration.endDate).getTime() - start.getTime()) / (1000 * 3600 * 24));
-       const match = DURATIONS.find(d => d.value === days);
-       if (match) dur = match.label;
-    }
-    return {
-      _id: m._id,
-      id: m._id,
-      name: m.name,
-      dosage: {
-        amount: m.dosage?.amount || "",
-        unit: m.dosage?.unit || "mg",
-        perIntake: m.dosage?.perIntake?.toString() || "1"
-      },
-      routineIds: m.routineIds || [],
-      customSchedule: {
-        enabled: m.customSchedule?.enabled || false,
-        frequency: m.customSchedule?.frequency === 'as_needed' ? 'As needed' : (m.customSchedule?.frequency === 'weekly' ? 'Weekly' : (m.customSchedule?.times?.length === 4 ? 'Four times daily' : (m.customSchedule?.times?.length === 3 ? 'Three times daily' : (m.customSchedule?.times?.length === 2 ? 'Twice daily' : 'Once daily')))),
-        times: m.customSchedule?.times || ["09:00"]
-      },
-      mealTiming: m.mealTiming || [],
-      isDurationInherited: true,
-      duration: {
-        startDate: start,
-        durationLabel: dur,
-        isOngoing: dur === "Ongoing"
-      },
-      refill: {
-        remainingQuantity: m.refill?.remainingQuantity?.toString() || "",
-        refillAt: m.refill?.refillAt?.toString() || "",
-        refillReminderEnabled: m.refill?.refillReminder || false
-      },
-      notes: m.notes || "",
-      meta: {
-        color: m.color || "#4CAF50",
-        photo: m.imageUrl || "",
-        type: m.type || ""
-      },
-      reminderEnabled: true,
-      purpose: m.prescription?.purpose || "",
-      expiryDate: m.expiryDate ? new Date(m.expiryDate) : null,
-      isPharmacyInherited: m.isPharmacyInherited ?? true,
-      pharmacyName: m.pharmacyName || "",
-    };
+  const applyEditFormState = (formState: ReturnType<typeof mapMedicineGroupToEditForm>) => {
+    setSchedule((prev) => ({
+      ...prev,
+      ...formState.schedule,
+      addedBy: prev.addedBy,
+    }));
+    setMedicines(formState.medicines);
+    setExpandedMedicine(0);
+    setRemovedMedIds([]);
+    setErrors({});
   };
 
   useEffect(() => {
     const loadMedicationData = async () => {
+      if (!groupIdParam && !id && !idsParam) {
+        setIsLoadingData(false);
+        return;
+      }
+
+      setIsLoadingData(true);
+      setLoadError(null);
+
       try {
-        const [profile, fetchedRoutines, allMeds] = await Promise.all([
+        const [profile, fetchedRoutines] = await Promise.all([
           getUserProfile(),
           RoutineService.getRoutines().catch(() => []),
-          apiGetAllMedicines().catch(() => [])
         ]);
 
         setUserProfile(profile as any);
         setRoutines(fetchedRoutines);
 
-        let medsToEdit: any[] = [];
+        const resolvedCurrentUserId =
+          getCurrentUserId(profile as Record<string, any>) ??
+          getCurrentUserId(authUser);
 
-        if (idsParam) {
-          const idList = idsParam.split(',');
-          medsToEdit = allMeds.filter((m: any) => idList.includes(m._id));
-        } else if (id) {
-          const med = allMeds.find((m: any) => m._id === id);
-          if (med) {
-            medsToEdit = [med];
-            if (med.scheduleGroupId) {
-              const groupMeds = allMeds.filter((m: any) => m.scheduleGroupId === med.scheduleGroupId);
-              if (groupMeds.length > 0) medsToEdit = groupMeds;
+        let resolvedGroupId = groupIdParam;
+
+        if (!resolvedGroupId) {
+          const allMeds = await apiGetAllMedicines().catch(() => []);
+          let medsToInspect: any[] = [];
+
+          if (idsParam) {
+            const idList = idsParam.split(",").map((item) => item.trim()).filter(Boolean);
+            medsToInspect = allMeds.filter((medicine: any) => idList.includes(String(medicine._id)));
+          } else if (id) {
+            const med = allMeds.find((medicine: any) => String(medicine._id) === id);
+            if (med) {
+              medsToInspect = [med];
             }
           }
+
+          resolvedGroupId = medsToInspect
+            .map(resolveGroupIdFromMedicine)
+            .find(Boolean);
         }
 
-        if (medsToEdit.length === 0) return;
-
-        let initialDuration = "Ongoing";
-        let initialStartDate = medsToEdit[0].duration?.startDate ? new Date(medsToEdit[0].duration.startDate) : new Date();
-        if (medsToEdit[0].duration?.endDate) {
-           const days = Math.round((new Date(medsToEdit[0].duration.endDate).getTime() - initialStartDate.getTime()) / (1000 * 3600 * 24));
-           const match = DURATIONS.find(d => d.value === days);
-           if (match) initialDuration = match.label;
+        if (!resolvedGroupId) {
+          throw new Error("Medicine group not found for this edit request.");
         }
 
-        setSchedule({
-          reminderEnabled: medsToEdit[0].reminderEnabled ?? true,
-          ownerId: "self",
-          scheduleGroupId: medsToEdit[0].scheduleGroupId,
-          addedBy: "patient",
-          name: medsToEdit[0].scheduleGroupName || "",
-          startDate: initialStartDate,
-          duration: initialDuration,
-          prescribedBy: medsToEdit[0].prescription?.prescribedBy || "",
-          pharmacyName: medsToEdit[0].pharmacyName || medsToEdit[0].schedulePharmacyName || "",
-          groupNotes: "",
-        });
-
-        setMedicines(medsToEdit.map(mapToEntry));
-      } catch (error) {
+        const groupDetails = await getMedicineGroupById(resolvedGroupId);
+        setIsSelfCreatedPlan(isSelfCreatedGroup(groupDetails));
+        applyEditFormState(
+          mapMedicineGroupToEditForm(groupDetails, resolvedCurrentUserId)
+        );
+      } catch (error: any) {
         console.error("Load error:", error);
+        const message =
+          error?.response?.data?.message || error?.message || "Failed to load medicine group";
+        setLoadError(message);
+      } finally {
+        setIsLoadingData(false);
       }
     };
-    if (id || idsParam) loadMedicationData();
-  }, [id, idsParam]);
+
+    loadMedicationData();
+  }, [groupIdParam, id, idsParam, authUser]);
 
   const updateMedicine = (index: number, updates: any) => {
     setMedicines(prev => prev.map((med, i) => {
@@ -338,6 +290,68 @@ export default function EditMedicationScreen() {
       }
       return newMed;
     }));
+  };
+
+  const openDatePicker = (
+    mode: "startDate" | "expiryDate",
+    pickerIndex: number,
+    initialDate?: Date
+  ) => {
+    pickerContextRef.current = { mode, index: pickerIndex };
+    setDatePickerMode(mode);
+    setActivePickerIndex(pickerIndex);
+    setPickerDraftDate(initialDate || new Date());
+    setShowDatePicker(true);
+  };
+
+  const applyPickedDate = (date: Date) => {
+    const { mode, index } = pickerContextRef.current;
+
+    if (mode === "expiryDate" && index !== null && index >= 0) {
+      updateMedicine(index, { expiryDate: date });
+      return;
+    }
+
+    if (index === -1) {
+      setSchedule((prev) => ({ ...prev, startDate: date }));
+      return;
+    }
+
+    if (index !== null && index >= 0) {
+      updateMedicine(index, { duration: { startDate: date } });
+    }
+  };
+
+  const openTimePicker = (pickerIndex: number, timeIndex: number, timeStr: string) => {
+    timePickerContextRef.current = { index: pickerIndex, timeIndex };
+    setActivePickerIndex(pickerIndex);
+    setActiveTimeIndex(timeIndex);
+    const [hours, minutes] = (timeStr || "09:00").split(":").map(Number);
+    const draft = new Date();
+    draft.setHours(hours, minutes, 0, 0);
+    setPickerDraftTime(draft);
+    setShowTimePicker(true);
+  };
+
+  const applyPickedTime = (date: Date) => {
+    const { index, timeIndex } = timePickerContextRef.current;
+    const newTime = date.toLocaleTimeString("default", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    setMedicines((prev) =>
+      prev.map((med, i) => {
+        if (i !== index) return med;
+        const newTimes = [...med.customSchedule.times];
+        newTimes[timeIndex] = newTime;
+        return {
+          ...med,
+          customSchedule: { ...med.customSchedule, times: newTimes },
+        };
+      })
+    );
   };
 
   const addAnotherMedicine = () => {
@@ -437,34 +451,20 @@ export default function EditMedicationScreen() {
   };
 
   const validateForm = () => {
-    const newErrors: { [key: string]: string } = {};
+    const newErrors: { [key: string]: string } = {
+      ...validateMedicineGroupEditForm(schedule, medicines),
+    };
     let firstErrorIndex = -1;
 
     medicines.forEach((med, index) => {
       let medHasError = false;
-      if (!med.name.trim()) {
-        newErrors[`name_${index}`] = "Medication name is required";
-        medHasError = true;
-      }
-      if (!med.dosage.amount.trim()) {
-        newErrors[`dosage_${index}`] = "Dosage is required";
-        medHasError = true;
-      }
-      if (!med.meta.type) {
-        newErrors[`type_${index}`] = "Selection required";
-        medHasError = true;
-      }
-      // Validate per-medicine schedule
-      if (!med.isDurationInherited && !med.duration.durationLabel) {
-        newErrors[`duration_${index}`] = "Duration is required";
-        medHasError = true;
-      }
-      if (med.customSchedule.enabled) {
-        if (!med.customSchedule.frequency) {
-          newErrors[`frequency_${index}`] = "Frequency is required";
-          medHasError = true;
-        }
-      }
+
+      if (newErrors[`name_${index}`]) medHasError = true;
+      if (newErrors[`dosage_${index}`]) medHasError = true;
+      if (newErrors[`type_${index}`]) medHasError = true;
+      if (newErrors[`duration_${index}`]) medHasError = true;
+      if (newErrors[`frequency_${index}`]) medHasError = true;
+
       if (med.refill.refillReminderEnabled) {
         if (!med.refill.remainingQuantity) {
           newErrors[`currentSupply_${index}`] = "Required";
@@ -496,115 +496,56 @@ export default function EditMedicationScreen() {
       Alert.alert("Error", "Please fill in all required fields. Missing fields are highlighted in red.");
       return;
     }
+
+    if (!schedule.scheduleGroupId) {
+      Alert.alert("Error", "Medicine group ID is missing. Please reopen this plan and try again.");
+      return;
+    }
+
     setIsSubmitting(true);
+
     try {
-      // Delete removed medicines
-      for (const removedId of removedMedIds) {
-        await apiDeleteMedicine(removedId);
-      }
+      const payload = buildUpdateMedicineGroupPayload(schedule, medicines, removedMedIds, {
+        patientId: isSelfSchedule ? undefined : schedule.ownerId,
+      });
 
-      // Determine group ID
-      let groupId = schedule.scheduleGroupId;
-      if (medicines.length > 1 && !groupId) {
-        groupId = Math.random().toString(36).substr(2, 9);
-      }
-      if (medicines.length <= 1) {
-        groupId = undefined;
-      }
+      console.log("Update medicine group payload:", JSON.stringify(payload));
 
-      for (const med of medicines) {
-        const useCustom = med.customSchedule.enabled;
+      const updatedGroup = await updateMedicineGroup(schedule.scheduleGroupId, payload);
 
-        // Map frequency
-        let frequency: 'daily' | 'weekly' | 'custom' | 'as_needed' = 'daily';
-        if (med.customSchedule.frequency.includes("Weekly")) frequency = 'weekly';
-        if (med.customSchedule.frequency === "As needed") frequency = 'as_needed';
-        if (med.customSchedule.frequency === "Custom") frequency = 'custom';
+      for (const savedMedicine of updatedGroup.medicines) {
+        if (!savedMedicine.reminderEnabled) continue;
 
-        // Calculate end date based on duration label
-        const actualDurationStr = med.isDurationInherited ? schedule.duration : med.duration.durationLabel;
-        const actualStartDate = med.isDurationInherited ? schedule.startDate : med.duration.startDate;
+        const useCustom = Boolean(savedMedicine.customSchedule?.enabled);
+        const routineIds = savedMedicine.routineIds || [];
 
-        let endDate: string | undefined = undefined;
-        const durationValue = DURATIONS.find(d => d.label === actualDurationStr)?.value;
-        if (durationValue && durationValue > 0) {
-          const end = new Date(actualStartDate);
-          end.setDate(end.getDate() + durationValue);
-          endDate = end.toISOString();
-        }
-
-        const payload = {
-          name: med.name,
-          type: med.meta.type,
-          dosage: {
-            amount: med.dosage.amount,
-            unit: med.dosage.unit,
-            perIntake: Number(med.dosage.perIntake) || 1
-          },
-          routineIds: useCustom ? [] : med.routineIds,
-          customSchedule: {
-            enabled: useCustom,
-            times: useCustom ? med.customSchedule.times : [],
-            frequency: frequency,
-          },
-          duration: {
-            startDate: actualStartDate.toISOString(),
-            endDate,
-          },
-          mealTiming: med.mealTiming,
-          prescription: {
-            prescribedBy: schedule.prescribedBy,
-            purpose: med.purpose || schedule.name,
-          },
-          notes: med.notes || schedule.groupNotes,
-          expiryDate: med.expiryDate ? med.expiryDate.toISOString() : undefined,
-          isPharmacyInherited: med.isPharmacyInherited,
-          pharmacyName: med.isPharmacyInherited ? undefined : (med.pharmacyName || undefined),
-          imageUrl: med.meta.photo || undefined,
-          color: med.meta.color,
-          refill: {
-            refillReminder: med.refill.refillReminderEnabled,
-            remainingQuantity: Number(med.refill.remainingQuantity) || 0,
-            totalQuantity: Number(med.refill.remainingQuantity) || 0,
-            refillAt: Number(med.refill.refillAt) || 0,
-          },
-          reminderEnabled: schedule.reminderEnabled,
-          scheduleGroupId: groupId,
-          scheduleGroupName: schedule.name,
-          planPharmacyName: schedule.pharmacyName || undefined,
-          patientId: schedule.ownerId === "self" ? undefined : schedule.ownerId,
-        };
-
-        let savedMedicineId = med.isNew ? "" : med.id;
-        if (med.isNew) {
-          const res = await apiCreateMedicine(payload as CreateMedicineInput);
-          savedMedicineId = res._id;
-        } else {
-          await apiUpdateMedicine(med.id as string, payload as UpdateMedicineInput);
-        }
-
-        // Reschedule reminders
-        if (payload.reminderEnabled) {
+        try {
           await scheduleMedicationReminder({
-            ...payload,
-            id: savedMedicineId,
+            id: savedMedicine._id,
+            name: savedMedicine.name,
             ownerId: schedule.ownerId,
-            startDate: payload.duration.startDate,
-            frequency: med.customSchedule.frequency,
-            times: useCustom ? payload.customSchedule.times : routines.filter(r => payload.routineIds?.includes(r._id)).map(r => r.time),
-            duration: actualDurationStr,
+            startDate: savedMedicine.duration?.startDate,
+            frequency: savedMedicine.customSchedule?.frequency || "Once daily",
+            times: useCustom
+              ? savedMedicine.customSchedule?.times || []
+              : routines.filter((routine) => routineIds.includes(routine._id)).map((routine) => routine.time),
+            duration: savedMedicine.duration?.forHowLong || schedule.duration,
+            reminderEnabled: savedMedicine.reminderEnabled,
           } as any);
+        } catch (reminderError) {
+          console.warn("Failed to reschedule reminder for medicine:", savedMedicine._id, reminderError);
         }
       }
 
-      setIsSubmitting(false);
       Alert.alert("Success", "Medications updated successfully", [
-        { text: "OK", onPress: () => router.back() }
+        { text: "OK", onPress: () => router.back() },
       ]);
-    } catch (error: any) {
-      console.error("Update error:", error);
+    } catch (error: unknown) {
+      const message = extractApiErrorMessage(error, "Failed to update medications");
+      console.error("Update medicine group error:", error);
+      Alert.alert("Error", message);
+    } finally {
       setIsSubmitting(false);
-      Alert.alert("Error", error.message || "Failed to update medications");
     }
   };
 
@@ -835,11 +776,7 @@ export default function EditMedicationScreen() {
                       <TouchableOpacity
                         key={tIndex}
                         style={styles.routineChipLarge}
-                        onPress={() => {
-                          setActivePickerIndex(index);
-                          setActiveTimeIndex(tIndex);
-                          setShowTimePicker(true);
-                        }}
+                        onPress={() => openTimePicker(index, tIndex, time)}
                       >
                         <View style={styles.routineChipHeader}>
                           <Text style={styles.routineChipTitle}>Dose {tIndex + 1}</Text>
@@ -887,9 +824,7 @@ export default function EditMedicationScreen() {
                     <TouchableOpacity
                       style={styles.dateButton}
                       onPress={() => {
-                        setDatePickerMode("startDate");
-                        setActivePickerIndex(index);
-                        setShowDatePicker(true);
+                        openDatePicker("startDate", index, med.duration.startDate);
                       }}
                     >
                       <View style={[styles.dateIconContainer, { backgroundColor: theme.lightAccent }]}>
@@ -940,7 +875,7 @@ export default function EditMedicationScreen() {
                   <TouchableOpacity
                     key={color}
                     style={[styles.colorCircle, { backgroundColor: color }, med.meta.color === color && styles.colorCircleActive]}
-                    onPress={() => updateMedicine(index, { color })}
+                    onPress={() => updateMedicine(index, { meta: { color } })}
                   >
                     {med.meta.color === color && <Ionicons name="checkmark" size={20} color="white" />}
                   </TouchableOpacity>
@@ -1023,9 +958,7 @@ export default function EditMedicationScreen() {
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => {
-                  setDatePickerMode("expiryDate");
-                  setActivePickerIndex(index);
-                  setShowDatePicker(true);
+                  openDatePicker("expiryDate", index, med.expiryDate || new Date());
                 }}
               >
                 <View style={styles.dateIconContainer}>
@@ -1121,12 +1054,24 @@ export default function EditMedicationScreen() {
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {schedule.ownerId === "self" ? "Edit Schedule" : `For ${getPatientName()}`}
+            {isSelfSchedule ? "Edit Schedule" : `For ${getPatientName()}`}
           </Text>
           <View style={{ width: 44 }} />
         </View>
       </LinearGradient>
 
+      {isLoadingData ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#059669" />
+          <Text style={styles.loadingText}>Loading medicine group...</Text>
+        </View>
+      ) : loadError ? (
+        <View style={styles.loadingContainer}>
+          <Ionicons name="alert-circle-outline" size={56} color="#EF4444" />
+          <Text style={styles.errorTitle}>Unable to load group</Text>
+          <Text style={styles.loadingText}>{loadError}</Text>
+        </View>
+      ) : (
       <View style={styles.content}>
         <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false} contentContainerStyle={styles.formContentContainer}>
           {/* Patient Info */}
@@ -1142,7 +1087,7 @@ export default function EditMedicationScreen() {
             </View>
             <View style={styles.patientInfoContent}>
               <Text style={styles.patientInfoName}>{getPatientName()}</Text>
-              <Text style={styles.patientInfoRole}>{schedule.ownerId === "self" ? "Personal" : "Managed Patient"}</Text>
+              <Text style={styles.patientInfoRole}>{isSelfSchedule ? "Personal" : "Managed Patient"}</Text>
             </View>
           </View>
 
@@ -1217,9 +1162,7 @@ export default function EditMedicationScreen() {
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => {
-                  setDatePickerMode("startDate");
-                  setActivePickerIndex(-1);
-                  setShowDatePicker(true);
+                  openDatePicker("startDate", -1, schedule.startDate);
                 }}
               >
                 <View style={[styles.dateIconContainer, { backgroundColor: theme.lightAccent }]}>
@@ -1277,55 +1220,6 @@ export default function EditMedicationScreen() {
           </View>
 
           <View style={{ height: 100 }} />
-          {showDatePicker && (
-            <DateTimePicker
-              value={
-                datePickerMode === "expiryDate" && activePickerIndex !== null && activePickerIndex >= 0
-                  ? (medicines[activePickerIndex]?.expiryDate || new Date())
-                  : activePickerIndex === -1
-                    ? schedule.startDate
-                    : (activePickerIndex !== null && activePickerIndex >= 0 ? medicines[activePickerIndex].duration.startDate : new Date())
-              }
-              mode="date"
-              minimumDate={datePickerMode === "expiryDate" ? new Date() : undefined}
-              onChange={(event, date) => {
-                setShowDatePicker(false);
-                if (date) {
-                  if (datePickerMode === "expiryDate" && activePickerIndex !== null && activePickerIndex >= 0) {
-                    updateMedicine(activePickerIndex, { expiryDate: date });
-                  } else if (activePickerIndex === -1) {
-                    setSchedule(prev => ({ ...prev, startDate: date }));
-                  } else if (activePickerIndex !== null) {
-                    updateMedicine(activePickerIndex, { duration: { startDate: date } });
-                  }
-                }
-              }}
-            />
-          )}
-          {!!showTimePicker && (
-            <DateTimePicker
-              value={(() => {
-                const times = activePickerIndex !== null ? medicines[activePickerIndex].customSchedule.times : ["09:00"];
-                const timeStr = times[activeTimeIndex] || "09:00";
-                const [hours, minutes] = timeStr.split(":").map(Number);
-                const date = new Date();
-                date.setHours(hours, minutes, 0, 0);
-                return date;
-              })()}
-              mode="time"
-              onChange={(event, date) => {
-                setShowTimePicker(false);
-                if (date && activePickerIndex !== null) {
-                  const newTime = date.toLocaleTimeString("default", {
-                    hour: "2-digit", minute: "2-digit", hour12: false,
-                  });
-                  const newTimes = [...medicines[activePickerIndex].customSchedule.times];
-                  newTimes[activeTimeIndex] = newTime;
-                  updateMedicine(activePickerIndex, { customSchedule: { times: newTimes  } });
-                }
-              }}
-            />
-          )}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -1342,7 +1236,7 @@ export default function EditMedicationScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      {/* Manage Routines Bottom Sheet */}
+      )}
       <ManageRoutinesBottomSheet
         visible={showManageRoutines}
         onClose={async (updated) => {
@@ -1353,12 +1247,38 @@ export default function EditMedicationScreen() {
           }
         }}
       />
+      <AppDateTimePicker
+        visible={showDatePicker}
+        mode="date"
+        value={pickerDraftDate}
+        minimumDate={datePickerMode === "expiryDate" ? new Date() : undefined}
+        title={datePickerMode === "expiryDate" ? "Expiry date" : "Start date"}
+        onConfirm={(date) => {
+          applyPickedDate(date);
+          setShowDatePicker(false);
+        }}
+        onCancel={() => setShowDatePicker(false)}
+      />
+      <AppDateTimePicker
+        visible={showTimePicker}
+        mode="time"
+        value={pickerDraftTime}
+        title="Select time"
+        onConfirm={(date) => {
+          applyPickedTime(date);
+          setShowTimePicker(false);
+        }}
+        onCancel={() => setShowTimePicker(false)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f9fa" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
+  loadingText: { marginTop: 12, fontSize: 14, color: "#64748B", textAlign: "center", lineHeight: 20 },
+  errorTitle: { marginTop: 16, fontSize: 18, fontWeight: "700", color: "#0F172A", textAlign: "center" },
   headerGradient: { paddingTop: Platform.OS === "ios" ? 60 : 40, paddingBottom: 80, paddingHorizontal: 20, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
   content: { flex: 1, marginTop: -60 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24, zIndex: 1 },

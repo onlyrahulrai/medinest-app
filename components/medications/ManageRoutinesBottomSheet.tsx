@@ -12,7 +12,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import AppDateTimePicker from "../common/AppDateTimePicker";
 import RoutineService, { type Routine } from "../../services/api/routine";
 import moment from "moment";
 
@@ -29,6 +29,7 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
   // Custom Routine Modal (Step 4 Style)
   const [showFormModal, setShowFormModal] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [pickerDraftTime, setPickerDraftTime] = useState(new Date());
   const [editId, setEditId] = useState<string | null>(null);
   const [routineName, setRoutineName] = useState("");
   const [routineTime, setRoutineTime] = useState(new Date());
@@ -104,9 +105,9 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
     );
   };
 
-  const handleTimeChange = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(false);
-    if (selectedDate) setRoutineTime(selectedDate);
+  const openTimePicker = () => {
+    setPickerDraftTime(routineTime);
+    setShowTimePicker(true);
   };
 
   return (
@@ -182,7 +183,7 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
               />
 
               <Text style={styles.modalLabel}>Occurrence Time</Text>
-              <TouchableOpacity style={styles.timeSelectBtn} onPress={() => setShowTimePicker(true)}>
+              <TouchableOpacity style={styles.timeSelectBtn} onPress={openTimePicker}>
                 <Ionicons name="time-outline" size={20} color="#4CAF50" />
                 <Text style={styles.timeSelectText}>
                   {moment(routineTime).format('hh:mm A')}
@@ -209,15 +210,17 @@ const ManageRoutinesBottomSheet = ({ visible, onClose }: ManageRoutinesBottomShe
           </View>
         </Modal>
 
-        {showTimePicker && (
-          <DateTimePicker
-            value={routineTime}
-            mode="time"
-            is24Hour={true}
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleTimeChange}
-          />
-        )}
+        <AppDateTimePicker
+          visible={showTimePicker}
+          mode="time"
+          value={pickerDraftTime}
+          title="Select time"
+          onConfirm={(date) => {
+            setRoutineTime(date);
+            setShowTimePicker(false);
+          }}
+          onCancel={() => setShowTimePicker(false)}
+        />
       </View>
     </Modal>
   );

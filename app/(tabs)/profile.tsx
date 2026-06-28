@@ -11,6 +11,7 @@ import ReceivedInvitations from '@/components/caregiver/ReceivedInvitations';
 import ManagedPatients from '@/components/caregiver/ManagedPatients';
 import ProfileRoutinesSection from '@/components/profile/ProfileRoutinesSection';
 import LanguageSelector from '@/components/profile/LanguageSelector';
+import { MEDICATION_THEMES } from '@/constants/medicationTheme';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -163,6 +164,35 @@ export default function ProfileScreen() {
 
                 {/* Routines Section */}
                 <ProfileRoutinesSection />
+
+                {/* Medicine Groups */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeaderRow}>
+                        <View style={styles.sectionTitleRow}>
+                            <View style={[styles.sectionIconContainer, { backgroundColor: MEDICATION_THEMES.self.lightAccent }]}>
+                                <Ionicons name="folder-open-outline" size={14} color={MEDICATION_THEMES.self.accent} />
+                            </View>
+                            <Text style={styles.sectionTitle}>Medicine Groups</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => router.push('/medications/groups')}>
+                            <Text style={styles.inviteButtonText}>View All</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity
+                        style={styles.card}
+                        onPress={() => router.push('/medications/groups')}
+                        activeOpacity={0.85}
+                    >
+                        <View style={styles.row}>
+                            <Ionicons name="layers-outline" size={22} color={MEDICATION_THEMES.self.accent} style={styles.icon} />
+                            <View style={styles.rowContent}>
+                                <Text style={styles.rowLabel}>Treatment Plans</Text>
+                                <Text style={styles.rowText}>Browse grouped medicines and schedules</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                        </View>
+                    </TouchableOpacity>
+                </View>
 
                 {/* Language Section */}
                 <LanguageSelector />

@@ -15,7 +15,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import AppDateTimePicker from "@/components/common/AppDateTimePicker";
 import "../../utils/i18n";
 import { useAuth } from "@/hooks/useAuth";
 import { createOnboardingPayload } from "@/utils/onboardingHelpers";
@@ -31,6 +31,7 @@ export default function Step1Screen() {
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerDraftDate, setPickerDraftDate] = useState(new Date());
   const [isSaving, setIsSaving] = useState(false);
   const { editUserProfile } = useAuth();
 
@@ -156,7 +157,10 @@ export default function Step1Screen() {
           <Text style={styles.label}>Date of Birth</Text>
           <TouchableOpacity
             style={styles.input}
-            onPress={() => setShowDatePicker(true)}
+            onPress={() => {
+              setPickerDraftDate(dateOfBirth || new Date());
+              setShowDatePicker(true);
+            }}
             activeOpacity={0.7}
           >
             <View style={styles.dobRow}>
@@ -173,18 +177,19 @@ export default function Step1Screen() {
               <Ionicons name="calendar-outline" size={20} color="#999" />
             </View>
           </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={dateOfBirth || new Date()}
-              mode="date"
-              maximumDate={new Date()}
-              minimumDate={new Date(1920, 0, 1)}
-              onChange={(event, date) => {
-                setShowDatePicker(false);
-                if (date) setDateOfBirth(date);
-              }}
-            />
-          )}
+          <AppDateTimePicker
+            visible={showDatePicker}
+            mode="date"
+            value={pickerDraftDate}
+            maximumDate={new Date()}
+            minimumDate={new Date(1920, 0, 1)}
+            title="Date of birth"
+            onConfirm={(date) => {
+              setDateOfBirth(date);
+              setShowDatePicker(false);
+            }}
+            onCancel={() => setShowDatePicker(false)}
+          />
 
           <Text style={styles.label}>{t("onboarding.step1.weight")}</Text>
           <TextInput

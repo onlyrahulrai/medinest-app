@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import RoutineService, { Routine } from '@/services/api/routine';
-import DateTimePicker from "@react-native-community/datetimepicker";
+import AppDateTimePicker from "@/components/common/AppDateTimePicker";
 import moment from "moment";
 export default function ProfileRoutinesSection() {
     const [routines, setRoutines] = useState<Routine[]>([]);
@@ -11,6 +11,7 @@ export default function ProfileRoutinesSection() {
 
     const [showFormModal, setShowFormModal] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
+    const [pickerDraftTime, setPickerDraftTime] = useState(new Date());
     const [editId, setEditId] = useState<string | null>(null);
     const [routineName, setRoutineName] = useState("");
     const [routineTime, setRoutineTime] = useState(new Date());
@@ -50,9 +51,9 @@ export default function ProfileRoutinesSection() {
         }
     };
 
-    const handleTimeChange = (event: any, selectedDate?: Date) => {
-        setShowTimePicker(Platform.OS === 'ios');
-        if (selectedDate) setRoutineTime(selectedDate);
+    const openTimePicker = () => {
+        setPickerDraftTime(routineTime);
+        setShowTimePicker(true);
     };
 
     const fetchRoutines = useCallback(async () => {
@@ -261,7 +262,7 @@ export default function ProfileRoutinesSection() {
                         />
 
                         <Text style={styles.modalLabel}>Occurrence Time</Text>
-                        <TouchableOpacity style={styles.timeSelectBtn} onPress={() => setShowTimePicker(true)}>
+                        <TouchableOpacity style={styles.timeSelectBtn} onPress={openTimePicker}>
                             <Ionicons name="time-outline" size={20} color="#059669" />
                             <Text style={styles.timeSelectText}>
                                 {moment(routineTime).format('hh:mm A')}
@@ -288,15 +289,18 @@ export default function ProfileRoutinesSection() {
                 </View>
             </Modal>
 
-            {showTimePicker && (
-                <DateTimePicker
-                    value={routineTime}
-                    mode="time"
-                    is24Hour={false}
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={handleTimeChange}
-                />
-            )}
+            <AppDateTimePicker
+                visible={showTimePicker}
+                mode="time"
+                value={pickerDraftTime}
+                title="Select time"
+                is24Hour={false}
+                onConfirm={(date) => {
+                    setRoutineTime(date);
+                    setShowTimePicker(false);
+                }}
+                onCancel={() => setShowTimePicker(false)}
+            />
         </View>
     );
 }

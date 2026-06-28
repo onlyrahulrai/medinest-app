@@ -284,12 +284,6 @@ export default function CalendarScreen() {
                   );
                 })}
 
-                <TouchableOpacity
-                  style={styles.editIconBtn}
-                  onPress={() => router.push(`/medications/edit?id=${group.meds[0].id}`)}
-                >
-                  <Ionicons name="create-outline" size={18} color="#666" />
-                </TouchableOpacity>
               </View>
             </View>
           );
@@ -685,16 +679,6 @@ const styles = StyleSheet.create({
   cardActions: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  editIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
-    alignSelf: "flex-end",
-    marginTop: 8,
   },
   groupBadge: {
     flexDirection: "row",

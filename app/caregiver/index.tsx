@@ -317,6 +317,31 @@ export default function CaregiverDashboard() {
 
             <TouchableOpacity 
               style={[styles.quickActionCard, { marginTop: 12 }]}
+              onPress={() => router.push("/caregiver/medicines")}
+            >
+              <LinearGradient
+                colors={["#ecfdf5", "#d1fae5"]}
+                style={styles.quickActionGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <View style={styles.quickActionContent}>
+                  <View style={styles.quickActionIconContainer}>
+                    <Ionicons name="folder-open-outline" size={24} color="#059669" />
+                  </View>
+                  <View>
+                    <Text style={styles.quickActionTitle}>Patient Medicines</Text>
+                    <Text style={styles.quickActionSubtitle}>
+                      View treatment plans you added
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#059669" />
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.quickActionCard, { marginTop: 12 }]}
               onPress={() => handleViewActivity(selectedMember)}
             >
               <LinearGradient

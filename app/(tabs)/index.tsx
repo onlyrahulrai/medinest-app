@@ -289,6 +289,21 @@ export default function HomeScreen() {
     }
   }, [activePatientId]);
 
+  const handleQuickAction = (route: string) => {
+    if (route === "/medications/groups") {
+      if (activePatientId) {
+        router.push(`/medications/groups?patientId=${activePatientId}`);
+      } else if (managedPatients.length > 0) {
+        router.push("/caregiver/medicines");
+      } else {
+        router.push("/medications/groups");
+      }
+      return;
+    }
+
+    router.push(route as any);
+  };
+
   const setupNotifications = async () => {
     try {
       const token = await registerForPushNotificationsAsync();
@@ -547,14 +562,27 @@ export default function HomeScreen() {
           <Text style={[styles.sectionPremiumTitle, { paddingHorizontal: 20 }]}>Quick Actions</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActionsScroll}>
             {QUICK_ACTIONS.map((action) => (
-              <Link href={action.route} key={action.label} asChild>
-                <TouchableOpacity style={styles.pillActionBtn}>
+              action.route === "/medications/groups" ? (
+                <TouchableOpacity
+                  key={action.label}
+                  style={styles.pillActionBtn}
+                  onPress={() => handleQuickAction(action.route)}
+                >
                   <View style={[styles.pillActionIcon, { backgroundColor: action.bgColor }]}>
                     <Ionicons name={action.icon as any} size={22} color={action.color} />
                   </View>
                   <Text style={styles.pillActionLabel}>{action.label}</Text>
                 </TouchableOpacity>
-              </Link>
+              ) : (
+                <Link href={action.route} key={action.label} asChild>
+                  <TouchableOpacity style={styles.pillActionBtn}>
+                    <View style={[styles.pillActionIcon, { backgroundColor: action.bgColor }]}>
+                      <Ionicons name={action.icon as any} size={22} color={action.color} />
+                    </View>
+                    <Text style={styles.pillActionLabel}>{action.label}</Text>
+                  </TouchableOpacity>
+                </Link>
+              )
             ))}
           </ScrollView>
         </Animated.View>

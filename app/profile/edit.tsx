@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import AppDateTimePicker from '../../components/common/AppDateTimePicker';
 import { UserProfile } from '../../utils/storage';
 import { Image } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -31,6 +31,7 @@ export default function EditProfileScreen() {
     const [name, setName] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
     const [showDatePicker, setShowDatePicker] = useState(false);
+    const [pickerDraftDate, setPickerDraftDate] = useState(new Date());
     const [gender, setGender] = useState('');
     const [phone, setPhone] = useState('');
     const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
@@ -241,7 +242,10 @@ export default function EditProfileScreen() {
                         <Text style={styles.label}>Date of Birth *</Text>
                         <TouchableOpacity
                             style={styles.input}
-                            onPress={() => setShowDatePicker(true)}
+                            onPress={() => {
+                                setPickerDraftDate(dateOfBirth || new Date());
+                                setShowDatePicker(true);
+                            }}
                             activeOpacity={0.7}
                         >
                             <View style={styles.dobRow}>
@@ -261,18 +265,19 @@ export default function EditProfileScreen() {
                             </View>
                         </TouchableOpacity>
 
-                        {showDatePicker && (
-                            <DateTimePicker
-                                value={dateOfBirth || new Date()}
-                                mode="date"
-                                maximumDate={new Date()}
-                                minimumDate={new Date(1920, 0, 1)}
-                                onChange={(event, date) => {
-                                    setShowDatePicker(false);
-                                    if (date) setDateOfBirth(date);
-                                }}
-                            />
-                        )}
+                        <AppDateTimePicker
+                            visible={showDatePicker}
+                            mode="date"
+                            value={pickerDraftDate}
+                            maximumDate={new Date()}
+                            minimumDate={new Date(1920, 0, 1)}
+                            title="Date of birth"
+                            onConfirm={(date) => {
+                                setDateOfBirth(date);
+                                setShowDatePicker(false);
+                            }}
+                            onCancel={() => setShowDatePicker(false)}
+                        />
 
                         <Text style={styles.label}>Weight (kg) *</Text>
                         <TextInput

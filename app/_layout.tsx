@@ -47,6 +47,14 @@ export default function Layout() {
             options={{ headerShown: false, title: "" }}
           />
           <Stack.Screen
+            name="medications/groups/index"
+            options={{ headerShown: false, title: "" }}
+          />
+          <Stack.Screen
+            name="medications/groups/[id]"
+            options={{ headerShown: false, title: "" }}
+          />
+          <Stack.Screen
             name="refills"
             options={{ headerShown: false, title: "" }}
           />

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import moment from "moment";
 import {
   View,
@@ -15,10 +15,10 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import ManageRoutinesBottomSheet from "../../components/medications/ManageRoutinesBottomSheet";
+import AppDateTimePicker from "../../components/common/AppDateTimePicker";
 import {
   ManagedPatient,
   UserProfile
@@ -33,6 +33,13 @@ import { createMedicine, type CreateMedicineInput } from "../../services/api/med
 import RoutineService, { type Routine } from "../../services/api/routine";
 import { MEDICATION_TYPES, MEAL_TIMINGS, DOSAGE_UNITS, MEDICINE_COLORS, FREQUENCIES, DURATIONS } from "../../constants/medicine";
 import { getSampleMedicationFormData } from "../../constants/medicineSampleData";
+import {
+  getCurrentUserId,
+  getMedicationTheme,
+  isSelfOwner,
+  MEDICATION_THEMES,
+  resolveOwnerId,
+} from "../../constants/medicationTheme";
 import { useSelector } from "react-redux";
 
 // Top-level width calculation moved into the component for better reliability with Expo Go/Bridgeless mode.
@@ -106,7 +113,7 @@ export default function AddMedicationScreen() {
 
   const [schedule, setSchedule] = useState({
     reminderEnabled: true,
-    ownerId: patientId || "self",
+    ownerId: resolveOwnerId(patientId, undefined),
     duration: {
       startDate: new Date(),
       forHowLong: "30 days",
@@ -129,6 +136,7 @@ export default function AddMedicationScreen() {
   const [activePickerIndex, setActivePickerIndex] = useState<number | null>(null);
   const [activeTimeIndex, setActiveTimeIndex] = useState<number>(0);
   const userProfile = useSelector((state: any) => state.auth.user);
+  const currentUserId = getCurrentUserId(userProfile);
   const reduxManagedPatients: ManagedPatient[] = userProfile?.managedPatients || [];
 
   // Merge Redux and API patients
@@ -138,32 +146,31 @@ export default function AddMedicationScreen() {
     return acc;
   }, []);
 
-  const THEMES = {
-    self: {
-      primary: "#065F46", secondary: "#064E3B", accent: "#059669",
-      lightAccent: "#D1FAE5", headerColors: ["#065F46", "#064E3B"] as const,
-      icon: "heart" as const, label: "Personal Health Profile"
-    },
-    other: {
-      primary: "#1E40AF", secondary: "#1E3A8A", accent: "#2563EB",
-      lightAccent: "#DBEAFE", headerColors: ["#1E40AF", "#1E3A8A"] as const,
-      icon: "people-outline" as const, label: "Managed Patient"
-    }
-  };
-
-  const theme = schedule.ownerId === "self" ? THEMES.self : THEMES.other;
+  const isSelfSchedule = isSelfOwner(schedule.ownerId, currentUserId);
+  const theme = isSelfSchedule
+    ? MEDICATION_THEMES.self
+    : getMedicationTheme(schedule.ownerId, currentUserId);
 
   const getPatientName = () => {
-    if (schedule.ownerId === "self") return userProfile?.name || "Me";
+    if (isSelfSchedule) return userProfile?.name || "Me";
     const patient = managedPatients.find(p => (p as any).id === schedule.ownerId || (p as any)._id === schedule.ownerId);
     return patient ? (patient as any).name : "Patient";
   };
 
   const getPatientAvatar = () => {
-    if (schedule.ownerId === "self") return userProfile?.image;
+    if (isSelfSchedule) return userProfile?.image;
     const patient = managedPatients.find(p => (p as any).id === schedule.ownerId || (p as any)._id === schedule.ownerId);
     return patient?.image;
   };
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    setSchedule((prev) => ({
+      ...prev,
+      ownerId: resolveOwnerId(prev.ownerId, currentUserId),
+    }));
+  }, [currentUserId]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -192,6 +199,16 @@ export default function AddMedicationScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<"startDate" | "expiryDate">("startDate");
+  const [pickerDraftDate, setPickerDraftDate] = useState(new Date());
+  const [pickerDraftTime, setPickerDraftTime] = useState(new Date());
+  const pickerContextRef = useRef<{
+    mode: "startDate" | "expiryDate";
+    index: number | null;
+  }>({ mode: "startDate", index: null });
+  const timePickerContextRef = useRef<{ index: number; timeIndex: number }>({
+    index: 0,
+    timeIndex: 0,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showManageRoutines, setShowManageRoutines] = useState(false);
 
@@ -212,6 +229,72 @@ export default function AddMedicationScreen() {
       }
       return newMed;
     }));
+  };
+
+  const openDatePicker = (
+    mode: "startDate" | "expiryDate",
+    pickerIndex: number,
+    initialDate?: Date
+  ) => {
+    pickerContextRef.current = { mode, index: pickerIndex };
+    setDatePickerMode(mode);
+    setActivePickerIndex(pickerIndex);
+    setPickerDraftDate(initialDate || new Date());
+    setShowDatePicker(true);
+  };
+
+  const applyPickedDate = (date: Date) => {
+    const { mode, index } = pickerContextRef.current;
+
+    if (mode === "expiryDate" && index !== null && index >= 0) {
+      updateMedicine(index, { expiryDate: date });
+      return;
+    }
+
+    if (index === -1) {
+      setSchedule((prev) => ({
+        ...prev,
+        duration: { ...prev.duration, startDate: date },
+      }));
+      return;
+    }
+
+    if (index !== null && index >= 0) {
+      updateMedicine(index, { duration: { startDate: date } });
+    }
+  };
+
+  const openTimePicker = (pickerIndex: number, timeIndex: number, timeStr: string) => {
+    timePickerContextRef.current = { index: pickerIndex, timeIndex };
+    setActivePickerIndex(pickerIndex);
+    setActiveTimeIndex(timeIndex);
+    const [hours, minutes] = (timeStr || "09:00").split(":").map(Number);
+    const draft = new Date();
+    draft.setHours(hours, minutes, 0, 0);
+    setPickerDraftTime(draft);
+    setShowTimePicker(true);
+  };
+
+  const applyPickedTime = (date: Date) => {
+    const { index, timeIndex } = timePickerContextRef.current;
+
+    const newTime = date.toLocaleTimeString("default", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    setMedicines((prev) =>
+      prev.map((med, i) => {
+        if (i !== index) return med;
+        const newTimes = [...med.customSchedule.times];
+        newTimes[timeIndex] = newTime;
+        return {
+          ...med,
+          customSchedule: { ...med.customSchedule, times: newTimes },
+        };
+      })
+    );
   };
 
   const addAnotherMedicine = () => {
@@ -327,10 +410,15 @@ export default function AddMedicationScreen() {
 
       if (isSubmitting) return;
 
+      if (isSelfSchedule && !currentUserId) {
+        Alert.alert("Error", "Unable to identify your account. Please log in again.");
+        return;
+      }
+
       setIsSubmitting(true);
 
       const payload = {
-        user: schedule.ownerId === "self" ? (userProfile as any)?.id || (userProfile as any)?._id || "self" : schedule.ownerId,
+        user: isSelfSchedule ? currentUserId : schedule.ownerId,
         name: schedule.name,
         duration: {
           startDate: schedule.duration.startDate.toISOString(),
@@ -356,9 +444,16 @@ export default function AddMedicationScreen() {
           },
           mealTiming: med.mealTiming.join(', '),
           duration: {
-            startDate: med.duration.startDate.toISOString(),
-            forHowLong: med.duration.forHowLong,
-            isOngoing: med.duration.isOngoing || false,
+            startDate: (med.isDurationInherited
+              ? schedule.duration.startDate
+              : med.duration.startDate
+            ).toISOString(),
+            forHowLong: med.isDurationInherited
+              ? schedule.duration.forHowLong
+              : med.duration.forHowLong,
+            isOngoing: med.isDurationInherited
+              ? schedule.duration.isOngoing || false
+              : med.duration.isOngoing || false,
           },
           isDurationInherited: med.isDurationInherited,
           expiryDate: med.expiryDate ? med.expiryDate.toISOString() : undefined,
@@ -653,11 +748,7 @@ export default function AddMedicationScreen() {
                       <TouchableOpacity
                         key={tIndex}
                         style={styles.routineChipLarge}
-                        onPress={() => {
-                          setActivePickerIndex(index);
-                          setActiveTimeIndex(tIndex);
-                          setShowTimePicker(true);
-                        }}
+                        onPress={() => openTimePicker(index, tIndex, time)}
                       >
                         <View style={styles.routineChipHeader}>
                           <Text style={styles.routineChipTitle}>Dose {tIndex + 1}</Text>
@@ -705,9 +796,7 @@ export default function AddMedicationScreen() {
                     <TouchableOpacity
                       style={styles.dateButton}
                       onPress={() => {
-                        setDatePickerMode("startDate");
-                        setActivePickerIndex(index);
-                        setShowDatePicker(true);
+                        openDatePicker("startDate", index, med.duration.startDate);
                       }}
                     >
                       <View style={styles.dateIconContainer}>
@@ -842,9 +931,7 @@ export default function AddMedicationScreen() {
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => {
-                  setDatePickerMode("expiryDate");
-                  setActivePickerIndex(index);
-                  setShowDatePicker(true);
+                  openDatePicker("expiryDate", index, med.expiryDate || new Date());
                 }}
               >
                 <View style={styles.dateIconContainer}>
@@ -941,7 +1028,7 @@ export default function AddMedicationScreen() {
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {schedule.ownerId === "self" ? "Your Schedule" : `${getPatientName()}'s Plan`}
+            {isSelfSchedule ? "Your Schedule" : `${getPatientName()}'s Plan`}
           </Text>
           {__DEV__ ? (
             <TouchableOpacity
@@ -974,7 +1061,7 @@ export default function AddMedicationScreen() {
               <Text style={styles.patientInfoName}>{getPatientName()}</Text>
               <Text style={styles.patientInfoRole}>{theme.label}</Text>
             </View>
-            <Ionicons name={schedule.ownerId === "self" ? "heart" : "person-circle"} size={24} color={theme.accent} />
+            <Ionicons name={isSelfSchedule ? "heart" : "person-circle"} size={24} color={theme.accent} />
           </View>
 
           {/* Patient Selection */}
@@ -984,14 +1071,14 @@ export default function AddMedicationScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.patientSelector} contentContainerStyle={{ paddingBottom: 5 }}>
                 <TouchableOpacity
                   key="self"
-                  style={[styles.patientChip, schedule.ownerId === "self" && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                  style={[styles.patientChip, isSelfSchedule && { backgroundColor: theme.accent, borderColor: theme.accent }]}
                   onPress={() => setSchedule(prev => ({ ...prev, ownerId: "self" }))}
                 >
                   <View style={styles.patientChipContent}>
-                    <View style={[styles.patientAvatarMini, { backgroundColor: schedule.ownerId === "self" ? "rgba(255,255,255,0.2)" : theme.lightAccent }]}>
-                      <Ionicons name="person" size={12} color={schedule.ownerId === "self" ? "white" : theme.accent} />
+                    <View style={[styles.patientAvatarMini, { backgroundColor: isSelfSchedule ? "rgba(255,255,255,0.2)" : theme.lightAccent }]}>
+                      <Ionicons name="person" size={12} color={isSelfSchedule ? "white" : theme.accent} />
                     </View>
-                    <Text style={[styles.patientChipText, schedule.ownerId === "self" && styles.patientChipTextActive]}>Me</Text>
+                    <Text style={[styles.patientChipText, isSelfSchedule && styles.patientChipTextActive]}>Me</Text>
                   </View>
                 </TouchableOpacity>
                 {managedPatients.map((patient: any) => {
@@ -1096,9 +1183,7 @@ export default function AddMedicationScreen() {
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => {
-                  setDatePickerMode("startDate");
-                  setActivePickerIndex(-1);
-                  setShowDatePicker(true);
+                  openDatePicker("startDate", -1, schedule.duration.startDate);
                 }}
               >
                 <View style={styles.dateIconContainer}>
@@ -1161,56 +1246,6 @@ export default function AddMedicationScreen() {
             </View>
           </View>
 
-          {showDatePicker && (
-            <DateTimePicker
-              value={
-                datePickerMode === "expiryDate" && activePickerIndex !== null
-                  ? (medicines[activePickerIndex]?.expiryDate || new Date())
-                  : activePickerIndex === -1
-                    ? schedule.duration.startDate
-                    : (activePickerIndex !== null ? medicines[activePickerIndex].duration.startDate : new Date())
-              }
-              mode="date"
-              minimumDate={datePickerMode === "expiryDate" ? new Date() : undefined}
-              onChange={(event, date) => {
-                setShowDatePicker(false);
-                if (date) {
-                  if (datePickerMode === "expiryDate" && activePickerIndex !== null) {
-                    updateMedicine(activePickerIndex, { expiryDate: date });
-                  } else if (activePickerIndex === -1) {
-                    setSchedule(prev => ({ ...prev, duration: { ...prev.duration, startDate: date } }));
-                  } else if (activePickerIndex !== null) {
-                    updateMedicine(activePickerIndex, { duration: { startDate: date } });
-                  }
-                }
-              }}
-            />
-          )}
-
-          {showTimePicker && (
-            <DateTimePicker
-              value={(() => {
-                const times = activePickerIndex !== null ? medicines[activePickerIndex].customSchedule.times : ["09:00"];
-                const timeStr = times[activeTimeIndex] || "09:00";
-                const [hours, minutes] = timeStr.split(":").map(Number);
-                const date = new Date();
-                date.setHours(hours, minutes, 0, 0);
-                return date;
-              })()}
-              mode="time"
-              onChange={(event, date) => {
-                setShowTimePicker(false);
-                if (date && activePickerIndex !== null) {
-                  const newTime = date?.toLocaleTimeString("default", {
-                    hour: "2-digit", minute: "2-digit", hour12: false,
-                  });
-                  const newTimes = [...medicines[activePickerIndex].customSchedule.times];
-                  newTimes[activeTimeIndex] = newTime;
-                  updateMedicine(activePickerIndex, { customSchedule: { times: newTimes } });
-                }
-              }}
-            />
-          )}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -1245,6 +1280,29 @@ export default function AddMedicationScreen() {
             setRoutines(fetchedRoutines);
           }
         }}
+      />
+      <AppDateTimePicker
+        visible={showDatePicker}
+        mode="date"
+        value={pickerDraftDate}
+        minimumDate={datePickerMode === "expiryDate" ? new Date() : undefined}
+        title={datePickerMode === "expiryDate" ? "Expiry date" : "Start date"}
+        onConfirm={(date) => {
+          applyPickedDate(date);
+          setShowDatePicker(false);
+        }}
+        onCancel={() => setShowDatePicker(false)}
+      />
+      <AppDateTimePicker
+        visible={showTimePicker}
+        mode="time"
+        value={pickerDraftTime}
+        title="Select time"
+        onConfirm={(date) => {
+          applyPickedTime(date);
+          setShowTimePicker(false);
+        }}
+        onCancel={() => setShowTimePicker(false)}
       />
     </View>
   );

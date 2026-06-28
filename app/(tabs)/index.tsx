@@ -31,6 +31,16 @@ import {
 } from "../../utils/notifications";
 import { getTodaysLogs, updateLogStatus, type MedicineLog } from "../../services/api/medicineLogs";
 import RoutineService, { type Routine } from "../../services/api/routine";
+import {
+  formatScheduledTimeDisplay,
+  getLogUniqueKey,
+  getMedicineIdFromLog,
+  getRoutineNameFromLog,
+  getScheduleSlotDisplay,
+  groupMedicineLogsForDisplay,
+  parseScheduledTimeToMinutes,
+} from "../../utils/scheduleSlots";
+import { MEDICATION_THEMES } from "../../constants/medicationTheme";
 
 // Create animated circle component
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -88,6 +98,13 @@ const QUICK_ACTIONS = [
     route: "/medications/add" as const,
     color: "#059669",
     bgColor: "#D1FAE5",
+  },
+  {
+    icon: "folder-open-outline" as const,
+    label: "Plans",
+    route: "/medications/groups" as const,
+    color: MEDICATION_THEMES.self.accent,
+    bgColor: MEDICATION_THEMES.self.lightAccent,
   },
   {
     icon: "calendar" as const,
@@ -353,8 +370,7 @@ export default function HomeScreen() {
 
     for (const log of todaysLogs) {
       if (log.status !== 'pending') continue;
-      const [h, m] = log.scheduledTime.split(":").map(Number);
-      const logMinutes = h * 60 + m;
+      const logMinutes = parseScheduledTimeToMinutes(String(log.scheduledTime));
       const diff = logMinutes - currentMinutes;
       // Also consider current/slightly past if still pending
       if (diff > -30 && diff < smallestDiff) {
@@ -454,7 +470,12 @@ export default function HomeScreen() {
                     <View style={styles.heroCardText}>
                       <Text style={styles.heroNextLabel}>UPCOMING MEDICATION</Text>
                       <Text style={styles.heroMedName}>{nextMedLog.log.medicineId?.name || 'Medication'}</Text>
-                      <Text style={styles.heroMedDosage}>{nextMedLog.log.scheduledTime}</Text>
+                      <Text style={styles.heroMedDosage}>
+                        {getScheduleSlotDisplay(
+                          String(nextMedLog.log.scheduledTime),
+                          getRoutineNameFromLog(nextMedLog.log, routines)
+                        ).category} • {formatScheduledTimeDisplay(String(nextMedLog.log.scheduledTime))}
+                      </Text>
                     </View>
                   </View>
 
@@ -567,8 +588,10 @@ export default function HomeScreen() {
             </View>
 
             {(() => {
-              const filteredLogs = todaysLogs.filter(log =>
-                log.medicineId?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+              const filteredLogs = todaysLogs.filter((log) =>
+                (log.medicineId?.name || "")
+                  .toLowerCase()
+                  .includes(searchQuery.toLowerCase())
               );
 
               if (todaysLogs.length === 0) {
@@ -592,25 +615,20 @@ export default function HomeScreen() {
                 );
               }
 
-              // Group logs by time slot
-              const grouped: { time: string; logs: MedicineLog[] }[] = [];
-              const timeSlots = Array.from(new Set(filteredLogs.map(l => l.scheduledTime))).sort();
-
-              timeSlots.forEach(time => {
-                grouped.push({
-                  time,
-                  logs: filteredLogs.filter(l => l.scheduledTime === time)
-                });
-              });
+              const grouped = groupMedicineLogsForDisplay(filteredLogs, routines);
 
               return (
                 <View style={styles.timelineContainer}>
                   {grouped.map((group, index) => {
                     const allTaken = group.logs.every(l => l.status === 'taken');
-                    const routineName = routines.find(r => group.logs[0].routineId === r._id)?.name;
+                    const routineName = group.logs
+                      .map((log) => getRoutineNameFromLog(log, routines))
+                      .find(Boolean);
+                    const firstLog = group.logs[0];
+                    const slotDisplay = getScheduleSlotDisplay(String(firstLog.scheduledTime), routineName);
 
                     return (
-                      <View key={group.time} style={styles.timelineRow}>
+                      <View key={group.key} style={styles.timelineRow}>
                         <View style={styles.timelineTrack}>
                           <View style={[styles.timelineDot, allTaken && styles.timelineDotTaken]} />
                           {index !== grouped.length - 1 && <View style={styles.timelineLine} />}
@@ -618,20 +636,25 @@ export default function HomeScreen() {
 
                         <View style={[styles.premiumDoseCard, allTaken && styles.premiumDoseCardTaken]}>
                           <View style={styles.groupBadge}>
-                            <Ionicons name="time-outline" size={12} color="#059669" />
-                            <Text style={styles.groupBadgeText}>{routineName || "Custom Slot"} • {group.time}</Text>
+                            <Ionicons name={slotDisplay.icon as any} size={12} color="#059669" />
+                            <Text style={styles.groupBadgeText}>
+                              {slotDisplay.category} • {slotDisplay.timeDisplay}
+                            </Text>
                           </View>
 
                           {group.logs.map((log) => {
                             const isTaken = log.status === 'taken';
+                            const logTimeDisplay = formatScheduledTimeDisplay(String(log.scheduledTime));
+                            const medicineId = getMedicineIdFromLog(log) ?? "unknown";
+                            const rowKey = `${medicineId}:${getLogUniqueKey(log)}`;
                             return (
-                              <View key={log._id} style={styles.groupMedRow}>
+                              <View key={rowKey} style={styles.groupMedRow}>
                                 <View style={styles.doseInfo}>
                                   <Text style={[styles.premiumMedicineName, isTaken && styles.premiumTextTaken]}>
                                     {log.medicineId?.name || 'Medicine'}
                                   </Text>
                                   <Text style={styles.premiumDosageInfo}>
-                                    Scheduled for {log.scheduledTime}
+                                    Scheduled for {logTimeDisplay}
                                   </Text>
                                 </View>
                                 <View style={styles.cardActions}>
@@ -653,19 +676,6 @@ export default function HomeScreen() {
                             );
                           })}
 
-                          {/* Float Edit Button at Bottom Right */}
-                          <TouchableOpacity
-                            onPress={() => {
-                              const ids = Array.from(new Set(group.logs.map(l => l.medicineId?._id).filter(id => !!id))).join(',');
-                              router.push({
-                                pathname: '/medications/edit',
-                                params: { ids }
-                              });
-                            }}
-                            style={styles.floatingCardEditBtn}
-                          >
-                            <Ionicons name="pencil" size={18} color="#94A3B8" />
-                          </TouchableOpacity>
                         </View>
                       </View>
                     );
@@ -726,7 +736,7 @@ export default function HomeScreen() {
                     Status: {log.status}
                   </Text>
                   <Text style={styles.notificationTime}>
-                    {log.scheduledTime}
+                    {formatScheduledTimeDisplay(String(log.scheduledTime))}
                   </Text>
                 </View>
               </View>
@@ -1440,16 +1450,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  editIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
-    alignSelf: "flex-end",
-    marginTop: 8,
-  },
   groupBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -1465,24 +1465,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#059669",
-  },
-  floatingCardEditBtn: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
   },
   groupMedRow: {
     flexDirection: "row",

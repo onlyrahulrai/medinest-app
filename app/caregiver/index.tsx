@@ -154,10 +154,6 @@ export default function CaregiverDashboard() {
     }
   };
 
-  const handleEdit = (medId: string) => {
-    router.push(`/medications/edit?id=${medId}&patientId=${selectedMember}`);
-  };
-
   // Group medications by scheduleGroupId AND time slot (same as home screen)
   const getGroupedMedications = () => {
     const grouped: { key: string; meds: Medication[]; time: string }[] = [];
@@ -418,12 +414,6 @@ export default function CaregiverDashboard() {
                           );
                         })}
 
-                        <TouchableOpacity
-                          style={styles.editIconBtn}
-                          onPress={() => handleEdit(group.meds[0].id)}
-                        >
-                          <Ionicons name="create-outline" size={18} color="#666" />
-                        </TouchableOpacity>
                       </View>
                     </View>
                   );
@@ -811,16 +801,6 @@ const styles = StyleSheet.create({
   cardActions: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  editIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
-    alignSelf: "flex-end",
-    marginTop: 8,
   },
   groupBadge: {
     flexDirection: "row",

@@ -12,6 +12,7 @@ export interface MedicineGroupSummary {
   user: string;
   createdBy?: string;
   isSelfCreated?: boolean;
+  patientName?: string;
   name?: string;
   type: "single" | "multi";
   duration: MedicineGroupDuration;
@@ -135,12 +136,19 @@ export interface UpdateMedicineGroupPayload {
 export const medicineGroupService = {
   getAll: async (
     status?: "active" | "completed" | "archived",
-    patientId?: string
+    patientId?: string,
+    caregiverManaged?: boolean
   ): Promise<MedicineGroupListResponse> => {
     const response = await axiosInstance.get<MedicineGroupListResponse>("/medicine-groups", {
-      params: { status, patientId },
+      params: { status, patientId, caregiverManaged: caregiverManaged || undefined },
     });
     return response.data;
+  },
+
+  getCaregiverManaged: async (
+    status?: "active" | "completed" | "archived"
+  ): Promise<MedicineGroupListResponse> => {
+    return medicineGroupService.getAll(status, undefined, true);
   },
 
   getById: async (id: string, patientId?: string): Promise<MedicineGroupDetails> => {
@@ -161,9 +169,16 @@ export const medicineGroupService = {
 
 export async function getAllMedicineGroups(
   status?: "active" | "completed" | "archived",
-  patientId?: string
+  patientId?: string,
+  caregiverManaged?: boolean
 ) {
-  return medicineGroupService.getAll(status, patientId);
+  return medicineGroupService.getAll(status, patientId, caregiverManaged);
+}
+
+export async function getCaregiverManagedMedicineGroups(
+  status?: "active" | "completed" | "archived"
+) {
+  return medicineGroupService.getCaregiverManaged(status);
 }
 
 export async function getMedicineGroupById(id: string, patientId?: string) {

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
@@ -16,16 +16,28 @@ import MedicineGroupCard from "../../../components/medications/MedicineGroupCard
 import { MEDICATION_THEMES } from "../../../constants/medicationTheme";
 import {
   getAllMedicineGroups,
+  getCaregiverManagedMedicineGroups,
   type MedicineGroupSummary,
 } from "../../../services/api/medicineGroups";
 
 export default function MedicineGroupsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ patientId?: string; caregiverManaged?: string }>();
+  const patientId = Array.isArray(params.patientId) ? params.patientId[0] : params.patientId;
+  const caregiverManaged =
+    params.caregiverManaged === "true" || params.caregiverManaged === "1";
+
   const theme = MEDICATION_THEMES.self;
   const [groups, setGroups] = useState<MedicineGroupSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const headerTitle = useMemo(() => {
+    if (caregiverManaged) return "Patient Medicines";
+    if (patientId) return "Patient Plans";
+    return "Medicine Groups";
+  }, [caregiverManaged, patientId]);
 
   const loadGroups = useCallback(async (isRefresh = false) => {
     try {
@@ -36,7 +48,10 @@ export default function MedicineGroupsScreen() {
       }
       setError(null);
 
-      const response = await getAllMedicineGroups();
+      const response = caregiverManaged
+        ? await getCaregiverManagedMedicineGroups()
+        : await getAllMedicineGroups(undefined, patientId);
+
       setGroups(response.results || []);
     } catch (err: any) {
       const message =
@@ -47,13 +62,37 @@ export default function MedicineGroupsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [caregiverManaged, patientId]);
 
   useFocusEffect(
     useCallback(() => {
       loadGroups();
     }, [loadGroups])
   );
+
+  const openGroup = (group: MedicineGroupSummary) => {
+    router.push({
+      pathname: "/medications/groups/[id]",
+      params: {
+        id: group._id,
+        patientId: patientId || group.user,
+      },
+    });
+  };
+
+  const groupedByPatient = useMemo(() => {
+    if (!caregiverManaged) return null;
+
+    const map = new Map<string, { patientName: string; groups: MedicineGroupSummary[] }>();
+    for (const group of groups) {
+      const key = group.user;
+      const patientName = group.patientName || "Patient";
+      const entry = map.get(key) || { patientName, groups: [] };
+      entry.groups.push(group);
+      map.set(key, entry);
+    }
+    return Array.from(map.values());
+  }, [caregiverManaged, groups]);
 
   const renderContent = () => {
     if (loading) {
@@ -84,11 +123,19 @@ export default function MedicineGroupsScreen() {
           <Ionicons name="folder-open-outline" size={56} color="#CBD5E1" />
           <Text style={styles.errorTitle}>No Medicine Groups Yet</Text>
           <Text style={styles.stateText}>
-            Create a treatment plan to organize medicines into groups.
+            {caregiverManaged
+              ? "Add medications for your linked patients to see treatment plans here."
+              : "Create a treatment plan to organize medicines into groups."}
           </Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={() => router.push("/medications/add")}
+            onPress={() =>
+              router.push(
+                caregiverManaged || patientId
+                  ? `/medications/add?patientId=${patientId || ""}`
+                  : "/medications/add"
+              )
+            }
           >
             <Text style={styles.retryButtonText}>Add Medication</Text>
           </TouchableOpacity>
@@ -96,12 +143,25 @@ export default function MedicineGroupsScreen() {
       );
     }
 
+    if (groupedByPatient) {
+      return groupedByPatient.map((section) => (
+        <View key={section.patientName + section.groups[0]?.user} style={styles.patientSection}>
+          <View style={styles.patientSectionHeader}>
+            <Ionicons name="person-circle-outline" size={20} color="#059669" />
+            <Text style={styles.patientSectionTitle}>{section.patientName}</Text>
+            <Text style={styles.patientSectionCount}>
+              {section.groups.length} {section.groups.length === 1 ? "plan" : "plans"}
+            </Text>
+          </View>
+          {section.groups.map((group) => (
+            <MedicineGroupCard key={group._id} group={group} onPress={() => openGroup(group)} />
+          ))}
+        </View>
+      ));
+    }
+
     return groups.map((group) => (
-      <MedicineGroupCard
-        key={group._id}
-        group={group}
-        onPress={() => router.push(`/medications/groups/${group._id}`)}
-      />
+      <MedicineGroupCard key={group._id} group={group} onPress={() => openGroup(group)} />
     ));
   };
 
@@ -114,12 +174,20 @@ export default function MedicineGroupsScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Medicine Groups</Text>
+          <Text style={styles.headerTitle}>{headerTitle}</Text>
           <TouchableOpacity
-            onPress={() => router.push("/medications/add")}
+            onPress={() =>
+              router.push(
+                patientId
+                  ? `/medications/add?patientId=${patientId}`
+                  : caregiverManaged
+                    ? "/caregiver"
+                    : "/medications/add"
+              )
+            }
             style={styles.backButton}
           >
-            <Ionicons name="add" size={24} color="white" />
+            <Ionicons name={caregiverManaged ? "people" : "add"} size={24} color="white" />
           </TouchableOpacity>
         </View>
 
@@ -135,7 +203,7 @@ export default function MedicineGroupsScreen() {
             />
           }
         >
-          {!loading && !error && groups.length > 0 ? (
+          {!loading && !error && groups.length > 0 && !caregiverManaged ? (
             <Text style={styles.summaryText}>
               {groups.length} treatment {groups.length === 1 ? "plan" : "plans"}
             </Text>
@@ -195,6 +263,26 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginBottom: 12,
     fontWeight: "600",
+  },
+  patientSection: {
+    marginBottom: 24,
+  },
+  patientSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  patientSectionTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  patientSectionCount: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
   },
   centerState: {
     alignItems: "center",

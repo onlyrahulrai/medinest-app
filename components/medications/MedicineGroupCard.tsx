@@ -62,6 +62,11 @@ export default function MedicineGroupCard({
           <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>
+          {group.patientName ? (
+            <Text style={styles.patientName} numberOfLines={1}>
+              For {group.patientName}
+            </Text>
+          ) : null}
           <Text style={styles.subtitle}>
             {group.medicineCount} {group.medicineCount === 1 ? "medicine" : "medicines"}
             {group.duration?.forHowLong ? ` • ${group.duration.forHowLong}` : ""}
@@ -79,6 +84,16 @@ export default function MedicineGroupCard({
         <View style={styles.metaItem}>
           <Ionicons name="calendar-outline" size={14} color="#64748B" />
           <Text style={styles.metaText}>Started {formatDate(group.duration?.startDate)}</Text>
+        </View>
+        <View style={styles.metaItem}>
+          <Ionicons
+            name={group.reminderEnabled ? "notifications" : "notifications-off-outline"}
+            size={14}
+            color={group.reminderEnabled ? theme.accent : "#94A3B8"}
+          />
+          <Text style={styles.metaText}>
+            {group.reminderEnabled ? "Reminders on" : "Reminders off"}
+          </Text>
         </View>
       </View>
 
@@ -140,6 +155,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0F172A",
     marginBottom: 4,
+  },
+  patientName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#059669",
+    marginBottom: 2,
   },
   subtitle: {
     fontSize: 13,

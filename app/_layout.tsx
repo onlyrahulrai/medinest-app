@@ -59,6 +59,10 @@ export default function Layout() {
             options={{ headerShown: false, title: "" }}
           />
           <Stack.Screen
+            name="caregiver/medicines"
+            options={{ headerShown: false, title: "" }}
+          />
+          <Stack.Screen
             name="caregiver/activity"
             options={{ headerShown: false, title: "" }}
           />

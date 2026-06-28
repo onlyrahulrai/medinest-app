@@ -30,7 +30,8 @@ const formatDate = (value?: string) => {
 
 export default function MedicineGroupDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, patientId: patientIdParam } = useLocalSearchParams<{ id: string; patientId?: string }>();
+  const patientId = Array.isArray(patientIdParam) ? patientIdParam[0] : patientIdParam;
   const [group, setGroup] = useState<MedicineGroupDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,7 +53,7 @@ export default function MedicineGroupDetailScreen() {
         }
         setError(null);
 
-        const response = await getMedicineGroupById(id);
+        const response = await getMedicineGroupById(id, patientId);
         setGroup(response);
       } catch (err: any) {
         const message =
@@ -64,7 +65,7 @@ export default function MedicineGroupDetailScreen() {
         setRefreshing(false);
       }
     },
-    [id]
+    [id, patientId]
   );
 
   useFocusEffect(
@@ -144,6 +145,9 @@ export default function MedicineGroupDetailScreen() {
                 </View>
                 <View style={styles.summaryContent}>
                   <Text style={styles.summaryTitle}>{title}</Text>
+                  {group.patientName ? (
+                    <Text style={styles.patientName}>For {group.patientName}</Text>
+                  ) : null}
                   <Text style={styles.summarySubtitle}>
                     {group.medicines.length}{" "}
                     {group.medicines.length === 1 ? "medicine" : "medicines"} in this plan
@@ -300,6 +304,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: "#0F172A",
+    marginBottom: 4,
+  },
+  patientName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#059669",
     marginBottom: 4,
   },
   summarySubtitle: {
